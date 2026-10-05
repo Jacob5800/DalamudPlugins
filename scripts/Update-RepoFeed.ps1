@@ -36,7 +36,9 @@ $entry.Description = $manifest.Description
 if (-not [string]::IsNullOrWhiteSpace([string]$manifest.IconUrl)) {
     $entry | Add-Member -NotePropertyName IconUrl -NotePropertyValue $manifest.IconUrl -Force
 }
-$entry.Changelog = $manifest.Changelog
+$changelog = [string]$manifest.Changelog
+$changelog = $changelog.Replace('\r\n', "`n").Replace('\n', "`n").Replace('\r', "`n")
+$entry.Changelog = $changelog
 $download = "https://github.com/Jacob5800/DalamudPlugins/releases/download/$ReleaseTag/$AssetName"
 $entry.DownloadLinkInstall = $download
 $entry.DownloadLinkUpdate = $download
