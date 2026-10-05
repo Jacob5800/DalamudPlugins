@@ -60,3 +60,10 @@ jobs:
             git commit -m "chore: update feed for $env:GITHUB_REF_NAME"
             git push origin HEAD:main
           }
+      - name: Announce release changelog on Discord
+        shell: pwsh
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Send-DiscordRelease.ps1 -ReleaseTag $env:RELEASE_TAG

@@ -13,6 +13,8 @@
 - Keep the matching entry in the root `repo.json` synchronized. The custom repository entry's `Changelog` is what users see in Dalamud's installer, so it must never be empty for a published plugin version.
 - Describe user-visible features and fixes. Leave build, workflow, and other internal implementation details out of installer notes.
 - Add the changelog before creating the version tag. The release workflow packages the manifest and copies its `Changelog` into the root feed; verify the release asset, feed version, download links, and changelog after the workflow completes.
+- After the combined feed update, release workflows should post the released plugin's changelog through `scripts/Send-DiscordRelease.ps1` when the `DISCORD_WEBHOOK_URL` Actions secret is configured.
+- Read the Discord webhook only from that Actions secret; never commit it or print it in logs. Notification failures must not fail a plugin release.
 
 ## Version and release alignment
 - Keep each plugin's project version, JSON manifest `AssemblyVersion`, and its tag version aligned.
