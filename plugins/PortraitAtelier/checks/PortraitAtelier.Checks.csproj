@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../PortraitPreset.cs" Link="PortraitPreset.cs" />
+    <Compile Include="../PortraitStyle.cs" Link="PortraitStyle.cs" />
+    <Compile Include="../PortraitDesignSession.cs" Link="PortraitDesignSession.cs" />
+    <Compile Include="../PortraitCharacterStyling.cs" Link="PortraitCharacterStyling.cs" />
+  </ItemGroup>
+</Project>

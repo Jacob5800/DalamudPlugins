@@ -1,0 +1,22 @@
+{
+  "Author": "Jacob5800",
+  "Name": "Strategy Board Library",
+  "InternalName": "StrategyBoardLibrary",
+  "AssemblyVersion": "0.1.0.0",
+  "Description": "Searches a local library of FFXIV Strategy Board share codes and provides a quick copy-to-import flow.",
+  "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "strategy",
+    "board",
+    "share-code",
+    "raid"
+  ],
+  "DalamudApiLevel": 15,
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": false,
+  "LoadPriority": 0,
+  "Punchline": "Search and import strategy board share codes.",
+  "AcceptsFeedback": true
+}

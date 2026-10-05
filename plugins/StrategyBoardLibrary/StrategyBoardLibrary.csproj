@@ -1,0 +1,15 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Author>Jacob5800</Author>
+    <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>
+    <Name>Strategy Board Library</Name>
+    <Punchline>Search, organize, and import strategy board share codes.</Punchline>
+    <Description>A searchable local library for FFXIV Strategy Board share codes, with quick copy and FFXIVStrats link intake.</Description>
+    <Tags>strategy;board;share-code;raid</Tags>
+    <OutputPath Condition="'$(Configuration)' == 'Debug'">$(MSBuildProjectDirectory)\dist\dev\</OutputPath>
+    <OutputPath Condition="'$(Configuration)' == 'Release'">$(MSBuildProjectDirectory)\dist\release\</OutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,17 @@
+{
+  "Author": "Jacob5800",
+  "Name": "Portrait Atelier",
+  "InternalName": "PortraitAtelier",
+  "AssemblyVersion": "0.1.3.0",
+  "Description": "Create and apply curated portrait designs from your own character in one click.",
+  "ApplicableVersion": "any",
+  "Tags": ["portrait", "adventurer-plate", "photography"],
+  "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+  "DalamudApiLevel": 15,
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": true,
+  "LoadPriority": 0,
+  "Punchline": "Make and apply a portrait in one click.",
+  "AcceptsFeedback": true
+}
