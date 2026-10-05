@@ -43,7 +43,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private readonly IAddonLifecycle lifecycle;
     private readonly IPluginLog log;
     private readonly OpenRetainerSellDelegate? openRetainerSell;
-    private readonly SellItemToVendorDelegate? sellItemToVendor;
+    private readonly RetainerItemCommandDelegate? retainerItemCommandAction;
     private readonly bool retainerFieldsSupported;
     private Hook<RequestResultDelegate>? resultHook;
     private Hook<EndRequestDelegate>? endHook;
@@ -66,13 +66,16 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private delegate void OpenRetainerSellDelegate(AgentRetainer* agent, InventoryType inventoryType, ushort inventorySlot);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void SellItemToVendorDelegate(uint inventorySlot, InventoryType inventoryType, uint unused);
+    private const long HaveRetainerSellItemsCommand = 5;
+
+    private delegate void RetainerItemCommandDelegate(nint agentItemCommandModule, uint inventorySlot,
+        InventoryType inventoryType, uint unused, long command);
 
     public long DialogGeneration { get; private set; } = 1;
     public string? LocalAvailabilityError { get; private set; }
     public string? RetainerAvailabilityError { get; private set; }
     public string? ItemSelectorAvailabilityError { get; private set; }
-    public string? VendorSaleAvailabilityError { get; private set; }
+    public string? RetainerSaleAvailabilityError { get; private set; }
     public bool IsComparisonVisible => IsAddonVisible("ItemSearchResult");
     public bool IsSellWindowVisible => GetSellAddon() != null;
     public bool IsClientStateUnavailable => !clientState.IsLoggedIn || !player.IsLoaded || player.ContentId == 0 ||
@@ -130,15 +133,15 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             ItemSelectorAvailabilityError = "The game's retainer item selector could not be verified. Price scanning is available, but automatic applying is disabled on this client build.";
         try
         {
-            // AutoRetainer uses this game shop action for NPC sales instead of selecting an inventory context-menu row.
-            const string sellItemToShop = "48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 8B F2 8B E9";
-            var target = scanner.ScanText(sellItemToShop);
-            sellItemToVendor = Marshal.GetDelegateForFunctionPointer<SellItemToVendorDelegate>(target);
+            // AgentRetainer's inventory context command uses the retainer agent's item-command submodule.
+            const string retainerItemCommandSignature = "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 48 8B 5C 24 ?? 41 8B F0";
+            var target = scanner.ScanText(retainerItemCommandSignature);
+            retainerItemCommandAction = Marshal.GetDelegateForFunctionPointer<RetainerItemCommandDelegate>(target);
         }
         catch (Exception ex)
         {
-            VendorSaleAvailabilityError = "The game's NPC vendor sale action could not be verified on this client build.";
-            log.Warning(ex, "NPC vendor sale action is not available on this game build.");
+            RetainerSaleAvailabilityError = "The retainer's inventory sale action could not be verified on this client build.";
+            log.Warning(ex, "Retainer inventory sale action is not available on this game build.");
         }
         try
         {
@@ -723,61 +726,46 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return OpenRetainerSell(agent, type, checked((ushort)expected.Slot), out error);
     }
 
-    public bool IsVendorShopOpen => GetVendorShopAddon() != null;
-    public bool IsVendorContextMenuOpen => IsAddonVisible("ContextMenu");
-    public bool IsVendorQuantityPromptOpen => IsAddonVisible("InputNumeric");
-    public bool IsVendorConfirmationOpen => IsAddonVisible("SelectYesno");
-
-    public bool TryDismissVendorItemContextMenu(out string error)
+    public bool TrySellInventoryItemThroughRetainer(CarriedItemCandidate expected, MarketSession expectedSession,
+        out string error)
     {
-        var shop = GetVendorShopAddon();
-        var menu = (AddonContextMenu*)gameGui.GetAddonByName("ContextMenu").Address;
-        var context = AgentInventoryContext.Instance();
-        if (shop == null || menu == null || !menu->IsReady || !menu->IsVisible || context == null ||
-            context->OwnerAddonId != shop->Id)
+        if (!TryGetSession(out var session, out error)) return false;
+        if (session.ContentId != expectedSession.ContentId || session.RetainerId != expectedSession.RetainerId ||
+            session.WorldId != expectedSession.WorldId)
         {
-            error = "An unrelated item menu is open. Close it before Auto vendor can continue.";
+            error = "The active retainer changed. Reopen its inventory-selling screen before continuing.";
             return false;
         }
-
-        // Auto vendor was explicitly started, and this item menu belongs to the active shop.
-        // Closing it does not select an action or sell anything.
-        menu->Close(true);
-        error = string.Empty;
-        return true;
-    }
-
-    public bool TrySellInventoryItemToVendor(CarriedItemCandidate expected, out string error)
-    {
-        error = string.Empty;
-        var shop = GetVendorShopAddon();
-        if (shop == null)
-        { error = "Open an NPC vendor's Shop window before starting Auto vendor."; return false; }
-        if (IsVendorContextMenuOpen || IsVendorQuantityPromptOpen || IsVendorConfirmationOpen)
-        { error = "Close the current vendor item menu or prompt before starting Auto vendor."; return false; }
-        if (sellItemToVendor is null)
-        { error = VendorSaleAvailabilityError ?? "The game's NPC vendor sale action is unavailable on this client build."; return false; }
+        if (retainerItemCommandAction is null)
+        {
+            error = RetainerSaleAvailabilityError ?? "The retainer's inventory sale action is unavailable on this client build.";
+            return false;
+        }
         var type = (InventoryType)expected.InventoryType;
         if (type is not (InventoryType.Inventory1 or InventoryType.Inventory2 or InventoryType.Inventory3 or InventoryType.Inventory4))
         { error = "The selected item is not in carried inventory."; return false; }
         if (!TryGetStock(type, expected.Slot, out var stock, out error)) return false;
         if (stock->GetBaseItemId() != expected.ItemId || stock->IsHighQuality() != expected.IsHq ||
             stock->GetQuantity() != expected.Quantity)
-        { error = "The inventory item changed before it could be sold. The vendor run stopped safely."; return false; }
+        { error = "The inventory item changed before the retainer sale. The run stopped safely."; return false; }
         if (IsBound(stock))
         { error = $"{expected.Name} is bound and cannot be sold. It was skipped."; return false; }
+
+        var agent = AgentRetainer.Instance();
+        if (agent == null || !agent->IsAgentActive())
+        { error = "The active retainer is no longer available."; return false; }
+
         try
         {
-            // The game applies the vendor sale to this exact inventory slot; verify the stack
-            // before and after because this action can sell immediately without a dialog.
-            sellItemToVendor((uint)expected.Slot, type, 0);
+            // The game's Have Retainer Sell Items command is command 5 on AgentRetainer's item-command submodule.
+            retainerItemCommandAction((nint)agent + 40, (uint)expected.Slot, type, 0, HaveRetainerSellItemsCommand);
             error = string.Empty;
             return true;
         }
         catch (Exception ex)
         {
-            error = "The game's NPC vendor sale action failed. No next item was attempted.";
-            log.Warning(ex, "Calling the NPC vendor sale action failed for {ItemName} in slot {Slot}.", expected.Name, expected.Slot);
+            error = "The retainer's item sale action failed. No next item was attempted.";
+            log.Warning(ex, "Calling the retainer sale action failed for {ItemName} in slot {Slot}.", expected.Name, expected.Slot);
             return false;
         }
     }
@@ -989,12 +977,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             DialogGeneration++;
         }
         return addon;
-    }
-
-    private AddonShop* GetVendorShopAddon()
-    {
-        var addon = (AddonShop*)gameGui.GetAddonByName("Shop").Address;
-        return addon != null && addon->IsReady && addon->IsVisible ? addon : null;
     }
 
     private bool IsAddonReady(string name)
