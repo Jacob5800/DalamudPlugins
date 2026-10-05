@@ -47,7 +47,7 @@
     "Author": "Jacob5800",
     "Name": "Strategy Board Library",
     "InternalName": "StrategyBoardLibrary",
-    "AssemblyVersion": "0.1.0.0",
+    "AssemblyVersion": "0.1.1.0",
     "TestingAssemblyVersion": null,
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
     "ApplicableVersion": "any",
@@ -62,10 +62,10 @@
     ],
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
-    "LastUpdate": "1791227464",
-    "Changelog": "### 0.1.0.0\n- First release of a searchable local library for FFXIV Strategy Board share codes.\n- Import copied share codes or try importing from FFXIVStrats links, then copy a selected code for the game's import screen.\n- Favorite boards and export or merge libraries as JSON.",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.1.0/StrategyBoardLibrary.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.1.0/StrategyBoardLibrary.zip",
+    "LastUpdate": "1791232944",
+    "Changelog": "### 0.1.1.0\n- Added a Discord shortcut at the bottom of the plugin window.\n- Added a custom strategy-board icon.",
     "DownloadLinkTesting": null
   }
 ]
