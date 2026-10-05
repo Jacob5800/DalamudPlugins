@@ -66,6 +66,7 @@
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.1.0/StrategyBoardLibrary.zip",
     "LastUpdate": "1791232944",
     "Changelog": "### 0.1.1.0\n- Added a Discord shortcut at the bottom of the plugin window.\n- Added a custom strategy-board icon.",
-    "DownloadLinkTesting": null
+    "DownloadLinkTesting": null,
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon.png"
   }
 ]
