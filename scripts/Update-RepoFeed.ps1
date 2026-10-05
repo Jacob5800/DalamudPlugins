@@ -33,6 +33,9 @@ $entry.ApplicableVersion = $manifest.ApplicableVersion
 $entry.DalamudApiLevel = $manifest.DalamudApiLevel
 $entry.Punchline = $manifest.Punchline
 $entry.Description = $manifest.Description
+if (-not [string]::IsNullOrWhiteSpace([string]$manifest.IconUrl)) {
+    $entry | Add-Member -NotePropertyName IconUrl -NotePropertyValue $manifest.IconUrl -Force
+}
 $entry.Changelog = $manifest.Changelog
 $download = "https://github.com/Jacob5800/DalamudPlugins/releases/download/$ReleaseTag/$AssetName"
 $entry.DownloadLinkInstall = $download
