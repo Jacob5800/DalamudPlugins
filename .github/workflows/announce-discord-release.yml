@@ -1,0 +1,24 @@
+name: Announce release changelog on Discord
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag of an already-published plugin release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post release changelog
+        shell: pwsh
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: ./scripts/Send-DiscordRelease.ps1 -ReleaseTag $env:RELEASE_TAG
