@@ -14,6 +14,7 @@ internal sealed class AutoVendorController : IDisposable
     private IReadOnlyList<CarriedItemCandidate> candidates = [];
     private IReadOnlySet<ulong> ownRetainerIds = new HashSet<ulong>();
     private MarketWorld? world;
+    private MarketSession? retainerSession;
     private CarriedItemCandidate? candidate;
     private Step step;
     private int index;
@@ -35,7 +36,7 @@ internal sealed class AutoVendorController : IDisposable
     }
 
     public bool IsRunning => step != Step.Idle;
-    public string Status { get; private set; } = "Auto vendor is stopped.";
+    public string Status { get; private set; } = "Retainer sell is stopped.";
     public int Progress => candidates.Count == 0 ? 0 : Math.Min(index + 1, candidates.Count);
     public int CandidateCount => candidates.Count;
 
@@ -44,13 +45,17 @@ internal sealed class AutoVendorController : IDisposable
         if (IsRunning) return;
         world = bridge.GetHomeWorld();
         if (world is null)
-        { Status = "Log in to start Auto vendor."; return; }
-        if (!bridge.IsVendorShopOpen)
-        { Status = "Open an NPC vendor's Shop window before starting Auto vendor."; return; }
-        if (bridge.VendorSaleAvailabilityError is { Length: > 0 } vendorSaleError)
-        { Status = vendorSaleError; return; }
+        { Status = "Log in to start retainer selling."; return; }
+        if (bridge.RetainerSaleAvailabilityError is { Length: > 0 } retainerSaleError)
+        { Status = retainerSaleError; return; }
+        if (!bridge.TryGetSession(out var selectedRetainer, out var sessionError))
+        {
+            Status = $"Open a retainer's \"Sell items in your inventory\" screen before starting. {sessionError}";
+            return;
+        }
+        retainerSession = selectedRetainer;
         if (!bridge.TryGetOwnRetainerIds(out ownRetainerIds))
-        { Status = "Your retainer ownership data is not ready. Reopen the vendor window and retry; your own listings must be excluded."; return; }
+        { Status = "Your retainer ownership data is not ready. Reopen the retainer selling screen and retry; your own listings must be excluded."; return; }
 
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out _, out var protectionError))
         { Status = protectionError; return; }
@@ -70,7 +75,7 @@ internal sealed class AutoVendorController : IDisposable
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
         step = Step.Begin;
-        Status = $"Checking {candidates.Count} carried stack(s) against Universalis. Items priced at or below {priceThreshold:N0} gil will be sold to the open vendor; excluded items are skipped.";
+        Status = $"Checking {candidates.Count} carried stack(s) against Universalis. Items priced at or below {priceThreshold:N0} gil will be sold through the retainer at the NPC base price; excluded items are skipped.";
     }
 
     public void Update()
@@ -96,7 +101,7 @@ internal sealed class AutoVendorController : IDisposable
         }
         catch (Exception ex)
         {
-            Cancel($"Auto vendor stopped after an unexpected error: {ex.Message}");
+            Cancel($"Retainer selling stopped after an unexpected error: {ex.Message}");
         }
     }
 
@@ -104,13 +109,13 @@ internal sealed class AutoVendorController : IDisposable
     {
         if (index >= candidates.Count)
         {
-            Finish($"Auto vendor complete. Checked {candidates.Count} carried stack(s). {priceThreshold:N0}-gil threshold; all qualifying items were sold or skipped safely.");
+            Finish($"Retainer sell complete. Checked {candidates.Count} carried stack(s). {priceThreshold:N0}-gil threshold; all qualifying items were sold or skipped safely.");
             return;
         }
         if (world is null || bridge.GetHomeWorld()?.WorldId != world.WorldId)
-        { Cancel("Auto vendor stopped because your home world changed."); return; }
-        if (!bridge.IsVendorShopOpen)
-        { Cancel("Auto vendor stopped because the vendor Shop window closed."); return; }
+        { Cancel("Retainer sell stopped because your home world changed."); return; }
+        if (!TryValidateRetainerSession(out var sessionError))
+        { Cancel($"Retainer sell stopped: {sessionError}"); return; }
 
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out var savedGearsetItemIds, out var protectionError))
         { Cancel(protectionError); return; }
@@ -128,7 +133,7 @@ internal sealed class AutoVendorController : IDisposable
         var inventory = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
             out _, out _, out var inventoryError);
         if (inventoryError.Length != 0)
-        { Cancel($"Auto vendor stopped because inventory could not be refreshed: {inventoryError}"); return; }
+        { Cancel($"Retainer sell stopped because inventory could not be refreshed: {inventoryError}"); return; }
         candidate = inventory.FirstOrDefault(item => item.ItemId == planned.ItemId && item.IsHq == planned.IsHq);
         if (candidate is null)
         { Skip($"Skipped {planned.Name}: no matching carried stack remains."); return; }
@@ -143,7 +148,7 @@ internal sealed class AutoVendorController : IDisposable
     private void CheckPrice()
     {
         if (candidate is not { } item || world is null || priceTask is null)
-        { Cancel("Auto vendor stopped because the active item price check was lost."); return; }
+        { Cancel("Retainer sell stopped because the active item price check was lost."); return; }
         if (!priceTask.IsCompleted)
         {
             if (DateTimeOffset.UtcNow > deadline) Skip($"Skipped {item.Name}: Universalis did not return a price in time.");
@@ -168,20 +173,21 @@ internal sealed class AutoVendorController : IDisposable
         if (lowest.Value > priceThreshold)
         { Skip($"Kept {item.Name}: lowest matching market listing is {lowest.Value:N0} gil, above the {priceThreshold:N0}-gil threshold."); return; }
         if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out quantityBefore, out var countError))
-        { Cancel($"Auto vendor stopped before selling {item.Name}: {countError}"); return; }
+        { Cancel($"Retainer sell stopped before selling {item.Name}: {countError}"); return; }
         targetReduction = item.Quantity;
         if (quantityBefore < targetReduction)
-        { Cancel($"Auto vendor stopped because the carried quantity for {item.Name} changed unexpectedly."); return; }
+        { Cancel($"Retainer sell stopped because the carried quantity for {item.Name} changed unexpectedly."); return; }
         step = Step.Sell;
-        Status = $"{item.Name} is listed at {lowest.Value:N0} gil · preparing its vendor sale…";
+        Status = $"{item.Name} is listed at {lowest.Value:N0} gil · preparing the retainer sale…";
     }
 
     private void SellCurrentItem()
     {
         if (candidate is not { } item)
-        { Cancel("Auto vendor stopped because the active item was lost."); return; }
-        if (!bridge.IsVendorShopOpen)
-        { Cancel("Auto vendor stopped because the vendor Shop window closed."); return; }
+        { Cancel("Retainer sell stopped because the active item was lost."); return; }
+        if (!TryValidateRetainerSession(out var sessionError))
+        { Cancel($"Retainer sell stopped: {sessionError}"); return; }
+        var activeRetainer = retainerSession!;
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out var savedGearsetItemIds, out var protectionError))
         { Cancel(protectionError); return; }
         if (excludedItemIds.Contains(item.ItemId))
@@ -189,28 +195,21 @@ internal sealed class AutoVendorController : IDisposable
             Skip($"Kept {item.Name}: {ItemProtection.Reason(item.ItemId, config, savedGearsetItemIds)}");
             return;
         }
-        if (bridge.IsVendorContextMenuOpen)
-        {
-            if (!bridge.TryDismissVendorItemContextMenu(out var closeError))
-            { Cancel($"Auto vendor stopped before selling {item.Name}: {closeError}"); return; }
-            Status = $"Closed the open vendor item menu. Continuing with {item.Name}…";
-            return;
-        }
-        if (bridge.IsVendorQuantityPromptOpen || bridge.IsVendorConfirmationOpen)
-        { Cancel($"Auto vendor stopped before selling {item.Name}: close the open vendor prompt first."); return; }
-        if (!bridge.TrySellInventoryItemToVendor(item, out var sellError))
-        { Cancel($"Auto vendor stopped before selling {item.Name}: {sellError}"); return; }
+        if (!bridge.TrySellInventoryItemThroughRetainer(item, activeRetainer, out var sellError))
+        { Cancel($"Retainer sell stopped before selling {item.Name}: {sellError}"); return; }
         deadline = DateTimeOffset.UtcNow.AddSeconds(10);
         step = Step.Verify;
-        Status = $"Sent the vendor sale action for {item.Name} × {item.Quantity:N0}; verifying inventory before continuing…";
+        Status = $"Sent the retainer sale action for {item.Name} × {item.Quantity:N0}; verifying inventory before continuing…";
     }
 
     private void VerifySale()
     {
-        if (candidate is not { } item) { Cancel("Auto vendor stopped because the active item was lost."); return; }
+        if (candidate is not { } item) { Cancel("Retainer sell stopped because the active item was lost."); return; }
+        if (!TryValidateRetainerSession(out var sessionError))
+        { Cancel($"Retainer sell stopped: {sessionError}"); return; }
         if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var current, out var error))
         {
-            if (DateTimeOffset.UtcNow > deadline) Cancel($"The vendor sale for {item.Name} could not be verified: {error}");
+            if (DateTimeOffset.UtcNow > deadline) Cancel($"The retainer sale for {item.Name} could not be verified: {error}");
             return;
         }
         var expectedRemaining = quantityBefore - targetReduction;
@@ -219,13 +218,36 @@ internal sealed class AutoVendorController : IDisposable
             index++;
             candidate = null;
             step = Step.Begin;
-            Status = $"Sold {item.Name} × {targetReduction:N0} to the vendor. Continuing to the next eligible stack…";
+            Status = $"Sold {item.Name} × {targetReduction:N0} through the retainer. Continuing to the next eligible stack…";
             return;
         }
         if (current < expectedRemaining)
-        { Cancel($"Inventory changed by more than the expected {targetReduction:N0} {item.Name}; the vendor run stopped to avoid another sale."); return; }
+        { Cancel($"Inventory changed by more than the expected {targetReduction:N0} {item.Name}; retainer sell stopped to avoid another sale."); return; }
         if (DateTimeOffset.UtcNow > deadline)
-            Cancel($"The vendor sale for {item.Name} could not be verified. Check the inventory before starting another run.");
+            Cancel($"The retainer sale for {item.Name} could not be verified. Check the inventory before starting another run.");
+    }
+
+    private bool TryValidateRetainerSession(out string error)
+    {
+        error = string.Empty;
+        if (retainerSession is null)
+        {
+            error = "No retainer sale session is active.";
+            return false;
+        }
+        if (bridge.IsSessionIdentityChanged(retainerSession))
+        {
+            error = "The selected retainer or character changed.";
+            return false;
+        }
+        if (!bridge.TryGetSession(out var current, out error)) return false;
+        if (current.ContentId != retainerSession.ContentId || current.RetainerId != retainerSession.RetainerId ||
+            current.WorldId != retainerSession.WorldId)
+        {
+            error = "The selected retainer changed.";
+            return false;
+        }
+        return true;
     }
 
     private void Skip(string message)
@@ -244,11 +266,12 @@ internal sealed class AutoVendorController : IDisposable
         candidates = [];
         candidate = null;
         priceTask = null;
+        retainerSession = null;
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
     }
 
-    public void Cancel(string message = "Auto vendor stopped. Check any open vendor prompt before continuing.")
+    public void Cancel(string message = "Retainer sell stopped. Check the retainer selling screen before continuing.")
     {
         try { cancellation.Cancel(); }
         catch (ObjectDisposedException) { }
@@ -257,6 +280,7 @@ internal sealed class AutoVendorController : IDisposable
         candidates = [];
         candidate = null;
         priceTask = null;
+        retainerSession = null;
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
     }

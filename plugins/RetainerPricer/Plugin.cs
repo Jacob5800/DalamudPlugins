@@ -35,14 +35,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        var migrateConfig = config.Version < 8;
-        if (migrateConfig)
+        var migrateConfig = config.Version < 9;
+        if (config.Version < 8)
         {
             // Move users from the former 0.10 default while preserving any custom threshold.
             if (Math.Abs(config.SniperThresholdFraction - 0.10) < 0.000001)
                 config.SniperThresholdFraction = 0.910;
-            config.Version = 8;
         }
+        if (migrateConfig) config.Version = 9;
         config.Normalize();
         if (migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
@@ -98,7 +98,7 @@ public sealed class Plugin : IDalamudPlugin
             {
                 log.Error(ex, "Retainer Pricer operation failed");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
-                vendor.Cancel("Auto vendor stopped after an unexpected error. Check the vendor window before continuing.");
+                vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
             }
         });
     }
@@ -118,7 +118,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
-            vendor.Cancel("Auto vendor stopped after an unexpected error. Check the vendor window before continuing.");
+            vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
         }
     }
 
