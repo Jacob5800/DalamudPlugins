@@ -65,9 +65,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void OpenRetainerSellDelegate(AgentRetainer* agent, InventoryType inventoryType, ushort inventorySlot);
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private const long HaveRetainerSellItemsCommand = 5;
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void RetainerItemCommandDelegate(nint agentItemCommandModule, uint inventorySlot,
         InventoryType inventoryType, uint unused, long command);
 
