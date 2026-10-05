@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
-    public int Version { get; set; } = 8;
+    public int Version { get; set; } = 9;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -29,6 +29,8 @@ public sealed class PluginConfig : IPluginConfiguration
     public int SniperMinimumSales14Days { get; set; } = 5;
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
+    public bool SniperUseDataCenterPrices { get; set; }
+    public bool SniperUseRegionPrices { get; set; }
 
     public void Normalize()
     {
@@ -53,6 +55,7 @@ public sealed class PluginConfig : IPluginConfiguration
         SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 1_800);
         SniperHistoryDays = Math.Clamp(SniperHistoryDays, 3, 14);
         SniperMinimumItemPrice = Math.Clamp(SniperMinimumItemPrice, 1, 999_999_999);
+        if (SniperUseRegionPrices) SniperUseDataCenterPrices = false;
     }
 
     public int PriceDropReviewPercentFor(uint currentPrice) => currentPrice < 10_000
