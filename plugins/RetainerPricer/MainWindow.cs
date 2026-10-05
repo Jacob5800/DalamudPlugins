@@ -170,7 +170,7 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Auto vendor")) { DrawAutoVendor(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
@@ -390,8 +390,8 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
-        ImGui.BulletText("Auto vendor: open an NPC vendor Shop window, set the price threshold, and start vendoring. Eligible carried stacks with a complete Universalis listing at or below the threshold are sold to the vendor; Exceptions, saved gear-set items, bound items, unmarketable items, missing prices, and your own retainer listings are skipped. The game’s vendor sale action sells the checked stack directly, then the plugin verifies the inventory change before continuing. Vendor sales cannot be undone.");
-        ImGui.BulletText("Sniper: Start watching scans all marketable items in the selected world, Data Center, or region scope in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Set the sale-history window, deal threshold as a percentage of the median (91% by default), minimum sales, and minimum listing value. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
+        ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Eligible carried stacks with a complete Universalis listing at or below the threshold are sold through the retainer’s “Have Retainer Sell Items” action at the game’s NPC base price; they are not listed on the marketboard. Exceptions, saved gear-set items, bound items, unmarketable items, missing prices, and your own retainer listings are skipped. The plugin verifies each inventory change before continuing.");
+        ImGui.BulletText("Sniper: choose its independent World, Data Center, or Region (including Materia) market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
         ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, optionally compare across your Data Center or region, and show or hide the server info bar shortcut. Data Center and region options cannot be used together.");
 
         ImGui.Separator();
@@ -420,9 +420,9 @@ internal sealed class MainWindow : Window
     private void DrawSniper()
     {
         var world = homeWorld();
-        var marketScope = config.UseRegionPrices
+        var marketScope = config.SniperUseRegionPrices
             ? "your home-world region plus Oceania (Materia)"
-            : config.UseDataCenterPrices
+            : config.SniperUseDataCenterPrices
                 ? world?.DataCenterName is { Length: > 0 } dataCenterName
                     ? $"the {dataCenterName} Data Center"
                     : "your home-world Data Center"
@@ -432,6 +432,17 @@ internal sealed class MainWindow : Window
 
         var isRunning = sniper.IsRunning;
         ImGui.BeginDisabled(isRunning);
+        ImGui.TextUnformatted("Market scope");
+        var worldScope = !config.SniperUseDataCenterPrices && !config.SniperUseRegionPrices;
+        if (ImGui.RadioButton("World", worldScope))
+        { config.SniperUseDataCenterPrices = false; config.SniperUseRegionPrices = false; save(); }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Data Center", config.SniperUseDataCenterPrices))
+        { config.SniperUseDataCenterPrices = true; config.SniperUseRegionPrices = false; save(); }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Region (includes Materia)", config.SniperUseRegionPrices))
+        { config.SniperUseDataCenterPrices = false; config.SniperUseRegionPrices = true; save(); }
+        ImGui.TextDisabled("This scope is independent of the pricing options in Settings.");
         var thresholdPercent = (float)(config.SniperThresholdFraction * 100.0);
         ImGui.SetNextItemWidth(120);
         if (ImGui.InputFloat("Threshold (% of median)", ref thresholdPercent, 1.0f, 5.0f, "%.1f%%"))
@@ -476,7 +487,7 @@ internal sealed class MainWindow : Window
 
         ImGui.Separator();
         ImGui.BeginDisabled(isRunning || world is null);
-        if (ImGui.Button("Start watching")) sniper.Start(world, config.UseDataCenterPrices, config.UseRegionPrices);
+        if (ImGui.Button("Start watching")) sniper.Start(world, config.SniperUseDataCenterPrices, config.SniperUseRegionPrices);
         ImGui.EndDisabled();
         if (sniper.IsRunning)
         {
@@ -571,14 +582,14 @@ internal sealed class MainWindow : Window
             : config.UseDataCenterPrices
                 ? $"the {homeWorld()?.DataCenterName ?? "home-world"} Data Center"
                 : "your home world";
-        ImGui.TextWrapped("Auto vendor checks carried marketable inventory and sells whole stacks whose matching HQ/NQ market listing is at or below the threshold. It uses the price scope from Settings and always skips Exceptions, items assigned to saved gear sets, and your own retainer listings.");
-        ImGui.TextWrapped("Open an NPC vendor's Shop window before starting. Auto vendor checks each stack with Universalis, calls the game's vendor sale action for its verified inventory slot, then confirms the inventory change before continuing. It closes an already-open item menu belonging to this vendor before continuing; bound gear is skipped.");
-        ImGui.TextDisabled($"Price scope: {scope}. A missing, incomplete, or failed price check is skipped. Vendor sales cannot be undone; add items to Exceptions before starting if you want to keep them. Saved gear-set items are protected automatically.");
+        ImGui.TextWrapped("Retainer sell checks carried marketable inventory and sells whole stacks whose matching HQ/NQ market listing is at or below the threshold. It uses the price scope from Settings and always skips Exceptions, items assigned to saved gear sets, and your own retainer listings.");
+        ImGui.TextWrapped("Summon a retainer and open “Sell items in your inventory” before starting. For each qualifying item, the plugin uses the retainer's “Have Retainer Sell Items” action, which sells it for the same base gil as an NPC shop; it does not create a marketboard listing. The plugin checks the inventory change before continuing. Bound gear is skipped.");
+        ImGui.TextDisabled($"Price scope: {scope}. Missing, incomplete, or failed price checks are skipped. Retainer sales cannot be undone; add items to Exceptions before starting if you want to keep them. Saved gear-set items are protected automatically.");
 
         ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
         var threshold = config.AutoVendorPriceThreshold;
         ImGui.SetNextItemWidth(170);
-        if (ImGui.InputInt("Sell at or below (gil per item)", ref threshold))
+        if (ImGui.InputInt("Sell through retainer at or below (gil per item)", ref threshold))
         {
             config.AutoVendorPriceThreshold = threshold;
             config.Normalize();
@@ -589,7 +600,7 @@ internal sealed class MainWindow : Window
         if (!vendor.IsRunning)
         {
             ImGui.BeginDisabled(controller.Busy);
-            if (ImGui.Button("Start vendoring")) dispatch(vendor.Start);
+            if (ImGui.Button("Start retainer sales")) dispatch(vendor.Start);
             ImGui.EndDisabled();
         }
         else
@@ -597,7 +608,7 @@ internal sealed class MainWindow : Window
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
-            ImGui.Button("Vendoring…");
+            ImGui.Button("Selling through retainer…");
             ImGui.PopStyleColor(3);
             ImGui.SameLine();
             ImGui.TextDisabled($"{vendor.Progress} / {vendor.CandidateCount} stacks");
@@ -827,7 +838,7 @@ internal sealed class MainWindow : Window
     private void DrawExceptions()
     {
         ImGui.TextUnformatted("Exception list");
-        ImGui.TextWrapped("Items in Exceptions are always skipped by automatic listing and existing-listing updates. Items assigned to saved gear sets are also protected automatically, including during Auto vendor. Untradeable and nonmarketable items are omitted automatically. Manual price lookups remain available.");
+        ImGui.TextWrapped("Items in Exceptions are always skipped by automatic listing and existing-listing updates. Items assigned to saved gear sets are also protected automatically, including during retainer selling. Untradeable and nonmarketable items are omitted automatically. Manual price lookups remain available.");
 
         ImGui.BeginDisabled(controller.Busy);
         if (ImGui.Button(controller.ExceptionInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
