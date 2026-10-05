@@ -6,6 +6,7 @@
     <Punchline>Automatically price new and existing retainer listings.</Punchline>
     <Description>Automatically price eligible inventory and reprice existing listings one gil below matching competition using Universalis market prices and recent sale history.</Description>
     <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>
+    <IconUrl>https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png</IconUrl>
     <Tags>retainer;marketboard;prices;universalis</Tags>
     <OutputPath>$(MSBuildProjectDirectory)\dist\$(Configuration)\</OutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>

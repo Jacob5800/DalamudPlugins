@@ -40,7 +40,8 @@
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
     "LastUpdate": "1791227464",
-    "DownloadLinkTesting": null
+    "DownloadLinkTesting": null,
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
   },
   {
     "Author": "Jacob5800",
