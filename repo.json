@@ -37,10 +37,10 @@
     "Changelog": "Added an Auto vendor list for items to sell regardless of market price, while keeping Exceptions, saved gear sets, and item eligibility protections in effect. Added an optional server info bar button that opens Retainer Pricer and a Discord invite button beside Send feedback.",
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/RetainerPricer/releases/latest/download/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/RetainerPricer/releases/latest/download/latest.zip",
-    "LastUpdate": "1791224369",
-    "DownloadLinkTesting": "https://github.com/Jacob5800/RetainerPricer/releases/latest/download/latest.zip"
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
+    "LastUpdate": "1791227038",
+    "DownloadLinkTesting": null
   },
   {
     "Author": "Jacob5800",
