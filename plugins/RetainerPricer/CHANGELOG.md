@@ -1,6 +1,8 @@
 # Retainer Pricer changelog
 
 ## Unreleased
+- Added independent Sniper scope options for World, Data Center, and Region (including Materia).
+- Changed retainer selling to use the retainer's “Have Retainer Sell Items” action; no NPC vendor window is needed.
 
 ## 0.4.10.0
 - Added an ETA to Sniper's one-time initial market scan; background listening does not repeat the full scan.
