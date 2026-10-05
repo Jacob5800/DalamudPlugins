@@ -54,6 +54,7 @@ internal sealed class PricingController : IDisposable
     private readonly List<RetainerIdentity> autoRetainers = [];
     private int autoRetainerIndex;
     private int autoRetainersCompleted;
+    private DateTimeOffset autoUpdateStartedAt;
     private int autoUnavailableRetainers;
     private int autoEmptyRetainers;
     private int autoUpdated;
@@ -118,15 +119,32 @@ internal sealed class PricingController : IDisposable
             {
                 var retainerName = autoRetainers.Count > autoRetainerIndex
                     ? autoRetainers[autoRetainerIndex].Name : "Retainers";
-                return step is Step.AutoStartRetainer or Step.AutoCloseSellList or Step.AutoWaitRetainerMenu or
+                var retainerProgress = step is Step.AutoStartRetainer or Step.AutoCloseSellList or Step.AutoWaitRetainerMenu or
                     Step.AutoWaitPicker or Step.AutoSelectRetainer or Step.AutoWaitTargetMenu or
                     Step.AutoSelectSellMenu or Step.AutoWaitSellList
                     ? $"Retainer {Math.Min(autoRetainerIndex + 1, autoRetainers.Count)} of {autoRetainers.Count}: {retainerName}"
                     : $"Retainer {Math.Min(autoRetainerIndex + 1, autoRetainers.Count)} of {autoRetainers.Count}: {retainerName} · listing {Math.Min(index + 1, Rows.Count)} of {Rows.Count}";
+                return $"{retainerProgress} · {AutoUpdateEta()}";
             }
             if (work == Work.BatchListing) return $"Listing {Math.Min(index + 1, batchCandidates.Count)} of {batchCandidates.Count}";
             return "";
         }
+    }
+
+    private string AutoUpdateEta()
+    {
+        var remainingRetainers = autoRetainers.Count - autoRetainersCompleted;
+        if (remainingRetainers <= 0) return "finishing";
+        if (autoRetainersCompleted == 0) return "ETA calculating after the first retainer";
+
+        var elapsedSeconds = Math.Max(0, (DateTimeOffset.UtcNow - autoUpdateStartedAt).TotalSeconds);
+        var averageSecondsPerRetainer = elapsedSeconds / autoRetainersCompleted;
+        var eta = TimeSpan.FromSeconds(Math.Max(1, Math.Ceiling(averageSecondsPerRetainer * remainingRetainers)));
+        return eta.TotalHours >= 1
+            ? $"ETA ~{(int)eta.TotalHours}h {eta.Minutes:D2}m"
+            : eta.TotalMinutes >= 1
+                ? $"ETA ~{(int)Math.Ceiling(eta.TotalMinutes)}m"
+                : $"ETA ~{(int)Math.Ceiling(eta.TotalSeconds)}s";
     }
 
     public void Update()
@@ -477,8 +495,9 @@ internal sealed class PricingController : IDisposable
         autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
         autoUpdated = autoAlreadyPriced = autoSkipped = 0;
         workSource = PriceSource.Universalis;
+        autoUpdateStartedAt = DateTimeOffset.UtcNow;
         work = Work.AutoUpdateAllRetainers;
-        nextTick = DateTimeOffset.UtcNow;
+        nextTick = autoUpdateStartedAt;
         var startDescription = startedAtPicker ? "top-to-bottom from the retainer picker" : $"with {autoRetainers[0].Name}";
         Status = $"Auto update queued for {autoRetainers.Count} retainer(s), starting {startDescription}.";
     }

@@ -7,6 +7,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public int Version { get; set; } = 8;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
+    public bool ShowServerInfoBarButton { get; set; } = true;
     public PriceSource Source { get; set; } = PriceSource.Universalis;
     public int MaximumAgeMinutes { get; set; } = 15;
     public bool UseMaximumPriceAge { get; set; }

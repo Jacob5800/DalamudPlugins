@@ -1,4 +1,5 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -14,6 +15,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commands;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly IDtrBarEntry serverInfoBarEntry;
     private readonly WindowSystem windows = new("RetainerPricer");
     private readonly PluginConfig config;
     private readonly NativeMarketBridge bridge;
@@ -28,7 +30,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
-        ICondition condition, IAddonLifecycle addons,
+        ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
         IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
@@ -43,6 +45,10 @@ public sealed class Plugin : IDalamudPlugin
         }
         config.Normalize();
         if (migrateConfig) pluginInterface.SavePluginConfig(config);
+        serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
+        serverInfoBarEntry.Tooltip = "Click to open Retainer Pricer";
+        serverInfoBarEntry.OnClick = _ => Toggle();
+        serverInfoBarEntry.Shown = config.ShowServerInfoBarButton;
         bridge = new NativeMarketBridge(gameGui, data, player, clientState, condition, addons, interop, sigScanner, log);
         var itemSheet = data.GetExcelSheet<Item>();
         var itemChoices = itemSheet
@@ -63,7 +69,8 @@ public sealed class Plugin : IDalamudPlugin
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
-            () => bridge.RetainerAvailabilityError, feedback, sniper, vendor);
+            () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
+            shown => serverInfoBarEntry.Shown = shown);
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
             log.Warning("Retainer Pricer local pricing: {Error}", localCompatibilityError);
@@ -127,6 +134,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
         commands.RemoveHandler("/retainerpricer");
         commands.RemoveHandler("/retainer");
+        serverInfoBarEntry.Remove();
         controller.Dispose();
         vendor.Dispose();
         sniper.Dispose();

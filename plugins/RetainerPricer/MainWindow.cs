@@ -18,6 +18,7 @@ internal sealed class MainWindow : Window
     private readonly FeedbackClient feedback;
     private readonly SniperMonitor sniper;
     private readonly AutoVendorController vendor;
+    private readonly Action<bool> setServerInfoBarShown;
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
@@ -45,13 +46,15 @@ internal sealed class MainWindow : Window
 
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
-        Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor) : base("Retainer Pricer")
+        Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
+        Action<bool> setServerInfoBarShown) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
         this.feedback = feedback;
         this.sniper = sniper;
         this.vendor = vendor;
+        this.setServerInfoBarShown = setServerInfoBarShown;
         if (config.Source != PriceSource.Universalis)
         {
             config.Source = PriceSource.Universalis;
@@ -347,6 +350,14 @@ internal sealed class MainWindow : Window
             : "Off by default. Turn this on to include every Data Center in your home-world region and Materia (Oceania).");
         var open = config.OpenWithRetainer;
         if (ImGui.Checkbox("Open this window with the retainer selling list", ref open)) { config.OpenWithRetainer = open; save(); }
+        var showServerInfoBarButton = config.ShowServerInfoBarButton;
+        if (ImGui.Checkbox("Show button in the server info bar", ref showServerInfoBarButton))
+        {
+            config.ShowServerInfoBarButton = showServerInfoBarButton;
+            setServerInfoBarShown(showServerInfoBarButton);
+            save();
+        }
+        ImGui.TextDisabled("Click the RP entry to open Retainer Pricer. You can also hide or reorder it in /xlsettings → Server Info Bar.");
         ImGui.EndDisabled();
         ImGui.Separator();
         ImGui.TextWrapped("Prices are per item, before tax. If an undercut would be below your minimum, or no matching competitor is available, that item is left unchanged.");
@@ -381,7 +392,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Auto vendor: open an NPC vendor Shop window, set the price threshold, and start vendoring. Eligible carried stacks with a complete Universalis listing at or below the threshold are sold to the vendor; Exceptions, saved gear-set items, bound items, unmarketable items, missing prices, and your own retainer listings are skipped. The game’s vendor sale action sells the checked stack directly, then the plugin verifies the inventory change before continuing. Vendor sales cannot be undone.");
         ImGui.BulletText("Sniper: Start watching scans all marketable items in the selected world, Data Center, or region scope in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Set the sale-history window, deal threshold as a percentage of the median (91% by default), minimum sales, and minimum listing value. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
-        ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and optionally compare across your Data Center or region. Data Center and region options cannot be used together.");
+        ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, optionally compare across your Data Center or region, and show or hide the server info bar shortcut. Data Center and region options cannot be used together.");
 
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
