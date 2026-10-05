@@ -1,12 +1,16 @@
 using System.Numerics;
 using System.Text;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
+using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
+using Dalamud.Utility;
 
 namespace StrategyBoardLibrary;
 
 internal sealed class MainWindow : Window
 {
+    private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly CatalogStore catalog;
     private string search = string.Empty;
     private string title = string.Empty;
@@ -42,6 +46,8 @@ internal sealed class MainWindow : Window
         DrawImportPanel();
         ImGui.Separator();
         DrawLibraryTransfer();
+        ImGui.Separator();
+        DrawFooter();
     }
 
     private void DrawStatus()
@@ -198,6 +204,15 @@ internal sealed class MainWindow : Window
             else
                 status = message;
         }
+    }
+
+    private void DrawFooter()
+    {
+        const string buttonLabel = "Discord";
+        var buttonWidth = ImGuiComponents.GetIconButtonWithTextWidth(FontAwesomeIcon.Gamepad, buttonLabel);
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + Math.Max(0, ImGui.GetContentRegionAvail().X - buttonWidth));
+        if (ImGuiComponents.IconButtonWithText(FontAwesomeIcon.Gamepad, buttonLabel))
+            Util.OpenLink(DiscordInviteUrl);
     }
 
     private List<CatalogEntry> GetVisibleEntries()

@@ -10,6 +10,7 @@ An API 15 Dalamud plugin prototype for keeping and searching a local collection 
 - Use **Read code or link from clipboard** to import a copied share code immediately or start fetching a copied FFXIVStrats link. Clipboard access only happens when that button is clicked.
 - Copy a selected share code, then paste it into the game's Strategy Board Import screen.
 - Export the local library as JSON and merge a JSON export from another machine.
+- Open the community Discord from the button at the bottom of the plugin window.
 
 ## Import flow
 
