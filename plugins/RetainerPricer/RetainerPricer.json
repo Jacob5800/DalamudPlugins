@@ -17,5 +17,5 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Automatically price new and existing retainer listings.",
-  "Changelog": "Added an Auto vendor list for items to sell regardless of market price, while keeping Exceptions, saved gear sets, and item eligibility protections in effect. Added an optional server info bar button that opens Retainer Pricer and a Discord invite button beside Send feedback."
+  "Changelog": "### 0.4.9.0\\n- Added an Auto vendor list for items to sell regardless of market price; exceptions and saved gear set protections still apply.\\n- Added an optional server info bar button that opens Retainer Pricer.\\n- Added a Discord invite button beside Send feedback."
 }

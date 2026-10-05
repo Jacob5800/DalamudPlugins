@@ -19,9 +19,9 @@
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/PortraitAtelier-v0.1.3.0/PortraitAtelier.zip",
     "DownloadLinkTesting": null,
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/PortraitAtelier-v0.1.3.0/PortraitAtelier.zip",
-    "Changelog": "",
+    "Changelog": "### 0.1.3.0\\n- Added one-click portrait styling with curated looks and generated variations.\\n- Added options to use unlocked poses and expressions and owned backgrounds, frames, and decorations, while keeping the current character or banner design when desired.\\n- Improved validation and application of changes in the in-game editor.",
     "TestingAssemblyVersion": null,
-    "LastUpdate": "1791226572"
+    "LastUpdate": "1791227184"
   },
   {
     "Author": "Jacob5800",
@@ -34,12 +34,12 @@
     "DalamudApiLevel": 15,
     "Punchline": "Automatically price new and existing retainer listings.",
     "Description": "Automatically price eligible inventory and reprice existing listings one gil below matching competition using Universalis market prices and recent sale history.",
-    "Changelog": "Added an Auto vendor list for items to sell regardless of market price, while keeping Exceptions, saved gear sets, and item eligibility protections in effect. Added an optional server info bar button that opens Retainer Pricer and a Discord invite button beside Send feedback.",
+    "Changelog": "### 0.4.9.0\\n- Added an Auto vendor list for items to sell regardless of market price; exceptions and saved gear set protections still apply.\\n- Added an optional server info bar button that opens Retainer Pricer.\\n- Added a Discord invite button beside Send feedback.",
     "IsHide": false,
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.9.0/RetainerPricer.zip",
-    "LastUpdate": "1791227038",
+    "LastUpdate": "1791227184",
     "DownloadLinkTesting": null
   },
   {
@@ -63,8 +63,8 @@
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
-    "LastUpdate": "1791226671",
-    "Changelog": "",
+    "LastUpdate": "1791227184",
+    "Changelog": "### 0.1.0.0\\n- First release of a searchable local library for FFXIV Strategy Board share codes.\\n- Import copied share codes or try importing from FFXIVStrats links, then copy a selected code for the game's import screen.\\n- Favorite boards and export or merge libraries as JSON.",
     "DownloadLinkTesting": null
   }
 ]

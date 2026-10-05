@@ -16,6 +16,9 @@ $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 if ([string]::IsNullOrWhiteSpace($manifest.InternalName) -or [string]::IsNullOrWhiteSpace($manifest.AssemblyVersion)) {
     throw 'The packaged plugin manifest is missing its internal name or assembly version.'
 }
+if ([string]::IsNullOrWhiteSpace([string]$manifest.Changelog)) {
+    throw 'The packaged plugin manifest must include user-facing Changelog text before a release can update the feed.'
+}
 
 $feed = @(Get-Content -LiteralPath $FeedPath -Raw | ConvertFrom-Json)
 $entry = $feed | Where-Object { $_.InternalName -eq $manifest.InternalName } | Select-Object -First 1
@@ -30,9 +33,7 @@ $entry.ApplicableVersion = $manifest.ApplicableVersion
 $entry.DalamudApiLevel = $manifest.DalamudApiLevel
 $entry.Punchline = $manifest.Punchline
 $entry.Description = $manifest.Description
-if ($manifest.PSObject.Properties.Name -contains 'Changelog') {
-    $entry.Changelog = $manifest.Changelog
-}
+$entry.Changelog = $manifest.Changelog
 $download = "https://github.com/Jacob5800/DalamudPlugins/releases/download/$ReleaseTag/$AssetName"
 $entry.DownloadLinkInstall = $download
 $entry.DownloadLinkUpdate = $download
