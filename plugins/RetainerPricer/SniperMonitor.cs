@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace RetainerPricer;
 
 internal sealed class SniperMonitor : IDisposable
@@ -76,12 +78,17 @@ internal sealed class SniperMonitor : IDisposable
             var failed = new List<string>();
             var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
                              UniversalisClient.SniperHistoryBatchSize;
+            var scanStartedAt = Stopwatch.GetTimestamp();
             for (var index = 0; index < watchedItems.Count; index += UniversalisClient.SniperHistoryBatchSize)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var batch = watchedItems.Skip(index).Take(UniversalisClient.SniperHistoryBatchSize).ToArray();
                 var currentBatch = index / UniversalisClient.SniperHistoryBatchSize + 1;
-                SetStatus($"Scanning all marketable items · {historyDays}-day history batch {currentBatch} of {batchCount} ({batch.Length} items)…");
+                var completedBatches = currentBatch - 1;
+                var eta = completedBatches > 0
+                    ? FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)
+                    : "Estimating ETA from the first batch";
+                SetStatus($"Initial scan · {index:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} ({batch.Length} items) · {eta}…");
                 try
                 {
                     var batchSales = new Dictionary<uint, List<SniperSale>>();
@@ -240,6 +247,26 @@ internal sealed class SniperMonitor : IDisposable
         }
     }
 
+    private static string FormatEta(TimeSpan elapsed, int completedBatches, int remainingBatches)
+    {
+        if (completedBatches <= 0 || remainingBatches <= 0 || elapsed <= TimeSpan.Zero)
+            return "ETA calculating";
+
+        var secondsRemaining = Math.Ceiling(elapsed.TotalSeconds / completedBatches * remainingBatches);
+        if (secondsRemaining < 60) return $"ETA about {Math.Max(1, secondsRemaining):N0}s";
+
+        var minutesRemaining = (int)Math.Ceiling(secondsRemaining / 60);
+        if (minutesRemaining < 60) return $"ETA about {minutesRemaining:N0} min";
+
+        var hours = minutesRemaining / 60;
+        var minutes = minutesRemaining % 60;
+        if (hours < 24)
+            return minutes == 0 ? $"ETA about {hours} hr" : $"ETA about {hours} hr {minutes} min";
+
+        var days = hours / 24;
+        hours %= 24;
+        return hours == 0 ? $"ETA about {days} days" : $"ETA about {days} days {hours} hr";
+    }
     private void SetStatus(string value)
     {
         lock (gate) status = value;
