@@ -52,7 +52,7 @@
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
     "Punchline": "Search and import strategy board share codes.",
-    "Description": "A searchable local library for FFXIV Strategy Board share codes, with quick copy and FFXIVStrats link intake.",
+    "Description": "Searches a local library of FFXIV Strategy Board share codes and provides a quick copy-to-import flow.",
     "Tags": [
       "strategy",
       "board",
@@ -61,10 +61,10 @@
     ],
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/Jacob5800/StrategyBoardLibrary/main/StrategyBoardLibrary.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/Jacob5800/StrategyBoardLibrary/main/StrategyBoardLibrary.zip",
-    "LastUpdate": "1791223849",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.0.0/StrategyBoardLibrary.zip",
+    "LastUpdate": "1791226671",
     "Changelog": "",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/Jacob5800/StrategyBoardLibrary/main/StrategyBoardLibrary.zip"
+    "DownloadLinkTesting": null
   }
 ]
