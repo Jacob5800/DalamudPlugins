@@ -41,6 +41,7 @@ if ($entries.Count -ne 1) {
 
 $plugin = $entries[0]
 $notes = [string]$plugin.Changelog
+$notes = $notes.Replace('\r\n', "`n").Replace('\n', "`n").Replace('\r', "`n")
 $notes = [System.Text.RegularExpressions.Regex]::Replace(
     $notes,
     '^\s*#{1,6}\s+[^\r\n]+(?:\r?\n)?',
