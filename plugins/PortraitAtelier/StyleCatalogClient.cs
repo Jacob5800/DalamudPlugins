@@ -5,7 +5,7 @@ namespace PortraitAtelier;
 
 internal static class StyleCatalogClient
 {
-    private const string CatalogUrl = "https://raw.githubusercontent.com/Jacob5800/PortraitAtelier/main/catalog/styles.json";
+    private const string CatalogUrl = "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/PortraitAtelier/catalog/styles.json";
     private const int MaximumCatalogBytes = 512 * 1024;
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(10) };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
