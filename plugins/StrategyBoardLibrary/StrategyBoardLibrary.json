@@ -19,5 +19,5 @@
   "LoadPriority": 0,
   "Punchline": "Search and import strategy board share codes.",
   "AcceptsFeedback": true,
-  "Changelog": "### 0.1.0.0\\n- First release of a searchable local library for FFXIV Strategy Board share codes.\\n- Import copied share codes or try importing from FFXIVStrats links, then copy a selected code for the game's import screen.\\n- Favorite boards and export or merge libraries as JSON."
+  "Changelog": "### 0.1.0.0\n- First release of a searchable local library for FFXIV Strategy Board share codes.\n- Import copied share codes or try importing from FFXIVStrats links, then copy a selected code for the game's import screen.\n- Favorite boards and export or merge libraries as JSON."
 }
