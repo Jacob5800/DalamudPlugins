@@ -358,7 +358,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     }
 
     public IReadOnlyList<CarriedItemCandidate> ReadCarriedInventory(IReadOnlySet<uint> marketableItemIds,
-        IReadOnlySet<uint> excludedItemIds, out int exceptionSkipped, out int unmarketableSkipped, out string error)
+        IReadOnlySet<uint> excludedItemIds, out int exceptionSkipped, out int unmarketableSkipped, out string error,
+        IReadOnlySet<uint>? additionalAllowedItemIds = null)
     {
         var result = new List<CarriedItemCandidate>();
         exceptionSkipped = 0;
@@ -387,7 +388,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 // Spiritbond indicates gear is bound to this character, so it can no longer be
                 // transferred or listed even when the base Item row is normally marketable.
                 if (IsBound(stock)) { unmarketableSkipped++; continue; }
-                if (!marketableItemIds.Contains(itemId)) { unmarketableSkipped++; continue; }
+                if (!marketableItemIds.Contains(itemId) && additionalAllowedItemIds?.Contains(itemId) != true)
+                { unmarketableSkipped++; continue; }
                 if (excludedItemIds.Contains(itemId)) { exceptionSkipped++; continue; }
                 var name = ItemName(itemId);
                 if (string.IsNullOrWhiteSpace(name)) { unmarketableSkipped++; continue; }
@@ -595,7 +597,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (addon == null || !addon->IsReady || !addon->IsVisible)
         { error = "The retainer dialogue is no longer open."; return false; }
         if (IsRetainerPickerVisible)
-        { error = "The retainer picker is still open; the greeting was not advanced."; return false; }
+        { error = "The retainer picker is still open; the dialogue was not advanced."; return false; }
         // RetainerManager.LastSelectedRetainerId can remain unset or refer to the previous
         // retainer while the Talk greeting is displayed. The selection callback has already
         // targeted `expected`; allow that transition state, but reject any other resolved ID.
@@ -607,7 +609,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (stage == null)
         { error = "The game's dialogue input handler is not available."; return false; }
 
-        // Advance only the greeting for the retainer Auto update just selected.
+        // Advance the active retainer dialogue during Auto update, including greeting and departure screens.
         var click = stackalloc AtkEvent[1];
         click[0] = new AtkEvent
         {

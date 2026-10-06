@@ -9,6 +9,7 @@ internal sealed class AutoVendorController : IDisposable
     private readonly PluginConfig config;
     private readonly IReadOnlySet<uint> marketableItemIds;
     private HashSet<uint> excludedItemIds = [];
+    private HashSet<uint> retainerSaleWhitelist = [];
     private CancellationTokenSource cancellation = new();
     private Task<PriceSnapshot>? priceTask;
     private IReadOnlyList<CarriedItemCandidate> candidates = [];
@@ -60,8 +61,9 @@ internal sealed class AutoVendorController : IDisposable
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out _, out var protectionError))
         { Status = protectionError; return; }
 
+        retainerSaleWhitelist = config.RetainerSaleWhitelistItemIds.ToHashSet();
         candidates = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
-            out var excluded, out var unmarketable, out var inventoryError);
+            out var excluded, out var unmarketable, out var inventoryError, retainerSaleWhitelist);
         if (inventoryError.Length != 0)
         { Status = inventoryError; candidates = []; return; }
         if (candidates.Count == 0)
@@ -75,7 +77,8 @@ internal sealed class AutoVendorController : IDisposable
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
         step = Step.Begin;
-        Status = $"Checking {candidates.Count} carried stack(s) against Universalis. Items priced at or below {priceThreshold:N0} gil will be sold through the retainer at the NPC base price; excluded items are skipped.";
+        var whitelistedStacks = candidates.Count(item => retainerSaleWhitelist.Contains(item.ItemId));
+        Status = $"Checking {candidates.Count} carried stack(s). Items at or below {priceThreshold:N0} gil will be sold at NPC base price; {whitelistedStacks} whitelisted stack(s) bypass price checks. Exceptions and saved gear-set items remain protected.";
     }
 
     public void Update()
@@ -121,22 +124,30 @@ internal sealed class AutoVendorController : IDisposable
         { Cancel(protectionError); return; }
 
         var planned = candidates[index];
-        if (!marketableItemIds.Contains(planned.ItemId) || excludedItemIds.Contains(planned.ItemId))
+        var isWhitelisted = retainerSaleWhitelist.Contains(planned.ItemId);
+        if ((!marketableItemIds.Contains(planned.ItemId) && !isWhitelisted) || excludedItemIds.Contains(planned.ItemId))
         {
             var reason = excludedItemIds.Contains(planned.ItemId)
                 ? ItemProtection.Reason(planned.ItemId, config, savedGearsetItemIds)
-                : "the item is no longer marketable";
+                : "the item is no longer eligible for a market-price check";
             Skip($"Skipped {planned.Name}: {reason}");
             return;
         }
 
         var inventory = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
-            out _, out _, out var inventoryError);
+            out _, out _, out var inventoryError, retainerSaleWhitelist);
         if (inventoryError.Length != 0)
         { Cancel($"Retainer sell stopped because inventory could not be refreshed: {inventoryError}"); return; }
         candidate = inventory.FirstOrDefault(item => item.ItemId == planned.ItemId && item.IsHq == planned.IsHq);
         if (candidate is null)
         { Skip($"Skipped {planned.Name}: no matching carried stack remains."); return; }
+        if (retainerSaleWhitelist.Contains(candidate.ItemId))
+        {
+            if (!TryPrepareSale(candidate)) return;
+            step = Step.Sell;
+            Status = $"{candidate.Name} is on the retainer sale whitelist; bypassing the market price check…";
+            return;
+        }
 
         priceTask = universalis.FetchAsync(world.WorldId, candidate.ItemId, cancellation.Token,
             cacheMinutes, dataCenterName, useRegionPrices);
@@ -172,13 +183,25 @@ internal sealed class AutoVendorController : IDisposable
         { Skip($"Skipped {item.Name}: no competing {(item.IsHq ? "HQ" : "NQ")} market listing was found."); return; }
         if (lowest.Value > priceThreshold)
         { Skip($"Kept {item.Name}: lowest matching market listing is {lowest.Value:N0} gil, above the {priceThreshold:N0}-gil threshold."); return; }
-        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out quantityBefore, out var countError))
-        { Cancel($"Retainer sell stopped before selling {item.Name}: {countError}"); return; }
-        targetReduction = item.Quantity;
-        if (quantityBefore < targetReduction)
-        { Cancel($"Retainer sell stopped because the carried quantity for {item.Name} changed unexpectedly."); return; }
+        if (!TryPrepareSale(item)) return;
         step = Step.Sell;
         Status = $"{item.Name} is listed at {lowest.Value:N0} gil · preparing the retainer sale…";
+    }
+
+    private bool TryPrepareSale(CarriedItemCandidate item)
+    {
+        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out quantityBefore, out var countError))
+        {
+            Cancel($"Retainer sell stopped before selling {item.Name}: {countError}");
+            return false;
+        }
+        targetReduction = item.Quantity;
+        if (quantityBefore < targetReduction)
+        {
+            Cancel($"Retainer sell stopped because the carried quantity for {item.Name} changed unexpectedly.");
+            return false;
+        }
+        return true;
     }
 
     private void SellCurrentItem()

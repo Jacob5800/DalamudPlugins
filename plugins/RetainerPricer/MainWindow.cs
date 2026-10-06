@@ -1,6 +1,7 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using Dalamud.Utility;
 
 namespace RetainerPricer;
 
@@ -8,6 +9,7 @@ internal sealed class MainWindow : Window
 {
     private const string EmptyBatchListPopup = "Batch selling list is empty.";
     private const string PriceDropReviewPopup = "Review large price drop";
+    private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly PluginConfig config;
     private readonly PricingController controller;
     private readonly IReadOnlyList<ItemChoice> itemChoices;
@@ -39,6 +41,10 @@ internal sealed class MainWindow : Window
     private ItemChoice? batchSelection;
     private int batchQuantityInput = 10;
     private int batchMaximumTotalInput;
+    private string retainerSaleSearch = "";
+    private string retainerSaleSearchCache = "";
+    private List<ItemChoice> retainerSaleMatches = [];
+    private ItemChoice? retainerSaleSelection;
     private string? batchBulkAddMessage;
     private string feedbackMessage = "";
     private string? feedbackStatus;
@@ -336,18 +342,39 @@ internal sealed class MainWindow : Window
         ImGui.TextDisabled(config.UniversalisCacheMinutes == 0
             ? "Always fetch fresh Universalis data."
             : $"Reuse successful Universalis responses for up to {config.UniversalisCacheMinutes} minutes in this session, for the same item and market scope.");
-        var useDataCenter = config.UseDataCenterPrices;
-        if (ImGui.Checkbox("Use lowest price in the Data Center", ref useDataCenter))
-        { config.UseDataCenterPrices = useDataCenter; if (useDataCenter) config.UseRegionPrices = false; save(); }
-        ImGui.TextDisabled(config.UseDataCenterPrices
-            ? "Universalis checks listings across your home world's Data Center for automatic pricing and manual lookups. Local marketboard checks always stay on your home world."
-            : "Off by default. Turn this on to include listings across your home world's Data Center.");
-        var useRegion = config.UseRegionPrices;
-        if (ImGui.Checkbox("Use lowest price in region", ref useRegion))
-        { config.UseRegionPrices = useRegion; if (useRegion) config.UseDataCenterPrices = false; save(); }
-        ImGui.TextDisabled(config.UseRegionPrices
-            ? "Universalis checks all Data Centers in your home-world region plus Materia (Oceania). This also applies to automatic pricing and manual lookups; it is mutually exclusive with Data Center pricing."
-            : "Off by default. Turn this on to include every Data Center in your home-world region and Materia (Oceania).");
+        ImGui.Separator();
+        ImGui.TextDisabled("PRICING");
+        var pricingScope = config.UseRegionPrices ? 2 : config.UseDataCenterPrices ? 1 : 0;
+        if (ImGui.RadioButton("World", pricingScope == 0))
+        {
+            config.UseDataCenterPrices = false;
+            config.UseRegionPrices = false;
+            pricingScope = 0;
+            save();
+        }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Data Center", pricingScope == 1))
+        {
+            config.UseDataCenterPrices = true;
+            config.UseRegionPrices = false;
+            pricingScope = 1;
+            save();
+        }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Region", pricingScope == 2))
+        {
+            config.UseDataCenterPrices = false;
+            config.UseRegionPrices = true;
+            pricingScope = 2;
+            save();
+        }
+        ImGui.TextDisabled(pricingScope switch
+        {
+            0 => "Use listings on your home world for automatic pricing and manual lookups.",
+            1 => "Include all worlds on your home-world Data Center. Local marketboard checks stay on your home world.",
+            _ => "Include all Data Centers in your home-world region plus Materia (Oceania) for automatic pricing and manual lookups.",
+        });
+        ImGui.Separator();
         var open = config.OpenWithRetainer;
         if (ImGui.Checkbox("Open this window with the retainer selling list", ref open)) { config.OpenWithRetainer = open; save(); }
         var showServerInfoBarButton = config.ShowServerInfoBarButton;
@@ -376,7 +403,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");
-        ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances the greeting dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
+        ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
         ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Set the four bands in the Existing listings tab. Auto update uses the same bands and pauses at the same review before moving to the next retainer.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
@@ -390,9 +417,9 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
-        ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Eligible carried stacks with a complete Universalis listing at or below the threshold are sold through the retainer’s “Have Retainer Sell Items” action at the game’s NPC base price; they are not listed on the marketboard. Exceptions, saved gear-set items, bound items, unmarketable items, missing prices, and your own retainer listings are skipped. The plugin verifies each inventory change before continuing.");
+        ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Exceptions, saved gear-set items, and bound items remain protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
         ImGui.BulletText("Sniper: choose its independent World, Data Center, or Region (including Materia) market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
-        ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, optionally compare across your Data Center or region, and show or hide the server info bar shortcut. Data Center and region options cannot be used together.");
+        ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
@@ -409,12 +436,63 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(!feedback.IsConfigured || feedbackSending || string.IsNullOrWhiteSpace(feedbackMessage) || feedbackMessage.Trim().Length > 4000);
         if (ImGui.Button(feedbackSending ? "Sending feedback..." : "Send feedback")) StartFeedbackSend();
         ImGui.EndDisabled();
-        if (!feedback.IsConfigured)
-            ImGui.SameLine();
+        ImGui.SameLine();
+        if (DrawDiscordButton()) Util.OpenLink(DiscordInviteUrl);
         if (!feedback.IsConfigured)
             ImGui.TextDisabled("Feedback email setup is not finished yet.");
         if (feedbackStatus is { Length: > 0 } status) ImGui.TextWrapped(status);
         ImGui.EndChild();
+    }
+
+    private static bool DrawDiscordButton()
+    {
+        const string label = "Discord";
+        const float iconSize = 18f;
+        const float iconGap = 6f;
+        var padding = ImGui.GetStyle().FramePadding;
+        var labelSize = ImGui.CalcTextSize(label);
+        var buttonHeight = Math.Max(ImGui.GetFrameHeight(), labelSize.Y + padding.Y * 2);
+        var buttonSize = new Vector2(padding.X * 2 + iconSize + iconGap + labelSize.X, buttonHeight);
+        var cursor = ImGui.GetCursorScreenPos();
+        var clicked = ImGui.Button("##retainerPricerDiscord", buttonSize);
+        var drawList = ImGui.GetWindowDrawList();
+        var iconMin = cursor + new Vector2(padding.X, (buttonHeight - iconSize) * 0.5f);
+        var iconMax = iconMin + new Vector2(iconSize, iconSize);
+        const uint discordBlue = 0xFFF26558;
+        const uint white = 0xFFFFFFFF;
+        drawList.AddRectFilled(iconMin, iconMax, discordBlue, 4f);
+
+        // A compact Discord-style controller mark, drawn directly so the button has no external asset dependency.
+        drawList.AddTriangleFilled(
+            iconMin + new Vector2(2.5f, 8.4f),
+            iconMin + new Vector2(5.2f, 3.1f),
+            iconMin + new Vector2(8.1f, 7.2f),
+            white);
+        drawList.AddTriangleFilled(
+            iconMin + new Vector2(9.9f, 7.2f),
+            iconMin + new Vector2(12.8f, 3.1f),
+            iconMin + new Vector2(15.5f, 8.4f),
+            white);
+        drawList.AddRectFilled(
+            iconMin + new Vector2(3f, 5.8f),
+            iconMin + new Vector2(15f, 13.3f),
+            white,
+            3.5f);
+        drawList.AddTriangleFilled(
+            iconMin + new Vector2(7.7f, 11.8f),
+            iconMin + new Vector2(9f, 14.8f),
+            iconMin + new Vector2(10.3f, 11.8f),
+            discordBlue);
+        drawList.AddCircleFilled(iconMin + new Vector2(7f, 9.4f), 1.05f, discordBlue);
+        drawList.AddCircleFilled(iconMin + new Vector2(12f, 9.4f), 1.05f, discordBlue);
+
+        drawList.AddText(
+            cursor + new Vector2(padding.X + iconSize + iconGap, (buttonHeight - labelSize.Y) * 0.5f),
+            ImGui.GetColorU32(ImGuiCol.Text),
+            label);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Join the Retainer Pricer Discord");
+        return clicked;
     }
 
     private void DrawSniper()
@@ -582,8 +660,8 @@ internal sealed class MainWindow : Window
             : config.UseDataCenterPrices
                 ? $"the {homeWorld()?.DataCenterName ?? "home-world"} Data Center"
                 : "your home world";
-        ImGui.TextWrapped("Retainer sell checks carried marketable inventory and sells whole stacks whose matching HQ/NQ market listing is at or below the threshold. It uses the price scope from Settings and always skips Exceptions, items assigned to saved gear sets, and your own retainer listings.");
-        ImGui.TextWrapped("Summon a retainer and open “Sell items in your inventory” before starting. For each qualifying item, the plugin uses the retainer's “Have Retainer Sell Items” action, which sells it for the same base gil as an NPC shop; it does not create a marketboard listing. The plugin checks the inventory change before continuing. Bound gear is skipped.");
+        ImGui.TextWrapped("Retainer sell checks marketable carried inventory by default and sells whole stacks whose matching HQ/NQ market listing is at or below the threshold. Items on the whitelist bypass both the marketability and price checks. It uses the price scope from Settings and skips Exceptions, saved gear-set items, and your own retainer listings for normal price checks.");
+        ImGui.TextWrapped("Summon a retainer and open “Sell items in your inventory” before starting. For each qualifying item, the plugin uses the retainer's “Have Retainer Sell Items” action, which sells it for the same base gil as an NPC shop; it does not create a marketboard listing. Whitelisted items bypass market-price checks. The plugin still protects bound gear, Exceptions, and saved gear-set items, then verifies the inventory change before continuing.");
         ImGui.TextDisabled($"Price scope: {scope}. Missing, incomplete, or failed price checks are skipped. Retainer sales cannot be undone; add items to Exceptions before starting if you want to keep them. Saved gear-set items are protected automatically.");
 
         ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
@@ -596,6 +674,77 @@ internal sealed class MainWindow : Window
             save();
         }
         ImGui.EndDisabled();
+
+        ImGui.Separator();
+        ImGui.TextDisabled("RETAINER SALE WHITELIST");
+        ImGui.TextWrapped("Items on this list skip the marketability and price checks and are sent straight to the retainer sale action at NPC base value. Other eligible stacks still need a matching market price and skip your own retainer listings. Exceptions, saved gear-set items, and bound items stay protected; the game still decides whether each whitelisted item can be sold.");
+        ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
+        ImGui.SetNextItemWidth(360);
+        ImGui.InputText("Search item names", ref retainerSaleSearch, 128);
+        if (!StringComparer.CurrentCultureIgnoreCase.Equals(retainerSaleSearch, retainerSaleSearchCache))
+            retainerSaleSelection = null;
+        RefreshMatches(retainerSaleSearch, ref retainerSaleSearchCache, ref retainerSaleMatches);
+        var availableSaleMatches = retainerSaleMatches
+            .Where(item => !config.RetainerSaleWhitelistItemIds.Contains(item.ItemId))
+            .ToList();
+        var saleWhitelistPreview = retainerSaleSelection is { } selectedSaleItem
+            ? $"{selectedSaleItem.Name}  ·  #{selectedSaleItem.ItemId}"
+            : "Select an item to always sell...";
+        ImGui.SetNextItemWidth(420);
+        if (ImGui.BeginCombo("Whitelist item", saleWhitelistPreview))
+        {
+            if (availableSaleMatches.Count == 0)
+                ImGui.TextDisabled(retainerSaleSearch.Trim().Length < 2
+                    ? "Enter at least two characters to search the item list."
+                    : "No additional matching items found.");
+            foreach (var item in availableSaleMatches)
+            {
+                var label = $"{item.Name}  ·  #{item.ItemId}";
+                if (ImGui.Selectable(label, retainerSaleSelection?.ItemId == item.ItemId))
+                    retainerSaleSelection = item;
+            }
+            ImGui.EndCombo();
+        }
+        var canAddSaleItem = retainerSaleSelection is { } chosenSaleItem &&
+            !config.RetainerSaleWhitelistItemIds.Contains(chosenSaleItem.ItemId);
+        ImGui.BeginDisabled(!canAddSaleItem);
+        if (ImGui.Button("Add to retainer sale whitelist") && retainerSaleSelection is { } addSaleItem)
+        {
+            config.RetainerSaleWhitelistItemIds.Add(addSaleItem.ItemId);
+            config.Normalize();
+            save();
+            retainerSaleSelection = null;
+        }
+        ImGui.EndDisabled();
+        ImGui.EndDisabled();
+
+        ImGui.Separator();
+        ImGui.TextUnformatted($"Always sell · {config.RetainerSaleWhitelistItemIds.Count}");
+        if (config.RetainerSaleWhitelistItemIds.Count == 0)
+            ImGui.TextDisabled("No items are whitelisted. All other eligible stacks use the market-price threshold.");
+        else
+        {
+            if (ImGui.BeginChild("##retainerSaleWhitelist", new Vector2(0, 150), true))
+            {
+                foreach (var itemId in config.RetainerSaleWhitelistItemIds.ToArray())
+                {
+                    var name = itemChoices.FirstOrDefault(item => item.ItemId == itemId)?.Name ?? $"Item {itemId}";
+                    ImGui.PushID((int)itemId);
+                    ImGui.TextUnformatted($"{name}  ·  #{itemId}");
+                    ImGui.SameLine();
+                    ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
+                    if (ImGui.SmallButton("Remove"))
+                    {
+                        config.RetainerSaleWhitelistItemIds.Remove(itemId);
+                        config.Normalize();
+                        save();
+                    }
+                    ImGui.EndDisabled();
+                    ImGui.PopID();
+                }
+            }
+            ImGui.EndChild();
+        }
 
         if (!vendor.IsRunning)
         {

@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
-    public int Version { get; set; } = 9;
+    public int Version { get; set; } = 10;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -16,6 +16,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool UseRegionPrices { get; set; }
     public int MinimumPrice { get; set; } = 1;
     public int AutoVendorPriceThreshold { get; set; } = 1;
+    public List<uint> RetainerSaleWhitelistItemIds { get; set; } = [];
     public int PriceDropUnder10KPercent { get; set; } = 50;
     public int PriceDrop10KTo999KPercent { get; set; } = 25;
     public int PriceDrop1MTo9999KPercent { get; set; } = 10;
@@ -40,6 +41,7 @@ public sealed class PluginConfig : IPluginConfiguration
         if (UseRegionPrices) UseDataCenterPrices = false;
         MinimumPrice = Math.Clamp(MinimumPrice, 1, 999_999_999);
         AutoVendorPriceThreshold = Math.Clamp(AutoVendorPriceThreshold, 1, 999_999_999);
+        RetainerSaleWhitelistItemIds = (RetainerSaleWhitelistItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         PriceDropUnder10KPercent = Math.Clamp(PriceDropUnder10KPercent, 1, 99);
         PriceDrop10KTo999KPercent = Math.Clamp(PriceDrop10KTo999KPercent, 1, 99);
         PriceDrop1MTo9999KPercent = Math.Clamp(PriceDrop1MTo9999KPercent, 1, 99);

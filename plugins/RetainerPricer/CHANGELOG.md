@@ -1,6 +1,10 @@
 # Retainer Pricer changelog
 
-## Unreleased
+## 0.4.12.0
+- Added explicit World, Data Center, and Region pricing choices in Settings.
+- Added a Retainer sale whitelist that bypasses marketability and price checks for selected items; bound items, Exceptions, and saved gear-set items stay protected.
+- Fixed Auto update to advance the retainer's departure dialogue when returning from a selling list.
+- Restored the Discord invite button in Help.
 
 ## 0.4.11.0
 - Added independent Sniper scope options for World, Data Center, and Region, including Materia.

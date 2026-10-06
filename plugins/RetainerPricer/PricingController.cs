@@ -568,17 +568,41 @@ internal sealed class PricingController : IDisposable
                 if (session is null || session.RetainerId != autoRetainers[autoRetainerIndex].RetainerId ||
                     !bridge.TryCloseRetainerSellList(session, out error))
                 { Cancel($"Auto update stopped before leaving {autoRetainers[autoRetainerIndex].Name}'s selling list: {error}"); return; }
+                autoRetainerDialogueClicks = 0;
+                autoRetainerNextDialogueClick = now;
                 step = Step.AutoWaitRetainerMenu;
                 deadline = now.AddSeconds(10);
                 Status = $"Auto update · returning from {autoRetainers[autoRetainerIndex].Name}'s selling list...";
                 return;
             case Step.AutoWaitRetainerMenu:
+                if (bridge.IsRetainerDialogueVisible)
+                {
+                    var currentRetainer = autoRetainers[autoRetainerIndex];
+                    if (autoRetainerDialogueClicks < 4 && now >= autoRetainerNextDialogueClick)
+                    {
+                        if (!bridge.TryAdvanceRetainerDialogue(currentRetainer, autoLastSelectedRetainerId, out error))
+                        { Cancel($"Auto update stopped while closing {currentRetainer.Name}'s dialogue: {error}"); return; }
+                        autoRetainerDialogueClicks++;
+                        autoRetainerNextDialogueClick = now.AddMilliseconds(500);
+                        Status = $"Auto update · closing {currentRetainer.Name}'s dialogue ({autoRetainerDialogueClicks}/4)...";
+                    }
+                    else if (autoRetainerDialogueClicks >= 4 && now > deadline)
+                        Cancel($"Auto update stopped because {currentRetainer.Name}'s departure dialogue did not close.");
+                    return;
+                }
                 if (bridge.IsRetainerMenuVisible)
                 {
                     if (!bridge.TryGetSelectedRetainerId(out var menuRetainerId) || menuRetainerId != autoRetainers[autoRetainerIndex].RetainerId)
                     { Cancel("Auto update stopped because the retainer menu did not belong to the retainer just processed."); return; }
                     if (!bridge.TrySelectRetainerMenuEntry(text => text.Trim().TrimEnd('.', '…').Equals("Quit", StringComparison.OrdinalIgnoreCase), out _, out error))
                     { Cancel($"Auto update stopped at the retainer menu: {error}"); return; }
+                    session = null;
+                    step = Step.AutoWaitPicker;
+                    deadline = now.AddSeconds(10);
+                    return;
+                }
+                if (bridge.IsRetainerPickerVisible)
+                {
                     session = null;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
