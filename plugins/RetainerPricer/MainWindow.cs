@@ -448,16 +448,16 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");
-        ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. After each confirmed price change, it opens that listing's Compare Prices view once so Dalamud's marketboard uploader can submit the response, if enabled; unchanged or skipped listings are not opened. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
-        ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. After each confirmed sale, it opens that listing's Compare Prices view once so Dalamud's marketboard uploader can submit the response, if that uploader is enabled. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. After each confirmed price change, it opens that listing's Compare Prices view once so Dalamud's marketboard uploader can submit the response, if enabled; unchanged or skipped listings are not opened. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Set the four bands in the Existing listings tab. Auto update uses the same bands and pauses at the same review before moving to the next retainer.");
+        ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
+        ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Set the four bands in the Existing listings tab. Auto update uses the same bands and pauses at the same review before moving to the next retainer.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
 
         ImGui.Separator();
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
-        ImGui.BulletText("Price lookup: search an item and retrieve its price without opening a retainer sale window. This is read-only and never changes a listing. In Captured items, Snapshot inventory or Snapshot retainer listings fills a list with Retrieve, List, and Exclude actions.");
+        ImGui.BulletText("Price lookup: search an item and retrieve its Universalis price without opening a retainer sale window. The lowest matching HQ/NQ listing is shown in a dedicated result row. This is read-only and never changes a listing. In Captured items, Snapshot inventory or Snapshot retainer listings fills a list with Retrieve, List, and Exclude actions.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
@@ -902,10 +902,20 @@ internal sealed class MainWindow : Window
             {
                 DrawAge(snapshot);
                 var comparable = snapshot.Listings.Where(listing => listing.IsHq == lookupHq && !listing.OnMannequin).ToArray();
-                if (comparable.Length > 0)
-                    ImGui.TextUnformatted($"Lowest retrieved matching listing: {comparable.Min(listing => listing.PricePerUnit):N0} gil each");
-                else
-                    ImGui.TextUnformatted("No matching HQ/NQ listings were included in this response.");
+                var lowestPrice = comparable.Length > 0 ? comparable.Min(listing => listing.PricePerUnit) : (uint?)null;
+                if (ImGui.BeginTable("##manualLookupResult", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+                {
+                    ImGui.TableSetupColumn("Universalis result");
+                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 150);
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn(); ImGui.TextUnformatted($"Lowest matching {(lookupHq ? "HQ" : "NQ")} listing");
+                    ImGui.TableNextColumn();
+                    if (lowestPrice is { } price)
+                        ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"{price:N0} gil each");
+                    else
+                        ImGui.TextDisabled("No matching listing");
+                    ImGui.EndTable();
+                }
                 var resultScope = snapshot.RegionName
                     ?? (config.UseDataCenterPrices ? world?.DataCenterName ?? "the Data Center"
                         : world?.Name ?? "the home world");

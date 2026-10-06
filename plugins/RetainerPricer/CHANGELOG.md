@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.15.0
+- Reverted automatic Compare Prices views after listings and repricing.
+- Made the retrieved market price easier to spot in a dedicated Price Lookup result row.
+
 ## 0.4.14.0
 - Added Universalis market data uploads after new listings and confirmed repricing, using Dalamud's Compare Prices flow when the uploader is enabled.
 
