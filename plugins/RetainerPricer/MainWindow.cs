@@ -8,6 +8,7 @@ namespace RetainerPricer;
 internal sealed class MainWindow : Window
 {
     private const string EmptyBatchListPopup = "Batch selling list is empty.";
+    private const string EmptyExceptionsWarningPopup = "Your Exceptions list is empty";
     private const string PriceDropReviewPopup = "Review large price drop";
     private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly PluginConfig config;
@@ -49,6 +50,7 @@ internal sealed class MainWindow : Window
     private string feedbackMessage = "";
     private string? feedbackStatus;
     private bool feedbackSending;
+    private Action? pendingEmptyExceptionsListingStart;
 
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
@@ -68,6 +70,37 @@ internal sealed class MainWindow : Window
         }
         Size = new Vector2(860, 640);
         SizeCondition = ImGuiCond.FirstUseEver;
+    }
+
+    private void RequestListingStart(Action start)
+    {
+        if (config.ExcludedItemIds.Count == 0 && !config.DontShowEmptyExceptionsWarningAgain)
+        {
+            pendingEmptyExceptionsListingStart = start;
+            ImGui.OpenPopup(EmptyExceptionsWarningPopup);
+            return;
+        }
+
+        dispatch(start);
+    }
+
+    private void FinishEmptyExceptionsListingStart(bool rememberChoice)
+    {
+        var start = pendingEmptyExceptionsListingStart;
+        pendingEmptyExceptionsListingStart = null;
+        if (rememberChoice)
+        {
+            config.DontShowEmptyExceptionsWarningAgain = true;
+            save();
+        }
+        ImGui.CloseCurrentPopup();
+        if (start is not null) dispatch(start);
+    }
+
+    private void CancelEmptyExceptionsListingStart()
+    {
+        pendingEmptyExceptionsListingStart = null;
+        ImGui.CloseCurrentPopup();
     }
 
     public override void Draw()
@@ -100,7 +133,7 @@ internal sealed class MainWindow : Window
             ImGui.Button("Listing items...");
             ImGui.PopStyleColor(3);
         }
-        else if (ImGui.Button("Start listing items")) dispatch(controller.StartListingItems);
+        else if (ImGui.Button("Start listing items")) RequestListingStart(controller.StartListingItems);
         ImGui.SameLine();
         if (controller.IsUpdatingListings && !controller.IsAutoUpdatingAllRetainers)
         {
@@ -123,13 +156,25 @@ internal sealed class MainWindow : Window
         else if (ImGui.Button("Start batch selling only"))
         {
             if (config.BatchSaleQuantities.Count == 0) ImGui.OpenPopup(EmptyBatchListPopup);
-            else dispatch(controller.StartBatchSellingOnly);
+            else RequestListingStart(controller.StartBatchSellingOnly);
         }
         ImGui.EndDisabled();
         if (ImGui.BeginPopupModal(EmptyBatchListPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextUnformatted(EmptyBatchListPopup);
             if (ImGui.Button("OK")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+        if (ImGui.BeginPopupModal(EmptyExceptionsWarningPopup, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextWrapped("Your Exceptions list is empty. Listing can process every otherwise eligible item in your carried inventory. Protected, bound, and unsupported items are still skipped.");
+            ImGui.Spacing();
+            if (ImGui.Button("Proceed", new Vector2(95, 0))) FinishEmptyExceptionsListingStart(rememberChoice: false);
+            ImGui.SameLine();
+            if (ImGui.Button("Stop", new Vector2(80, 0))) CancelEmptyExceptionsListingStart();
+            ImGui.SameLine();
+            if (ImGui.Button("Proceed and don't show again", new Vector2(220, 0)))
+                FinishEmptyExceptionsListingStart(rememberChoice: true);
             ImGui.EndPopup();
         }
         if (busy)
@@ -404,9 +449,9 @@ internal sealed class MainWindow : Window
 
         ImGui.TextUnformatted("Top buttons");
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
-        ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
+        ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
         ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Set the four bands in the Existing listings tab. Auto update uses the same bands and pauses at the same review before moving to the next retainer.");
-        ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
+        ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
 
         ImGui.Separator();
@@ -415,9 +460,9 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Price lookup: search an item and retrieve its price without opening a retainer sale window. This is read-only and never changes a listing. In Captured items, Snapshot inventory or Snapshot retainer listings fills a list with Retrieve, List, and Exclude actions.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
-        ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
+        ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
-        ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Exceptions, saved gear-set items, and bound items remain protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
+        ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Exceptions, saved gear-set items, and bound items remain protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
         ImGui.BulletText("Sniper: choose its independent World, Data Center, or Region (including Materia) market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
         ImGui.BulletText("Settings: set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
@@ -431,63 +476,49 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("Send feedback");
         ImGui.TextWrapped("Describe what happened, what you expected, and which button or tab you used. Please do not include passwords or account details.");
-        ImGui.InputTextMultiline("##feedbackMessage", ref feedbackMessage, 4001, new Vector2(0, 120));
+        const float discordWidth = 156f;
+        const float feedbackGap = 8f;
+        var availableWidth = ImGui.GetContentRegionAvail().X;
+        var feedbackWidth = Math.Max(120f, availableWidth - discordWidth - feedbackGap);
+        ImGui.InputTextMultiline("##feedbackMessage", ref feedbackMessage, 4001, new Vector2(feedbackWidth, 120));
+        ImGui.SameLine(0, feedbackGap);
+        if (DrawDiscordButton(new Vector2(discordWidth, 120))) Util.OpenLink(DiscordInviteUrl);
         ImGui.TextDisabled($"{feedbackMessage.Length}/4000 characters · your note and plugin version are emailed to the developer; no character or market data is attached.");
         ImGui.BeginDisabled(!feedback.IsConfigured || feedbackSending || string.IsNullOrWhiteSpace(feedbackMessage) || feedbackMessage.Trim().Length > 4000);
         if (ImGui.Button(feedbackSending ? "Sending feedback..." : "Send feedback")) StartFeedbackSend();
         ImGui.EndDisabled();
-        ImGui.SameLine();
-        if (DrawDiscordButton()) Util.OpenLink(DiscordInviteUrl);
         if (!feedback.IsConfigured)
             ImGui.TextDisabled("Feedback email setup is not finished yet.");
         if (feedbackStatus is { Length: > 0 } status) ImGui.TextWrapped(status);
         ImGui.EndChild();
     }
 
-    private static bool DrawDiscordButton()
+    private static bool DrawDiscordButton(Vector2 buttonSize)
     {
         const string label = "Discord";
-        const float iconSize = 18f;
-        const float iconGap = 6f;
-        var padding = ImGui.GetStyle().FramePadding;
-        var labelSize = ImGui.CalcTextSize(label);
-        var buttonHeight = Math.Max(ImGui.GetFrameHeight(), labelSize.Y + padding.Y * 2);
-        var buttonSize = new Vector2(padding.X * 2 + iconSize + iconGap + labelSize.X, buttonHeight);
+        const float baseIconSize = 18f;
+        const float iconSize = 42f;
         var cursor = ImGui.GetCursorScreenPos();
         var clicked = ImGui.Button("##retainerPricerDiscord", buttonSize);
         var drawList = ImGui.GetWindowDrawList();
-        var iconMin = cursor + new Vector2(padding.X, (buttonHeight - iconSize) * 0.5f);
-        var iconMax = iconMin + new Vector2(iconSize, iconSize);
+        var iconMin = cursor + new Vector2((buttonSize.X - iconSize) * 0.5f, 14f);
+        var scale = iconSize / baseIconSize;
+        Vector2 Point(float x, float y) => iconMin + new Vector2(x, y) * scale;
         const uint discordBlue = 0xFFF26558;
         const uint white = 0xFFFFFFFF;
-        drawList.AddRectFilled(iconMin, iconMax, discordBlue, 4f);
+        drawList.AddRectFilled(iconMin, iconMin + new Vector2(iconSize), discordBlue, 9f);
 
-        // A compact Discord-style controller mark, drawn directly so the button has no external asset dependency.
-        drawList.AddTriangleFilled(
-            iconMin + new Vector2(2.5f, 8.4f),
-            iconMin + new Vector2(5.2f, 3.1f),
-            iconMin + new Vector2(8.1f, 7.2f),
-            white);
-        drawList.AddTriangleFilled(
-            iconMin + new Vector2(9.9f, 7.2f),
-            iconMin + new Vector2(12.8f, 3.1f),
-            iconMin + new Vector2(15.5f, 8.4f),
-            white);
-        drawList.AddRectFilled(
-            iconMin + new Vector2(3f, 5.8f),
-            iconMin + new Vector2(15f, 13.3f),
-            white,
-            3.5f);
-        drawList.AddTriangleFilled(
-            iconMin + new Vector2(7.7f, 11.8f),
-            iconMin + new Vector2(9f, 14.8f),
-            iconMin + new Vector2(10.3f, 11.8f),
-            discordBlue);
-        drawList.AddCircleFilled(iconMin + new Vector2(7f, 9.4f), 1.05f, discordBlue);
-        drawList.AddCircleFilled(iconMin + new Vector2(12f, 9.4f), 1.05f, discordBlue);
+        // A compact Discord-style mark, drawn directly so no external icon asset is required.
+        drawList.AddTriangleFilled(Point(2.5f, 8.4f), Point(5.2f, 3.1f), Point(8.1f, 7.2f), white);
+        drawList.AddTriangleFilled(Point(9.9f, 7.2f), Point(12.8f, 3.1f), Point(15.5f, 8.4f), white);
+        drawList.AddRectFilled(Point(3f, 5.8f), Point(15f, 13.3f), white, 3.5f * scale);
+        drawList.AddTriangleFilled(Point(7.7f, 11.8f), Point(9f, 14.8f), Point(10.3f, 11.8f), discordBlue);
+        drawList.AddCircleFilled(Point(7f, 9.4f), 1.05f * scale, discordBlue);
+        drawList.AddCircleFilled(Point(12f, 9.4f), 1.05f * scale, discordBlue);
 
+        var labelSize = ImGui.CalcTextSize(label);
         drawList.AddText(
-            cursor + new Vector2(padding.X + iconSize + iconGap, (buttonHeight - labelSize.Y) * 0.5f),
+            cursor + new Vector2((buttonSize.X - labelSize.X) * 0.5f, buttonSize.Y - labelSize.Y - 13f),
             ImGui.GetColorU32(ImGuiCol.Text),
             label);
         if (ImGui.IsItemHovered())
@@ -679,24 +710,47 @@ internal sealed class MainWindow : Window
         ImGui.TextDisabled("RETAINER SALE WHITELIST");
         ImGui.TextWrapped("Items on this list skip the marketability and price checks and are sent straight to the retainer sale action at NPC base value. Other eligible stacks still need a matching market price and skip your own retainer listings. Exceptions, saved gear-set items, and bound items stay protected; the game still decides whether each whitelisted item can be sold.");
         ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
+        if (ImGui.Button(vendor.RetainerSaleInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
+        {
+            dispatch(vendor.SnapshotSaleWhitelistInventory);
+            retainerSaleSelection = null;
+        }
+        ImGui.EndDisabled();
+        if (vendor.RetainerSaleInventorySnapshotError is { } saleInventoryError)
+            ImGui.TextWrapped(saleInventoryError);
+        else if (vendor.RetainerSaleInventorySnapshotAt is { } saleSnapshotAt)
+            ImGui.TextDisabled($"Carried inventory refreshed · {vendor.RetainerSaleInventoryCandidates.Select(item => item.ItemId).Distinct().Count()} item(s), including nonmarketable · {vendor.RetainerSaleInventoryOmitted} bound or unnamed stack(s) omitted · {saleSnapshotAt:HH:mm:ss}.");
+        else
+            ImGui.TextDisabled("Refresh carried inventory to fill the picker, or search the full item list.");
+
+        ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
         ImGui.SetNextItemWidth(360);
         ImGui.InputText("Search item names", ref retainerSaleSearch, 128);
         if (!StringComparer.CurrentCultureIgnoreCase.Equals(retainerSaleSearch, retainerSaleSearchCache))
             retainerSaleSelection = null;
         RefreshMatches(retainerSaleSearch, ref retainerSaleSearchCache, ref retainerSaleMatches);
-        var availableSaleMatches = retainerSaleMatches
-            .Where(item => !config.RetainerSaleWhitelistItemIds.Contains(item.ItemId))
+        var saleSearch = retainerSaleSearch.Trim();
+        var saleInventoryItems = vendor.RetainerSaleInventoryCandidates
+            .Where(item => saleSearch.Length == 0 || item.Name.Contains(saleSearch, StringComparison.CurrentCultureIgnoreCase))
+            .GroupBy(item => item.ItemId)
+            .Select(group => new ItemChoice(group.Key, group.First().Name))
+            .ToList();
+        var availableSaleMatches = saleInventoryItems.Concat(retainerSaleMatches)
+            .Where(item => !config.RetainerSaleWhitelistItemIds.Contains(item.ItemId) &&
+                !config.ExcludedItemIds.Contains(item.ItemId))
+            .GroupBy(item => item.ItemId)
+            .Select(group => group.First())
             .ToList();
         var saleWhitelistPreview = retainerSaleSelection is { } selectedSaleItem
             ? $"{selectedSaleItem.Name}  ·  #{selectedSaleItem.ItemId}"
-            : "Select an item to always sell...";
+            : "Select an inventory or matching item...";
         ImGui.SetNextItemWidth(420);
         if (ImGui.BeginCombo("Whitelist item", saleWhitelistPreview))
         {
             if (availableSaleMatches.Count == 0)
-                ImGui.TextDisabled(retainerSaleSearch.Trim().Length < 2
+                ImGui.TextDisabled(retainerSaleSearch.Trim().Length < 2 && saleInventoryItems.Count == 0
                     ? "Enter at least two characters to search the item list."
-                    : "No additional matching items found.");
+                    : "No additional matching or carried items found.");
             foreach (var item in availableSaleMatches)
             {
                 var label = $"{item.Name}  ·  #{item.ItemId}";
@@ -706,7 +760,8 @@ internal sealed class MainWindow : Window
             ImGui.EndCombo();
         }
         var canAddSaleItem = retainerSaleSelection is { } chosenSaleItem &&
-            !config.RetainerSaleWhitelistItemIds.Contains(chosenSaleItem.ItemId);
+            !config.RetainerSaleWhitelistItemIds.Contains(chosenSaleItem.ItemId) &&
+            !config.ExcludedItemIds.Contains(chosenSaleItem.ItemId);
         ImGui.BeginDisabled(!canAddSaleItem);
         if (ImGui.Button("Add to retainer sale whitelist") && retainerSaleSelection is { } addSaleItem)
         {
@@ -1113,16 +1168,43 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("Never reprice these items");
         ImGui.TextWrapped("Items on this list are still eligible for new listings. Their existing listings cannot be repriced by Update existing listings, Auto update, or the current-item price controls. Read-only price lookups still work. Use Exceptions if an item should also be skipped when creating new listings.");
 
+        ImGui.BeginDisabled(controller.Busy || vendor.IsRunning);
+        if (ImGui.Button(controller.ExceptionInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
+        {
+            dispatch(controller.SnapshotExceptionInventory);
+            noRepriceSelection = null;
+        }
+        ImGui.EndDisabled();
+        if (controller.ExceptionInventorySnapshotError is { } noRepriceInventoryError)
+            ImGui.TextWrapped(noRepriceInventoryError);
+        else if (controller.ExceptionInventorySnapshotAt is { } noRepriceSnapshotAt)
+        {
+            ImGui.TextDisabled($"Inventory snapshot · {controller.ExceptionInventoryCandidates.Count} marketable stack(s) · {noRepriceSnapshotAt:HH:mm:ss}");
+            ImGui.TextDisabled($"{controller.ExceptionInventoryUnmarketableSkipped} bound, untradeable, or nonmarketable stack(s) omitted.");
+        }
+        else
+            ImGui.TextDisabled("Refresh carried inventory to populate the picker, or search the full item list.");
+
         ImGui.SetNextItemWidth(360);
         ImGui.InputText("Search item names", ref noRepriceSearch, 128);
         if (!StringComparer.CurrentCultureIgnoreCase.Equals(noRepriceSearch, noRepriceSearchCache))
             noRepriceSelection = null;
         RefreshMatches(noRepriceSearch, ref noRepriceSearchCache, ref noRepriceMatches);
 
-        var pickerItems = noRepriceMatches.Where(item => !config.NoRepriceItemIds.Contains(item.ItemId)).ToArray();
+        var noRepriceSearchTerm = noRepriceSearch.Trim();
+        var noRepriceInventoryItems = controller.ExceptionInventoryCandidates
+            .Where(item => noRepriceSearchTerm.Length == 0 ||
+                item.Name.Contains(noRepriceSearchTerm, StringComparison.CurrentCultureIgnoreCase))
+            .GroupBy(item => item.ItemId)
+            .Select(group => new ItemChoice(group.Key, group.First().Name));
+        var pickerItems = noRepriceInventoryItems.Concat(noRepriceMatches)
+            .Where(item => !config.NoRepriceItemIds.Contains(item.ItemId))
+            .GroupBy(item => item.ItemId)
+            .Select(group => group.First())
+            .ToArray();
         var preview = noRepriceSelection is { } selected
             ? $"{selected.Name}  ·  #{selected.ItemId}"
-            : "Select an item to protect...";
+            : "Select a carried or matching item to protect...";
         ImGui.SetNextItemWidth(420);
         if (ImGui.BeginCombo("Item to protect", preview))
         {

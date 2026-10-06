@@ -17,6 +17,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public int MinimumPrice { get; set; } = 1;
     public int AutoVendorPriceThreshold { get; set; } = 1;
     public List<uint> RetainerSaleWhitelistItemIds { get; set; } = [];
+    public bool DontShowEmptyExceptionsWarningAgain { get; set; }
     public int PriceDropUnder10KPercent { get; set; } = 50;
     public int PriceDrop10KTo999KPercent { get; set; } = 25;
     public int PriceDrop1MTo9999KPercent { get; set; } = 10;

@@ -13,6 +13,10 @@ internal sealed class AutoVendorController : IDisposable
     private CancellationTokenSource cancellation = new();
     private Task<PriceSnapshot>? priceTask;
     private IReadOnlyList<CarriedItemCandidate> candidates = [];
+    public List<CarriedItemCandidate> RetainerSaleInventoryCandidates { get; } = [];
+    public DateTimeOffset? RetainerSaleInventorySnapshotAt { get; private set; }
+    public int RetainerSaleInventoryOmitted { get; private set; }
+    public string? RetainerSaleInventorySnapshotError { get; private set; }
     private IReadOnlySet<ulong> ownRetainerIds = new HashSet<ulong>();
     private MarketWorld? world;
     private MarketSession? retainerSession;
@@ -40,6 +44,21 @@ internal sealed class AutoVendorController : IDisposable
     public string Status { get; private set; } = "Retainer sell is stopped.";
     public int Progress => candidates.Count == 0 ? 0 : Math.Min(index + 1, candidates.Count);
     public int CandidateCount => candidates.Count;
+
+    public void SnapshotSaleWhitelistInventory()
+    {
+        if (IsRunning) return;
+        var items = bridge.ReadCarriedInventory(marketableItemIds, new HashSet<uint>(),
+            out _, out var omitted, out var error, includeUnmarketable: true);
+        RetainerSaleInventoryCandidates.Clear();
+        RetainerSaleInventoryCandidates.AddRange(items);
+        RetainerSaleInventoryOmitted = omitted;
+        RetainerSaleInventorySnapshotError = error.Length == 0 ? null : error;
+        RetainerSaleInventorySnapshotAt = error.Length == 0 ? DateTimeOffset.Now : null;
+        Status = error.Length != 0
+            ? error
+            : $"Retainer sale picker ready: {items.Count} carried stack(s), including nonmarketable items; {omitted} bound or unnamed stack(s) omitted.";
+    }
 
     public void Start()
     {
