@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.18.0
+- Added chocobo saddlebag snapshots to the Exceptions item picker, including the premium saddlebag when available.
+- Added bulk addition of saddlebag items to Exceptions. Exclusions remain item-based and apply to carried inventory and Retainer sell.
+
 ## 0.4.17.0
 - Added a Retrieved price subtab in Price lookup.
 - Showed the retrieved price for Search and Captured items, including inventory and retainer-list Retrieve buttons.

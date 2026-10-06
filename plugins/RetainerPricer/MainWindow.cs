@@ -544,7 +544,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. The lowest matching HQ/NQ listing is shown separately from the suggested undercut.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
-        ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
+        ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory or the chocobo saddlebag to find items, filter by name, add a selected item, or bulk-add either snapshot. Exceptions are item-based, so the same item is skipped if it is later in carried inventory or selected for Retainer sell.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Exceptions, saved gear-set items, and bound items remain protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
@@ -1180,11 +1180,14 @@ internal sealed class MainWindow : Window
     private void DrawExceptions()
     {
         ImGui.TextUnformatted("Exception list");
-        ImGui.TextWrapped("Items in Exceptions are always skipped by automatic listing and existing-listing updates. Items assigned to saved gear sets are also protected automatically, including during retainer selling. Untradeable and nonmarketable items are omitted automatically. Manual price lookups remain available.");
+        ImGui.TextWrapped("Items in Exceptions are always skipped by automatic listing, existing-listing updates, and Retainer sell. Add items from carried inventory, the chocobo saddlebag, or the item search. Exceptions are item-based, so an item added from either snapshot stays excluded wherever you later carry it. Items assigned to saved gear sets are also protected automatically. Manual price lookups remain available.");
 
         ImGui.BeginDisabled(controller.Busy);
         if (ImGui.Button(controller.ExceptionInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
             dispatch(controller.SnapshotExceptionInventory);
+        ImGui.SameLine();
+        if (ImGui.Button(controller.ExceptionSaddlebagSnapshotAt is null ? "Grab chocobo saddlebag" : "Refresh chocobo saddlebag"))
+            dispatch(controller.SnapshotExceptionSaddlebag);
         ImGui.EndDisabled();
         if (controller.ExceptionInventorySnapshotError is { } inventoryError)
             ImGui.TextWrapped(inventoryError);
@@ -1196,6 +1199,16 @@ internal sealed class MainWindow : Window
         else
             ImGui.TextDisabled("Grab carried inventory to populate the picker, or search the full item list below.");
 
+        if (controller.ExceptionSaddlebagSnapshotError is { } saddlebagError)
+            ImGui.TextWrapped(saddlebagError);
+        else if (controller.ExceptionSaddlebagSnapshotAt is { } saddlebagAt)
+        {
+            ImGui.TextUnformatted($"Saddlebag snapshot · {controller.ExceptionSaddlebagCandidates.Count} item stack(s) · {saddlebagAt:HH:mm:ss}");
+            ImGui.TextDisabled($"{controller.ExceptionSaddlebagUntradeableSkipped} bound or unnamed stack(s) omitted; premium saddlebag included when available.");
+        }
+        else
+            ImGui.TextDisabled("Grab the chocobo saddlebag to include its items in the picker, or search the full item list.");
+
         ImGui.SetNextItemWidth(360);
         ImGui.InputText("Filter item names", ref exceptionSearch, 128);
         if (!StringComparer.CurrentCultureIgnoreCase.Equals(exceptionSearch, exceptionSearchCache))
@@ -1206,19 +1219,23 @@ internal sealed class MainWindow : Window
             .GroupBy(item => item.ItemId)
             .Select(group => new ItemChoice(group.Key, group.First().Name))
             .ToList();
-        var pickerItems = inventoryItems.Concat(exceptionMatches)
+        var saddlebagItems = controller.ExceptionSaddlebagCandidates
+            .GroupBy(item => item.ItemId)
+            .Select(group => new ItemChoice(group.Key, group.First().Name))
+            .ToList();
+        var pickerItems = inventoryItems.Concat(saddlebagItems).Concat(exceptionMatches)
             .Where(item => !config.ExcludedItemIds.Contains(item.ItemId))
             .GroupBy(item => item.ItemId).Select(group => group.First()).ToList();
         var preview = exceptionSelection is { } selected
             ? $"{selected.Name}  ·  #{selected.ItemId}"
-            : "Select an inventory or matching item...";
+            : "Select an inventory, saddlebag, or matching item...";
         ImGui.SetNextItemWidth(420);
         if (ImGui.BeginCombo("Item to exclude", preview))
         {
             if (pickerItems.Count == 0)
                 ImGui.TextDisabled(exceptionSearch.Trim().Length < 2
                     ? "Enter at least two characters to search the item list."
-                    : "No available inventory items or matching names found.");
+                    : "No available inventory, saddlebag, or matching names found.");
             foreach (var candidate in pickerItems)
             {
                 var label = $"{candidate.Name}  ·  #{candidate.ItemId}";
@@ -1241,6 +1258,11 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Add current inventory"))
             dispatch(AddCurrentInventoryToExceptions);
         ImGui.EndDisabled();
+        ImGui.SameLine();
+        ImGui.BeginDisabled(controller.Busy);
+        if (ImGui.Button("Add chocobo saddlebag"))
+            dispatch(AddSaddlebagToExceptions);
+        ImGui.EndDisabled();
         if (exceptionBulkAddMessage is { Length: > 0 } bulkMessage)
             ImGui.TextDisabled(bulkMessage);
 
@@ -1253,6 +1275,7 @@ internal sealed class MainWindow : Window
             {
                 var name = itemChoices.FirstOrDefault(x => x.ItemId == itemId)?.Name
                     ?? controller.ExceptionInventoryCandidates.FirstOrDefault(x => x.ItemId == itemId)?.Name
+                    ?? controller.ExceptionSaddlebagCandidates.FirstOrDefault(x => x.ItemId == itemId)?.Name
                     ?? $"Item {itemId}";
                 ImGui.PushID((int)itemId);
                 ImGui.TextUnformatted($"{name}  ·  #{itemId}");
@@ -1281,10 +1304,25 @@ internal sealed class MainWindow : Window
             return;
         }
 
-        var itemIds = controller.ExceptionInventoryCandidates
-            .Select(item => item.ItemId)
-            .Distinct()
-            .ToList();
+        AddExceptionSnapshotItems(controller.ExceptionInventoryCandidates.Select(item => item.ItemId), "inventory");
+    }
+
+    private void AddSaddlebagToExceptions()
+    {
+        if (controller.Busy) return;
+        controller.SnapshotExceptionSaddlebag();
+        if (controller.ExceptionSaddlebagSnapshotError is { } snapshotError)
+        {
+            exceptionBulkAddMessage = $"Could not add chocobo saddlebag: {snapshotError}";
+            return;
+        }
+
+        AddExceptionSnapshotItems(controller.ExceptionSaddlebagCandidates.Select(item => item.ItemId), "saddlebag");
+    }
+
+    private void AddExceptionSnapshotItems(IEnumerable<uint> snapshotItemIds, string source)
+    {
+        var itemIds = snapshotItemIds.Distinct().ToList();
         var newItemIds = itemIds.Where(itemId => !config.ExcludedItemIds.Contains(itemId)).ToList();
         if (newItemIds.Count > 0)
         {
@@ -1297,8 +1335,8 @@ internal sealed class MainWindow : Window
 
         exceptionSelection = null;
         exceptionBulkAddMessage = itemIds.Count == 0
-            ? "No marketable inventory items to add; untradeable and nonmarketable items are skipped automatically."
-            : $"Added {newItemIds.Count} inventory item(s); {itemIds.Count - newItemIds.Count} were already excluded.";
+            ? $"No {source} items to add."
+            : $"Added {newItemIds.Count} {source} item(s); {itemIds.Count - newItemIds.Count} were already excluded.";
     }
 
     private void DrawNoReprice()

@@ -99,17 +99,21 @@ internal sealed class PricingController : IDisposable
     public bool IsManualLookupInProgress => work == Work.Manual;
     public List<CarriedItemCandidate> InventoryCandidates { get; } = [];
     public List<CarriedItemCandidate> ExceptionInventoryCandidates { get; } = [];
+    public List<CarriedItemCandidate> ExceptionSaddlebagCandidates { get; } = [];
     public List<SellItem> ListedCandidates { get; } = [];
     public DateTimeOffset? InventorySnapshotAt { get; private set; }
     public DateTimeOffset? ExceptionInventorySnapshotAt { get; private set; }
+    public DateTimeOffset? ExceptionSaddlebagSnapshotAt { get; private set; }
     public DateTimeOffset? ListedSnapshotAt { get; private set; }
     public int InventoryExceptionSkipped { get; private set; }
     public int InventoryUnmarketableSkipped { get; private set; }
     public int ExceptionInventoryUnmarketableSkipped { get; private set; }
+    public int ExceptionSaddlebagUntradeableSkipped { get; private set; }
     public int ListedExceptionSkipped { get; private set; }
     public int ListedUnmarketableSkipped { get; private set; }
     public string? InventorySnapshotError { get; private set; }
     public string? ExceptionInventorySnapshotError { get; private set; }
+    public string? ExceptionSaddlebagSnapshotError { get; private set; }
     public string? ListedSnapshotError { get; private set; }
     public List<PriceRow> Rows { get; } = [];
     public PriceRow? PriceDropReviewItem => index >= Rows.Count && (work is Work.Scan or Work.AutoUpdateAllRetainers)
@@ -391,6 +395,19 @@ internal sealed class PricingController : IDisposable
         ExceptionInventorySnapshotAt = error.Length == 0 ? DateTimeOffset.Now : null;
         Status = error.Length != 0 ? error :
             $"Exception inventory ready: {items.Count} marketable stack(s), {unmarketableSkipped} untradeable or nonmarketable stack(s) omitted.";
+    }
+
+    public void SnapshotExceptionSaddlebag()
+    {
+        if (Busy) return;
+        var items = bridge.ReadSaddlebagInventory(out var untradeableSkipped, out var error);
+        ExceptionSaddlebagCandidates.Clear();
+        ExceptionSaddlebagCandidates.AddRange(items);
+        ExceptionSaddlebagUntradeableSkipped = untradeableSkipped;
+        ExceptionSaddlebagSnapshotError = error.Length == 0 ? null : error;
+        ExceptionSaddlebagSnapshotAt = error.Length == 0 ? DateTimeOffset.Now : null;
+        Status = error.Length != 0 ? error :
+            $"Chocobo saddlebag ready: {items.Count} item stack(s), {untradeableSkipped} bound or unnamed stack(s) omitted.";
     }
 
     public bool OpenInventoryItem(CarriedItemCandidate item)

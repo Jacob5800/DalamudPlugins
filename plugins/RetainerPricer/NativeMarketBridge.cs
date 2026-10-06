@@ -409,6 +409,48 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return result;
     }
 
+    public IReadOnlyList<CarriedItemCandidate> ReadSaddlebagInventory(out int untradeableSkipped, out string error)
+    {
+        var result = new List<CarriedItemCandidate>();
+        untradeableSkipped = 0;
+        error = "Log in before taking a saddlebag snapshot.";
+        if (disposed || !player.IsLoaded || player.ContentId == 0) return result;
+        var inventory = InventoryManager.Instance();
+        if (inventory == null) { error = "The character inventory is not available yet."; return result; }
+
+        InventoryType[] saddlebagContainers = [InventoryType.SaddleBag1, InventoryType.SaddleBag2,
+            InventoryType.PremiumSaddleBag1, InventoryType.PremiumSaddleBag2];
+        foreach (var type in saddlebagContainers)
+        {
+            var container = inventory->GetInventoryContainer(type);
+            var premiumContainer = type is InventoryType.PremiumSaddleBag1 or InventoryType.PremiumSaddleBag2;
+            // Premium containers do not exist for every character. The regular saddlebag must be
+            // loaded, while unavailable premium containers are simply ignored.
+            if (container == null || !container->IsLoaded)
+            {
+                if (premiumContainer) continue;
+                error = "The chocobo saddlebag is still loading or unavailable. Try again in a moment.";
+                return [];
+            }
+
+            for (var slot = 0; slot < container->Size; slot++)
+            {
+                var stock = container->GetInventorySlot(slot);
+                if (stock == null || stock->IsEmpty() || stock->GetQuantity() == 0) continue;
+                var itemId = stock->GetBaseItemId();
+                if (itemId == 0) continue;
+                if (IsBound(stock)) { untradeableSkipped++; continue; }
+                var name = ItemName(itemId);
+                if (string.IsNullOrWhiteSpace(name)) { untradeableSkipped++; continue; }
+                result.Add(new CarriedItemCandidate(itemId, name, stock->IsHighQuality(),
+                    stock->GetQuantity(), (int)type, slot));
+            }
+        }
+
+        error = string.Empty;
+        return result;
+    }
+
     public bool TryReadCarriedStackQuantity(CarriedItemCandidate expected, out uint quantity, out string error)
     {
         quantity = 0;
