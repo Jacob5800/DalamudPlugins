@@ -359,7 +359,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     public IReadOnlyList<CarriedItemCandidate> ReadCarriedInventory(IReadOnlySet<uint> marketableItemIds,
         IReadOnlySet<uint> excludedItemIds, out int exceptionSkipped, out int unmarketableSkipped, out string error,
-        IReadOnlySet<uint>? additionalAllowedItemIds = null)
+        IReadOnlySet<uint>? additionalAllowedItemIds = null, bool includeUnmarketable = false)
     {
         var result = new List<CarriedItemCandidate>();
         exceptionSkipped = 0;
@@ -388,7 +388,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 // Spiritbond indicates gear is bound to this character, so it can no longer be
                 // transferred or listed even when the base Item row is normally marketable.
                 if (IsBound(stock)) { unmarketableSkipped++; continue; }
-                if (!marketableItemIds.Contains(itemId) && additionalAllowedItemIds?.Contains(itemId) != true)
+                if (!includeUnmarketable && !marketableItemIds.Contains(itemId) && additionalAllowedItemIds?.Contains(itemId) != true)
                 { unmarketableSkipped++; continue; }
                 if (excludedItemIds.Contains(itemId)) { exceptionSkipped++; continue; }
                 var name = ItemName(itemId);
