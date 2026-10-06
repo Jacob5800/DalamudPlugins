@@ -17,8 +17,10 @@ internal sealed class PricingController : IDisposable
     private enum Step
     {
         Start, Opening, WaitingToCompare, Quote, Closing, ClosingListingCompare, ClosingSkippedCompare,
-        ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
-        AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
+        ClosingSkippedSell, Confirming, ListingContributionOpening, ListingContributionWaitingToCompare,
+        ListingContributionWaitingForResponse, ListingContributionClosing, ListingContributionClosingSell,
+        AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu, AutoWaitPicker, AutoSelectRetainer,
+        AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
     }
     private readonly NativeMarketBridge bridge;
     private readonly UniversalisClient universalis;
@@ -44,6 +46,7 @@ internal sealed class PricingController : IDisposable
     private List<CarriedItemCandidate> batchCandidates = [];
     private HashSet<int> preListingSlots = [];
     private CarriedItemCandidate? listingCandidate;
+    private SellItem? listingContributionTarget;
     private uint listingSubmittedPrice;
     private uint requestedListingQuantity;
     private int listingSucceeded;
@@ -197,7 +200,14 @@ internal sealed class PricingController : IDisposable
             return;
         }
         if (work == Work.Single) TickSingle(now);
-        else if (work == Work.Scan) TickScan(now);
+        else if (work == Work.Scan)
+        {
+            if (step is Step.ListingContributionOpening or Step.ListingContributionWaitingToCompare or
+                Step.ListingContributionWaitingForResponse or Step.ListingContributionClosing or
+                Step.ListingContributionClosingSell)
+                TickListingContribution(now);
+            else TickScan(now);
+        }
         else if (work == Work.AutoUpdateAllRetainers) TickAutoUpdateAllRetainers(now);
         else if (work == Work.BatchListing) TickBatchListing(now);
     }
@@ -306,6 +316,7 @@ internal sealed class PricingController : IDisposable
         listingSucceeded = 0;
         listingSkipped = 0;
         listingCandidate = null;
+        listingContributionTarget = null;
         requestedListingQuantity = 0;
         batchSoldQuantitiesByItemId.Clear();
         batchMaximumReachedItemIds.Clear();
@@ -531,6 +542,13 @@ internal sealed class PricingController : IDisposable
     private void TickAutoUpdateAllRetainers(DateTimeOffset now)
     {
         var error = string.Empty;
+        if (step is Step.ListingContributionOpening or Step.ListingContributionWaitingToCompare or
+            Step.ListingContributionWaitingForResponse or Step.ListingContributionClosing or
+            Step.ListingContributionClosingSell)
+        {
+            TickListingContribution(now);
+            return;
+        }
         if (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
             Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming)
         {
@@ -956,11 +974,15 @@ internal sealed class PricingController : IDisposable
                 && current.CurrentPrice == submittedPrice)
             {
                 row.Status = "Updated";
-                AdvanceScanIndex(row);
-                step = Step.Start;
-                workingItem = null;
-                ResetRequest();
-                nextTick = now;
+                listingContributionTarget = current;
+                if (!bridge.TryOpenExisting(current, out var contributionOpenError))
+                {
+                    Cancel($"Updated {row.Item.Name}, but could not open its Compare Prices view for Universalis: {contributionOpenError}");
+                    return;
+                }
+                deadline = now.AddSeconds(8);
+                step = Step.ListingContributionOpening;
+                Status = $"Updated {row.Item.Name}. Opening its Compare Prices view to trigger the Dalamud marketboard uploader...";
                 return;
             }
             if (now > deadline)
@@ -973,6 +995,14 @@ internal sealed class PricingController : IDisposable
 
     private void TickBatchListing(DateTimeOffset now)
     {
+        if (step is Step.ListingContributionOpening or Step.ListingContributionWaitingToCompare or
+            Step.ListingContributionWaitingForResponse or Step.ListingContributionClosing or
+            Step.ListingContributionClosingSell)
+        {
+            TickListingContribution(now);
+            return;
+        }
+
         if (step == Step.Start)
         {
             if (index >= batchCandidates.Count)
@@ -1184,9 +1214,12 @@ internal sealed class PricingController : IDisposable
             { Cancel("Automatic listing stopped because its confirmation target was lost."); return; }
             var listed = bridge.ReadExistingListings(out var readError);
             var sellWindowOpen = bridge.TryReadSellItem(out _, out _);
-            if (readError.Length == 0 && !sellWindowOpen && listed.Any(row => !preListingSlots.Contains(row.Slot)
+            var newListing = readError.Length == 0 && !sellWindowOpen
+                ? listed.FirstOrDefault(row => !preListingSlots.Contains(row.Slot)
                     && row.ItemId == expected.ItemId && row.IsHq == expected.IsHq
-                    && row.Quantity == submitted.Quantity && row.CurrentPrice == listingSubmittedPrice))
+                    && row.Quantity == submitted.Quantity && row.CurrentPrice == listingSubmittedPrice)
+                : null;
+            if (newListing is not null)
             {
                 if (batchSellingOnly && config.BatchSaleMaxQuantities.TryGetValue(expected.ItemId, out var itemMaximum) && itemMaximum > 0)
                     batchSoldQuantitiesByItemId[expected.ItemId] = batchSoldQuantitiesByItemId.GetValueOrDefault(expected.ItemId) + submitted.Quantity;
@@ -1209,20 +1242,34 @@ internal sealed class PricingController : IDisposable
                     }
                     batchCandidates[index] = remainingStack;
                     listingSucceeded++;
-                    listingCandidate = null;
-                    workingItem = null;
-                    step = Step.Start;
-                    ResetRequest();
-                    Status = $"Listed {submitted.Name} × {submitted.Quantity:N0}. Continuing with the {remainingStack.Quantity:N0} item(s) remaining in carried inventory.";
+                }
+                else
+                {
+                    listingSucceeded++;
+                    index++;
+                }
+
+                if (!batchSellingOnly)
+                {
+                    listingContributionTarget = newListing;
+                    if (!bridge.TryOpenExisting(newListing, out var contributionOpenError))
+                    {
+                        Cancel($"Listed {submitted.Name}, but could not open its Compare Prices view for Universalis: {contributionOpenError}");
+                        return;
+                    }
+                    deadline = now.AddSeconds(8);
+                    step = Step.ListingContributionOpening;
+                    Status = $"Listed {submitted.Name}. Opening its Compare Prices view to trigger the Dalamud marketboard uploader...";
                     return;
                 }
 
-                listingSucceeded++;
-                index++;
                 listingCandidate = null;
                 workingItem = null;
                 step = Step.Start;
-                Status = $"Listed {submitted.Name} at {listingSubmittedPrice:N0} gil each. Continuing with the next eligible item.";
+                ResetRequest();
+                Status = remaining > 0
+                    ? $"Listed {submitted.Name} × {submitted.Quantity:N0}. Continuing with the {remaining:N0} item(s) remaining in carried inventory."
+                    : $"Listed {submitted.Name} at {listingSubmittedPrice:N0} gil each. Continuing with the next eligible item.";
                 return;
             }
             if (now > deadline)
@@ -1231,6 +1278,124 @@ internal sealed class PricingController : IDisposable
                 return;
             }
         }
+    }
+
+    private void TickListingContribution(DateTimeOffset now)
+    {
+        if (listingContributionTarget is not { } target)
+        { Cancel("The listing was placed, but its Compare Prices target was lost. Check the retainer before resuming."); return; }
+
+        if (step == Step.ListingContributionOpening)
+        {
+            if (!bridge.TryReadSellItem(out var opened, out _))
+            {
+                if (now > deadline) Cancel($"Listed {target.Name}, but its sale window did not open for the Universalis upload check.");
+                return;
+            }
+            if (!opened.IsExisting || !SameListingIdentity(target, opened) || opened.CurrentPrice != target.CurrentPrice)
+            { Cancel($"Listed {target.Name}, but the opened listing did not match it. Check the retainer before resuming."); return; }
+
+            listingContributionTarget = opened;
+            workingItem = opened;
+            StartListingContributionCompare(opened, now);
+            return;
+        }
+
+        if (step == Step.ListingContributionWaitingToCompare)
+        {
+            if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(target, current))
+            { Cancel($"Listed {target.Name}, but its sale window changed before Compare Prices could open."); return; }
+            if (bridge.IsComparisonVisible)
+            { Cancel($"Listed {target.Name}, but another market comparison is open. Close it before continuing."); return; }
+            if (bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) Cancel($"Listed {target.Name}, but the previous marketboard request did not finish.");
+                return;
+            }
+            StartListingContributionCompare(current, now);
+            return;
+        }
+
+        if (step == Step.ListingContributionWaitingForResponse)
+        {
+            if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(target, current))
+            { Cancel($"Listed {target.Name}, but its sale window changed while waiting for Compare Prices."); return; }
+            if (bridge.TryGetLocalSnapshot(current, out _, out _))
+            {
+                step = Step.ListingContributionClosing;
+                deadline = now.AddSeconds(8);
+                Status = $"Compare Prices returned for {target.Name}. Closing the view and continuing...";
+                return;
+            }
+            if (now > deadline)
+                Cancel($"Listed {target.Name}, but Compare Prices did not return a complete market response. Check the marketboard window before resuming.");
+            return;
+        }
+
+        if (step == Step.ListingContributionClosing)
+        {
+            if (bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) Cancel($"Listed {target.Name}, but its marketboard request is still finishing. Close the comparison before resuming.");
+                return;
+            }
+            if (!bridge.TryClosePriceWindows(target, out var closeError))
+            { Cancel($"Compare Prices returned for {target.Name}, but its view could not be closed safely: {closeError}"); return; }
+            step = Step.ListingContributionClosingSell;
+            deadline = now.AddSeconds(8);
+            return;
+        }
+
+        if (step == Step.ListingContributionClosingSell)
+        {
+            if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible)
+            {
+                if (now > deadline) Cancel($"The Compare Prices view for {target.Name} did not close. Close it before resuming.");
+                return;
+            }
+
+            listingContributionTarget = null;
+            if (work is Work.Scan or Work.AutoUpdateAllRetainers)
+            {
+                if (index >= Rows.Count)
+                { Cancel($"Compare Prices completed for {target.Name}, but the listing update could not resume safely."); return; }
+                AdvanceScanIndex(Rows[index]);
+                workingItem = null;
+                step = Step.Start;
+                ResetRequest();
+                nextTick = now;
+                Status = $"Compare Prices completed for {target.Name}. If Dalamud's marketboard uploader is enabled, its response can now be shared. Continuing the listing update.";
+                return;
+            }
+
+            listingCandidate = null;
+            workingItem = null;
+            step = Step.Start;
+            ResetRequest();
+            Status = $"Compare Prices completed for {target.Name}. If Dalamud's marketboard uploader is enabled, its response can now be shared. Continuing the listing run.";
+        }
+    }
+
+    private void StartListingContributionCompare(SellItem item, DateTimeOffset now)
+    {
+        if (!bridge.RequestCompare(item, out var error))
+        {
+            if (error.Contains("previous marketboard search is still finishing", StringComparison.OrdinalIgnoreCase))
+            {
+                listingContributionTarget = item;
+                step = Step.ListingContributionWaitingToCompare;
+                deadline = now.AddSeconds(20);
+                Status = $"Listed {item.Name}. Waiting for the previous marketboard request before opening Compare Prices...";
+                return;
+            }
+            Cancel($"Listed {item.Name}, but Compare Prices could not be requested: {error}");
+            return;
+        }
+
+        listingContributionTarget = item;
+        step = Step.ListingContributionWaitingForResponse;
+        deadline = now.AddSeconds(25);
+        Status = $"Compare Prices is open for {item.Name}. Waiting for Dalamud's marketboard response...";
     }
 
     private void SkipBatchItem(string message)
@@ -1268,6 +1433,7 @@ internal sealed class PricingController : IDisposable
         batchSellingOnly = false;
         workingItem = null;
         listingCandidate = null;
+        listingContributionTarget = null;
         batchCandidates.Clear();
         batchSoldQuantitiesByItemId.Clear();
         batchMaximumReachedItemIds.Clear();
@@ -1391,6 +1557,7 @@ internal sealed class PricingController : IDisposable
             batchCandidates.Clear();
             batchSellingOnly = false;
             listingCandidate = null;
+            listingContributionTarget = null;
             workingItem = null;
         }
         else if (wasSingleListing)
