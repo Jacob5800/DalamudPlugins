@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
-    public int Version { get; set; } = 10;
+    public int Version { get; set; } = 11;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -27,6 +27,9 @@ public sealed class PluginConfig : IPluginConfiguration
     public Dictionary<uint, uint> BatchSaleQuantities { get; set; } = [];
     // Zero or missing means unlimited total quantity for that item during one listing run.
     public Dictionary<uint, uint> BatchSaleMaxQuantities { get; set; } = [];
+    public Dictionary<ulong, RetainerListingCache> UniversalisRetainerListings { get; set; } = [];
+    public List<uint> UniversalisPendingItemIds { get; set; } = [];
+    public Dictionary<uint, DateTimeOffset> UniversalisLastBoardSearchAt { get; set; } = [];
     public double SniperThresholdFraction { get; set; } = 0.910;
     public int SniperMinimumSales14Days { get; set; } = 5;
     public int SniperHistoryDays { get; set; } = 7;
@@ -53,6 +56,18 @@ public sealed class PluginConfig : IPluginConfiguration
             .ToDictionary(pair => pair.Key, pair => (uint)Math.Clamp((long)pair.Value, 1, 9_999));
         BatchSaleMaxQuantities = (BatchSaleMaxQuantities ?? []).Where(pair => pair.Key != 0 && BatchSaleQuantities.ContainsKey(pair.Key))
             .ToDictionary(pair => pair.Key, pair => pair.Value == 0 ? 0 : (uint)Math.Clamp((long)pair.Value, 1, 999_999_999));
+        UniversalisRetainerListings = (UniversalisRetainerListings ?? [])
+            .Where(pair => pair.Key != 0 && pair.Value is not null && pair.Value.RetainerId == pair.Key)
+            .ToDictionary(pair => pair.Key, pair => new RetainerListingCache
+            {
+                RetainerId = pair.Key,
+                RetainerName = pair.Value.RetainerName ?? string.Empty,
+                RefreshedAt = pair.Value.RefreshedAt,
+                Listings = (pair.Value.Listings ?? []).Where(item => item.ItemId != 0 && item.Quantity != 0).ToList()
+            });
+        UniversalisPendingItemIds = (UniversalisPendingItemIds ?? []).Where(id => id != 0).Distinct().ToList();
+        UniversalisLastBoardSearchAt = (UniversalisLastBoardSearchAt ?? []).Where(pair => pair.Key != 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
         SniperThresholdFraction = double.IsFinite(SniperThresholdFraction)
             ? Math.Clamp(SniperThresholdFraction, 0.01, 1.0) : 0.910;
         SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 1_800);

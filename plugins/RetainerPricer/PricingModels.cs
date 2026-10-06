@@ -17,6 +17,16 @@ public sealed record MarketListing(
     ulong RetainerId,
     bool OnMannequin = false);
 
+public sealed class RetainerListingCache
+{
+    public ulong RetainerId { get; set; }
+    public string RetainerName { get; set; } = string.Empty;
+    public DateTimeOffset RefreshedAt { get; set; }
+    public List<RetainerListingCacheEntry> Listings { get; set; } = [];
+}
+
+public sealed record RetainerListingCacheEntry(uint ItemId, bool IsHq, uint Quantity, uint Price);
+
 public sealed record PriceSnapshot(
     uint ItemId,
     uint WorldId,

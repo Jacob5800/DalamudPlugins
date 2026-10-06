@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.16.0
+- Added saved retainer listing snapshots and a deduplicated queue of changed item IDs.
+- Added a separate marketboard lookup that waits for an open board, searches queued items, and opens each item's listings.
+
 ## 0.4.15.0
 - Reverted automatic Compare Prices views after listings and repricing.
 - Made the retrieved market price easier to spot in a dedicated Price Lookup result row.

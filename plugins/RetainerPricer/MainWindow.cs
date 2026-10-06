@@ -10,6 +10,7 @@ internal sealed class MainWindow : Window
     private const string EmptyBatchListPopup = "Batch selling list is empty.";
     private const string EmptyExceptionsWarningPopup = "Your Exceptions list is empty";
     private const string PriceDropReviewPopup = "Review large price drop";
+    private const string MarketboardRequiredPopup = "Open a marketboard first";
     private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly PluginConfig config;
     private readonly PricingController controller;
@@ -212,11 +213,13 @@ internal sealed class MainWindow : Window
         {
             if (!string.IsNullOrEmpty(controller.Progress)) ImGui.TextUnformatted(controller.Progress);
         }
+        DrawMarketboardPrompt();
         DrawPriceDropReviewPopup();
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
             if (ImGui.BeginTabItem("New / selected item")) { DrawCurrent(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Price lookup")) { DrawManualLookup(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
@@ -233,6 +236,87 @@ internal sealed class MainWindow : Window
         ImGui.SetCursorPos(new Vector2(ImGui.GetStyle().WindowPadding.X,
             ImGui.GetWindowHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetTextLineHeight()));
         ImGui.TextDisabled(versionLabel);
+    }
+
+    private void DrawMarketboardPrompt()
+    {
+        if (controller.MarketboardPromptPending) ImGui.OpenPopup(MarketboardRequiredPopup);
+        if (!ImGui.BeginPopupModal(MarketboardRequiredPopup, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        ImGui.TextWrapped("Open a marketboard in game. Retainer Pricer will automatically search the queued items and open each item's listings as soon as it detects the marketboard.");
+        ImGui.Spacing();
+        if (ImGui.Button("Okay"))
+        {
+            ImGui.CloseCurrentPopup();
+            dispatch(controller.DismissMarketboardPrompt);
+        }
+        ImGui.EndPopup();
+    }
+
+    private void DrawUniversalisLookup()
+    {
+        ImGui.TextWrapped("Refresh the saved listings for each retainer. New, changed, and removed listing entries queue their item IDs. When you start the lookup, open a marketboard if needed; the plugin will search each queued item and open its listings in turn.");
+        ImGui.TextDisabled("This reads your own retainer listings and requests marketboard results. Universalis contribution still depends on XIVLauncher marketboard data reporting being enabled.");
+        ImGui.Spacing();
+
+        ImGui.BeginDisabled(controller.Busy || sniper.IsRunning || vendor.IsRunning);
+        if (ImGui.Button("Refresh all retainer listings")) dispatch(controller.SnapshotAllRetainerListings);
+        ImGui.SameLine();
+        if (ImGui.Button("Obtain Universalis info")) dispatch(controller.SearchPendingUniversalisItems);
+        ImGui.EndDisabled();
+
+        ImGui.TextWrapped($"Queued item IDs: {controller.UniversalisPendingCount}. Searches are deduplicated by item ID, so the same item listed by multiple retainers is searched once.");
+        if (controller.IsSearchingUniversalisItems)
+            ImGui.TextUnformatted($"Search progress: {controller.MarketboardLookupCompleted} of {controller.MarketboardLookupTotal} complete" +
+                (controller.MarketboardLookupCurrentItemId == 0 ? "" : $" · item #{controller.MarketboardLookupCurrentItemId}"));
+        else if (controller.MarketboardPromptPending)
+            ImGui.TextDisabled("Waiting for you to open a marketboard. The queued searches will start automatically.");
+
+        if (controller.UniversalisPendingItemIds.Count > 0 &&
+            ImGui.BeginTable("##universalisQueue", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+                new Vector2(0, 150)))
+        {
+            ImGui.TableSetupColumn("Queued item");
+            ImGui.TableSetupColumn("Item ID", ImGuiTableColumnFlags.WidthFixed, 100);
+            ImGui.TableSetupColumn("Last searched", ImGuiTableColumnFlags.WidthFixed, 180);
+            ImGui.TableHeadersRow();
+            foreach (var itemId in controller.UniversalisPendingItemIds)
+            {
+                var itemName = itemChoices.FirstOrDefault(item => item.ItemId == itemId)?.Name ?? "Unknown item";
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(itemName);
+                ImGui.TableNextColumn(); ImGui.TextUnformatted($"#{itemId}");
+                ImGui.TableNextColumn();
+                if (controller.UniversalisLastBoardSearchAt(itemId) is { } searchedAt)
+                    ImGui.TextUnformatted(searchedAt.LocalDateTime.ToString("g"));
+                else
+                    ImGui.TextDisabled("Never");
+            }
+            ImGui.EndTable();
+        }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Saved retainer snapshots");
+        if (controller.UniversalisRetainerSnapshots.Count == 0)
+        {
+            ImGui.TextDisabled("No retainer snapshots yet. Open the retainer picker or a selling list, then refresh.");
+            return;
+        }
+        if (ImGui.BeginTable("##universalisRetainerSnapshots", 3,
+                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, new Vector2(0, 180)))
+        {
+            ImGui.TableSetupColumn("Retainer");
+            ImGui.TableSetupColumn("Listings", ImGuiTableColumnFlags.WidthFixed, 90);
+            ImGui.TableSetupColumn("Last refreshed", ImGuiTableColumnFlags.WidthFixed, 180);
+            ImGui.TableHeadersRow();
+            foreach (var snapshot in controller.UniversalisRetainerSnapshots)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RetainerName);
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.Listings.Count.ToString());
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RefreshedAt.LocalDateTime.ToString("g"));
+            }
+            ImGui.EndTable();
+        }
     }
 
     private void DrawCurrent()
@@ -458,6 +542,7 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
         ImGui.BulletText("Price lookup: search an item and retrieve its Universalis price without opening a retainer sale window. The lowest matching HQ/NQ listing is shown in a dedicated result row. This is read-only and never changes a listing. In Captured items, Snapshot inventory or Snapshot retainer listings fills a list with Retrieve, List, and Exclude actions.");
+        ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");

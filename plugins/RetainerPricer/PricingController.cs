@@ -13,7 +13,7 @@ internal sealed class PriceRow(SellItem item)
 
 internal sealed class PricingController : IDisposable
 {
-    private enum Work { Idle, Single, Manual, Scan, AutoUpdateAllRetainers, BatchListing }
+    private enum Work { Idle, Single, Manual, Scan, AutoUpdateAllRetainers, SnapshotAllRetainers, MarketboardLookup, BatchListing }
     private enum Step
     {
         Start, Opening, WaitingToCompare, Quote, Closing, ClosingListingCompare, ClosingSkippedCompare,
@@ -24,6 +24,7 @@ internal sealed class PricingController : IDisposable
     private readonly UniversalisClient universalis;
     private readonly PluginConfig config;
     private readonly IReadOnlySet<uint> marketableItemIds;
+    private readonly Action saveConfiguration;
     private CancellationTokenSource cancellation = new();
     private Task<PriceSnapshot>? quoteTask;
     private Work work;
@@ -65,13 +66,25 @@ internal sealed class PricingController : IDisposable
     private ulong autoLastSelectedRetainerId;
     private int autoRetainerDialogueClicks;
     private DateTimeOffset autoRetainerNextDialogueClick;
+    private readonly List<uint> marketboardLookupQueue = [];
+    private int marketboardLookupIndex;
+    private int marketboardLookupCompleted;
+    private uint marketboardLookupCurrentItemId;
+    private ulong marketboardLookupContentId;
+    private uint marketboardLookupWorldId;
+    private DateTimeOffset marketboardLookupDeadline;
+    private DateTimeOffset marketboardNextRequestAt;
+    private bool marketboardPromptPending;
+    private bool marketboardWaitingForBoard;
+    private readonly HashSet<uint> snapshotChangedItemIds = [];
 
     private sealed record ManualQuoteTarget(ItemChoice Item, bool IsHq, MarketWorld World);
 
     public PricingController(NativeMarketBridge bridge, UniversalisClient universalis, PluginConfig config,
-        IReadOnlySet<uint> marketableItemIds)
-        => (this.bridge, this.universalis, this.config, this.marketableItemIds) =
-            (bridge, universalis, config, marketableItemIds);
+        IReadOnlySet<uint> marketableItemIds, Action saveConfiguration)
+        => (this.bridge, this.universalis, this.config, this.marketableItemIds, this.saveConfiguration) =
+            (bridge, universalis, config, marketableItemIds, saveConfiguration);
+
 
     public SellItem? CurrentItem { get; private set; }
     public PriceSnapshot? CurrentSnapshot { get; private set; }
@@ -102,6 +115,18 @@ internal sealed class PricingController : IDisposable
     public bool IsBatchSellingOnlyRunning => work == Work.BatchListing && batchSellingOnly;
     public bool IsUpdatingListings => work is Work.Scan or Work.AutoUpdateAllRetainers;
     public bool IsAutoUpdatingAllRetainers => work == Work.AutoUpdateAllRetainers;
+    public bool IsSnapshottingRetainers => work == Work.SnapshotAllRetainers;
+    public bool IsSearchingUniversalisItems => work == Work.MarketboardLookup;
+    public bool MarketboardPromptPending => marketboardPromptPending;
+    public int UniversalisPendingCount => config.UniversalisPendingItemIds.Count;
+    public IReadOnlyList<uint> UniversalisPendingItemIds => config.UniversalisPendingItemIds;
+    public DateTimeOffset? UniversalisLastBoardSearchAt(uint itemId)
+        => config.UniversalisLastBoardSearchAt.TryGetValue(itemId, out var searchedAt) ? searchedAt : null;
+    public IReadOnlyList<RetainerListingCache> UniversalisRetainerSnapshots => config.UniversalisRetainerListings.Values
+        .OrderBy(cache => cache.RetainerName, StringComparer.CurrentCultureIgnoreCase).ToArray();
+    public int MarketboardLookupCompleted => marketboardLookupCompleted;
+    public int MarketboardLookupTotal => marketboardLookupQueue.Count;
+    public uint MarketboardLookupCurrentItemId => marketboardLookupCurrentItemId;
     public bool CanUpdateExisting => bridge.RetainerAvailabilityError is null;
     public bool CanApplyExisting => CanUpdateExisting && bridge.ItemSelectorAvailabilityError is null;
     public bool CanStartListingItems => CanApplyExisting;
@@ -115,7 +140,7 @@ internal sealed class PricingController : IDisposable
         get
         {
             if (work == Work.Scan) return $"Checking {Math.Min(index + 1, Rows.Count)} of {Rows.Count}";
-            if (work == Work.AutoUpdateAllRetainers)
+            if (work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers)
             {
                 var retainerName = autoRetainers.Count > autoRetainerIndex
                     ? autoRetainers[autoRetainerIndex].Name : "Retainers";
@@ -124,8 +149,11 @@ internal sealed class PricingController : IDisposable
                     Step.AutoSelectSellMenu or Step.AutoWaitSellList
                     ? $"Retainer {Math.Min(autoRetainerIndex + 1, autoRetainers.Count)} of {autoRetainers.Count}: {retainerName}"
                     : $"Retainer {Math.Min(autoRetainerIndex + 1, autoRetainers.Count)} of {autoRetainers.Count}: {retainerName} · listing {Math.Min(index + 1, Rows.Count)} of {Rows.Count}";
-                return $"{retainerProgress} · {AutoUpdateEta()}";
+                var prefix = work == Work.SnapshotAllRetainers ? "Snapshot" : "Auto update";
+                return $"{prefix} · {retainerProgress} · {AutoUpdateEta()}";
             }
+            if (work == Work.MarketboardLookup)
+                return $"Marketboard search {Math.Min(marketboardLookupIndex + 1, marketboardLookupQueue.Count)} of {marketboardLookupQueue.Count}";
             if (work == Work.BatchListing) return $"Listing {Math.Min(index + 1, batchCandidates.Count)} of {batchCandidates.Count}";
             return "";
         }
@@ -157,15 +185,26 @@ internal sealed class PricingController : IDisposable
                 Cancel("Stopped because the character disconnected, began loading, or started logging out.");
                 return;
             }
-            if (work == Work.AutoUpdateAllRetainers && bridge.IsCharacterOrWorldChanged(autoContentId, autoWorldId))
+            if ((work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers) &&
+                bridge.IsCharacterOrWorldChanged(autoContentId, autoWorldId))
             {
                 Cancel("Stopped because the character or home world changed while moving between retainers.");
                 return;
             }
-            var autoNavigation = work == Work.AutoUpdateAllRetainers && step is Step.AutoCloseSellList or
-                Step.AutoWaitRetainerMenu or Step.AutoWaitPicker or Step.AutoSelectRetainer or
-                Step.AutoWaitTargetMenu or Step.AutoSelectSellMenu or Step.AutoWaitSellList;
-            if (work != Work.Manual && !autoNavigation && session is not null && bridge.IsSessionIdentityChanged(session))
+            var autoNavigation = (work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers) &&
+                (step is Step.AutoCloseSellList or Step.AutoWaitRetainerMenu or Step.AutoWaitPicker or Step.AutoSelectRetainer or
+                    Step.AutoWaitTargetMenu or Step.AutoSelectSellMenu or Step.AutoWaitSellList);
+            if (work == Work.MarketboardLookup && bridge.IsCharacterOrWorldChanged(marketboardLookupContentId, marketboardLookupWorldId))
+            {
+                Cancel("Marketboard lookup stopped because the character or world changed. Unsearched items remain queued.");
+                return;
+            }
+            if (work == Work.MarketboardLookup && !bridge.IsMarketBoardOpen)
+            {
+                Cancel("Marketboard lookup stopped because the marketboard was closed. Unsearched items remain queued.");
+                return;
+            }
+            if (work != Work.Manual && work != Work.MarketboardLookup && !autoNavigation && session is not null && bridge.IsSessionIdentityChanged(session))
             {
                 Cancel("Stopped because the character, world, or active retainer changed.");
                 return;
@@ -178,8 +217,23 @@ internal sealed class PricingController : IDisposable
         nextTick = now.AddMilliseconds(250);
         CurrentItem = bridge.TryReadSellItem(out var selected, out _) ? selected : null;
         if (work == Work.Manual) { TickManual(now); return; }
+        if (work == Work.MarketboardLookup) { TickMarketboardLookup(now); return; }
         if (work == Work.Idle)
         {
+            if (marketboardWaitingForBoard)
+            {
+                if (GetCachedRetainerItemIds().Count == 0 || config.UniversalisPendingItemIds.Count == 0)
+                {
+                    marketboardWaitingForBoard = false;
+                    Status = "No new or changed retainer listings are queued for a marketboard search.";
+                }
+                else if (bridge.IsMarketBoardOpen)
+                {
+                    marketboardWaitingForBoard = false;
+                    BeginMarketboardLookup();
+                    return;
+                }
+            }
             if (CurrentItem is not { } item)
             {
                 if (!bridge.IsSellWindowVisible) suppressAutoPriceUntilSellWindowCloses = false;
@@ -198,7 +252,7 @@ internal sealed class PricingController : IDisposable
         }
         if (work == Work.Single) TickSingle(now);
         else if (work == Work.Scan) TickScan(now);
-        else if (work == Work.AutoUpdateAllRetainers) TickAutoUpdateAllRetainers(now);
+        else if (work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers) TickAutoUpdateAllRetainers(now);
         else if (work == Work.BatchListing) TickBatchListing(now);
     }
 
@@ -502,6 +556,240 @@ internal sealed class PricingController : IDisposable
         Status = $"Auto update queued for {autoRetainers.Count} retainer(s), starting {startDescription}.";
     }
 
+    public void SnapshotAllRetainerListings()
+    {
+        if (Busy) return;
+        if (!CanUpdateExisting) { Status = ExistingUpdateError ?? "Retainer listing snapshots are unavailable on this client build."; return; }
+        if (bridge.TryReadSellItem(out _, out _))
+        { Status = "Close the individual selling window first."; return; }
+        if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible || bridge.IsRetainerMenuVisible)
+        { Status = "Close the item, comparison, or retainer option window before scanning retainers."; return; }
+        if (!bridge.TryGetCharacterContext(out var contentId, out var worldId, out var error))
+        { Status = error; return; }
+        if (!bridge.TryGetOwnRetainerIds(out _))
+        { Status = "Retainer ownership data is not ready. Reopen the retainer picker and try again."; return; }
+
+        autoRetainers.Clear();
+        var startedAtPicker = bridge.IsRetainerPickerVisible;
+        if (startedAtPicker)
+        {
+            if (!bridge.TryGetRetainerPickerOrder(out var pickerOrder, out error))
+            { Status = $"Could not read the retainer picker safely: {error}"; return; }
+            autoRetainers.AddRange(pickerOrder);
+            if (autoRetainers.Count == 0)
+            { Status = "The retainer picker did not contain any retainers."; return; }
+            autoContentId = contentId;
+            autoWorldId = worldId;
+            autoLastSelectedRetainerId = bridge.TryGetSelectedRetainerId(out var selectedId) ? selectedId : 0;
+            session = null;
+            step = Step.AutoSelectRetainer;
+        }
+        else
+        {
+            if (!bridge.IsRetainerSellListVisible)
+            { Status = "Open the retainer picker or a retainer's selling list before refreshing all retainer snapshots."; return; }
+            if (!bridge.TryGetSession(out var active, out error)) { Status = error; return; }
+            if (!bridge.TryGetOwnRetainers(out var retainers))
+            { Status = "Retainer ownership data is not ready. Reopen the selling list and try again."; return; }
+            var activeIndex = -1;
+            for (var i = 0; i < retainers.Count; i++)
+                if (retainers[i].RetainerId == active.RetainerId) { activeIndex = i; break; }
+            if (activeIndex < 0)
+            { Status = "The open retainer could not be matched to your retainer roster."; return; }
+            autoRetainers.Add(retainers[activeIndex]);
+            autoRetainers.AddRange(retainers.Where((_, i) => i != activeIndex));
+            autoContentId = active.ContentId;
+            autoWorldId = active.WorldId;
+            autoLastSelectedRetainerId = active.RetainerId;
+            session = active;
+            step = Step.AutoStartRetainer;
+        }
+
+        autoRetainerIndex = 0;
+        autoRetainerDialogueClicks = 0;
+        autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
+        autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
+        autoUpdated = autoAlreadyPriced = autoSkipped = 0;
+        snapshotChangedItemIds.Clear();
+        autoUpdateStartedAt = DateTimeOffset.UtcNow;
+        work = Work.SnapshotAllRetainers;
+        nextTick = autoUpdateStartedAt;
+        var startDescription = startedAtPicker ? "top-to-bottom from the retainer picker" : $"with {autoRetainers[0].Name}";
+        Status = $"Retainer snapshot queued for {autoRetainers.Count} retainer(s), starting {startDescription}.";
+    }
+
+    public void SearchPendingUniversalisItems()
+    {
+        if (Busy) return;
+        marketboardPromptPending = false;
+        var available = GetCachedRetainerItemIds();
+        var queued = config.UniversalisPendingItemIds.Where(available.Contains).Distinct().ToArray();
+        config.UniversalisPendingItemIds = queued.ToList();
+        saveConfiguration();
+        if (queued.Length == 0)
+        {
+            Status = "No new or changed retainer listings are queued for a marketboard search.";
+            return;
+        }
+        if (!bridge.IsMarketBoardOpen)
+        {
+            marketboardPromptPending = true;
+            marketboardWaitingForBoard = true;
+            Status = "Waiting for a marketboard. Open one and queued searches will start automatically.";
+            return;
+        }
+        BeginMarketboardLookup(queued);
+    }
+
+    private void BeginMarketboardLookup(IReadOnlyList<uint>? queuedItems = null)
+    {
+        var cachedItemIds = GetCachedRetainerItemIds();
+        var queued = queuedItems ?? config.UniversalisPendingItemIds
+            .Where(cachedItemIds.Contains).Distinct().ToArray();
+        if (queued.Count == 0)
+        {
+            marketboardWaitingForBoard = false;
+            Status = "No new or changed retainer listings are queued for a marketboard search.";
+            return;
+        }
+        if (!bridge.TryGetCharacterContext(out marketboardLookupContentId, out marketboardLookupWorldId, out var error))
+        { Status = error; return; }
+
+        marketboardLookupQueue.Clear();
+        marketboardLookupQueue.AddRange(queued);
+        marketboardLookupIndex = 0;
+        marketboardLookupCompleted = 0;
+        marketboardLookupCurrentItemId = 0;
+        var now = DateTimeOffset.UtcNow;
+        marketboardNextRequestAt = now;
+        marketboardLookupDeadline = now.AddSeconds(30);
+        work = Work.MarketboardLookup;
+        nextTick = now;
+        Status = $"Marketboard lookup queued for {marketboardLookupQueue.Count} item(s).";
+    }
+
+    public void DismissMarketboardPrompt() => marketboardPromptPending = false;
+
+    private HashSet<uint> GetCachedRetainerItemIds()
+        => config.UniversalisRetainerListings.Values.SelectMany(cache => cache.Listings)
+            .Select(listing => listing.ItemId).Where(marketableItemIds.Contains).ToHashSet();
+
+    private void RefreshRetainerListingCache(RetainerIdentity retainer, MarketSession session,
+        IReadOnlyList<SellItem> listings)
+    {
+        var current = listings.Where(item => item.Session.RetainerId == retainer.RetainerId &&
+                item.Session.ContentId == session.ContentId && marketableItemIds.Contains(item.ItemId))
+            .Select(item => new RetainerListingCacheEntry(item.ItemId, item.IsHq, item.Quantity, item.CurrentPrice))
+            .OrderBy(item => item.ItemId).ThenBy(item => item.IsHq).ThenBy(item => item.Quantity)
+            .ThenBy(item => item.Price).ToList();
+        var old = config.UniversalisRetainerListings.TryGetValue(retainer.RetainerId, out var previous)
+            ? previous.Listings : [];
+        var oldByItem = old.GroupBy(item => item.ItemId).ToDictionary(group => group.Key,
+            group => group.OrderBy(item => item.IsHq).ThenBy(item => item.Quantity).ThenBy(item => item.Price).ToArray());
+        var currentByItem = current.GroupBy(item => item.ItemId).ToDictionary(group => group.Key,
+            group => group.OrderBy(item => item.IsHq).ThenBy(item => item.Quantity).ThenBy(item => item.Price).ToArray());
+        var changedIds = oldByItem.Keys.Union(currentByItem.Keys).Where(itemId =>
+            !oldByItem.GetValueOrDefault(itemId, []).SequenceEqual(currentByItem.GetValueOrDefault(itemId, []))).ToArray();
+        snapshotChangedItemIds.UnionWith(changedIds);
+        var pending = config.UniversalisPendingItemIds.ToHashSet();
+        pending.UnionWith(changedIds);
+        config.UniversalisRetainerListings[retainer.RetainerId] = new RetainerListingCache
+        {
+            RetainerId = retainer.RetainerId,
+            RetainerName = retainer.Name,
+            RefreshedAt = DateTimeOffset.UtcNow,
+            Listings = current
+        };
+        var stillListed = GetCachedRetainerItemIds();
+        config.UniversalisPendingItemIds = pending.Where(stillListed.Contains).Order().ToList();
+        foreach (var searchedItemId in config.UniversalisLastBoardSearchAt.Keys.Where(id => !stillListed.Contains(id)).ToArray())
+            config.UniversalisLastBoardSearchAt.Remove(searchedItemId);
+        saveConfiguration();
+    }
+
+    private void TickMarketboardLookup(DateTimeOffset now)
+    {
+        if (marketboardLookupIndex >= marketboardLookupQueue.Count)
+        {
+            var total = marketboardLookupCompleted;
+            marketboardLookupQueue.Clear();
+            marketboardLookupIndex = 0;
+            marketboardLookupCurrentItemId = 0;
+            Finish($"Marketboard searches complete for {total} item(s). Universalis contribution depends on XIVLauncher marketboard data reporting being enabled.");
+            return;
+        }
+
+        if (marketboardLookupCurrentItemId == 0)
+        {
+            if (now < marketboardNextRequestAt) return;
+            var itemId = marketboardLookupQueue[marketboardLookupIndex];
+            if (!GetCachedRetainerItemIds().Contains(itemId))
+            {
+                config.UniversalisPendingItemIds.Remove(itemId);
+                saveConfiguration();
+                marketboardLookupIndex++;
+                marketboardLookupDeadline = now.AddSeconds(30);
+                return;
+            }
+            if (bridge.IsLocalSearchBusy)
+            {
+                Status = "Waiting for the other marketboard request to finish...";
+                if (now > marketboardLookupDeadline)
+                    Cancel("Marketboard lookup timed out waiting for the current request. Queued items were kept.");
+                return;
+            }
+            if (!bridge.TryStartMarketBoardSearch(itemId, out var startError))
+            {
+                if (startError.Contains("still finishing", StringComparison.OrdinalIgnoreCase))
+                {
+                    Status = startError;
+                    if (now > marketboardLookupDeadline)
+                        Cancel("Marketboard lookup timed out waiting for the current request. Queued items were kept.");
+                    return;
+                }
+                Cancel($"Marketboard lookup stopped before item #{itemId}: {startError} The item remains queued.");
+                return;
+            }
+            marketboardLookupCurrentItemId = itemId;
+            marketboardLookupDeadline = now.AddSeconds(30);
+            Status = $"Searching item #{itemId} on the open marketboard ({marketboardLookupIndex + 1} of {marketboardLookupQueue.Count})...";
+            return;
+        }
+
+        if (!bridge.TryGetMarketBoardSearchResult(marketboardLookupCurrentItemId,
+                out var complete, out var snapshot, out var resultError))
+        {
+            Cancel($"Marketboard lookup stopped: {resultError} The item remains queued.");
+            return;
+        }
+        if (!complete)
+        {
+            if (now > marketboardLookupDeadline)
+                Cancel($"Marketboard lookup timed out on item #{marketboardLookupCurrentItemId}. It and the remaining items stay queued.");
+            return;
+        }
+        if (resultError.Length != 0 || snapshot is null)
+        {
+            Cancel($"Marketboard lookup stopped on item #{marketboardLookupCurrentItemId}: {resultError} The item remains queued.");
+            return;
+        }
+        var searchedItemId = marketboardLookupCurrentItemId;
+        if (!bridge.TryCloseMarketBoardSearchResult(searchedItemId, out var closeError))
+        {
+            Cancel($"Marketboard lookup stopped after item #{searchedItemId}: {closeError} The item remains queued.");
+            return;
+        }
+        config.UniversalisPendingItemIds.Remove(searchedItemId);
+        config.UniversalisLastBoardSearchAt[searchedItemId] = DateTimeOffset.UtcNow;
+        saveConfiguration();
+        marketboardLookupCompleted++;
+        marketboardLookupIndex++;
+        marketboardLookupCurrentItemId = 0;
+        marketboardNextRequestAt = now.AddMilliseconds(1_500);
+        marketboardLookupDeadline = now.AddSeconds(30);
+        Status = $"Searched item #{searchedItemId}; the game returned {snapshot.Listings.Count:N0} listing(s).";
+    }
+
     private bool TryBeginExistingListingScan(MarketSession active, out int total, out int excluded,
         out int protectedCount, out int unmarketable, out string error)
     {
@@ -531,8 +819,9 @@ internal sealed class PricingController : IDisposable
     private void TickAutoUpdateAllRetainers(DateTimeOffset now)
     {
         var error = string.Empty;
-        if (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
-            Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming)
+        if (work == Work.AutoUpdateAllRetainers &&
+            (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
+                Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming))
         {
             TickScan(now);
             return;
@@ -542,12 +831,27 @@ internal sealed class PricingController : IDisposable
         {
             case Step.AutoStartRetainer:
             {
-                if (autoRetainerIndex >= autoRetainers.Count) { FinishAutoUpdate(); return; }
+                if (autoRetainerIndex >= autoRetainers.Count) { FinishRetainerTraversal(); return; }
                 var target = autoRetainers[autoRetainerIndex];
                 if (!bridge.TryGetSession(out var active, out error) || active.RetainerId != target.RetainerId || active.ContentId != autoContentId)
                 {
-                    Cancel(error.Length != 0 ? $"Auto update stopped: {error}" :
-                        "Auto update stopped because the open selling list did not match the queued retainer. No other retainer was changed.");
+                    var operation = IsSnapshotTraversal ? "Retainer snapshot" : "Auto update";
+                    Cancel(error.Length != 0 ? $"{operation} stopped: {error}" :
+                        $"{operation} stopped because the open selling list did not match the queued retainer. No other retainer was changed.");
+                    return;
+                }
+                if (IsSnapshotTraversal)
+                {
+                    var listings = bridge.ReadExistingListings(out error);
+                    if (error.Length != 0)
+                    { Cancel($"Retainer snapshot stopped while reading {target.Name}'s listings: {error}"); return; }
+                    if (listings.Any(item => item.Session.RetainerId != target.RetainerId || item.Session.ContentId != autoContentId))
+                    { Cancel($"Retainer snapshot stopped because {target.Name}'s listing list changed while being read."); return; }
+                    RefreshRetainerListingCache(target, active, listings);
+                    autoRetainersCompleted++;
+                    Status = $"Retainer snapshot · {target.Name}: saved {listings.Count} listing(s); {snapshotChangedItemIds.Count} changed item ID(s) detected so far.";
+                    step = Step.AutoCloseSellList;
+                    deadline = now.AddSeconds(10);
                     return;
                 }
                 if (!TryBeginExistingListingScan(active, out var total, out var excluded, out var protectedCount, out var unmarketable, out error))
@@ -567,12 +871,12 @@ internal sealed class PricingController : IDisposable
             case Step.AutoCloseSellList:
                 if (session is null || session.RetainerId != autoRetainers[autoRetainerIndex].RetainerId ||
                     !bridge.TryCloseRetainerSellList(session, out error))
-                { Cancel($"Auto update stopped before leaving {autoRetainers[autoRetainerIndex].Name}'s selling list: {error}"); return; }
+                { Cancel($"{TraversalOperation} stopped before leaving {autoRetainers[autoRetainerIndex].Name}'s selling list: {error}"); return; }
                 autoRetainerDialogueClicks = 0;
                 autoRetainerNextDialogueClick = now;
                 step = Step.AutoWaitRetainerMenu;
                 deadline = now.AddSeconds(10);
-                Status = $"Auto update · returning from {autoRetainers[autoRetainerIndex].Name}'s selling list...";
+                Status = $"{TraversalOperation} · returning from {autoRetainers[autoRetainerIndex].Name}'s selling list...";
                 return;
             case Step.AutoWaitRetainerMenu:
                 if (bridge.IsRetainerDialogueVisible)
@@ -581,21 +885,21 @@ internal sealed class PricingController : IDisposable
                     if (autoRetainerDialogueClicks < 4 && now >= autoRetainerNextDialogueClick)
                     {
                         if (!bridge.TryAdvanceRetainerDialogue(currentRetainer, autoLastSelectedRetainerId, out error))
-                        { Cancel($"Auto update stopped while closing {currentRetainer.Name}'s dialogue: {error}"); return; }
+                        { Cancel($"{TraversalOperation} stopped while closing {currentRetainer.Name}'s dialogue: {error}"); return; }
                         autoRetainerDialogueClicks++;
                         autoRetainerNextDialogueClick = now.AddMilliseconds(500);
-                        Status = $"Auto update · closing {currentRetainer.Name}'s dialogue ({autoRetainerDialogueClicks}/4)...";
+                        Status = $"{TraversalOperation} · closing {currentRetainer.Name}'s dialogue ({autoRetainerDialogueClicks}/4)...";
                     }
                     else if (autoRetainerDialogueClicks >= 4 && now > deadline)
-                        Cancel($"Auto update stopped because {currentRetainer.Name}'s departure dialogue did not close.");
+                        Cancel($"{TraversalOperation} stopped because {currentRetainer.Name}'s departure dialogue did not close.");
                     return;
                 }
                 if (bridge.IsRetainerMenuVisible)
                 {
                     if (!bridge.TryGetSelectedRetainerId(out var menuRetainerId) || menuRetainerId != autoRetainers[autoRetainerIndex].RetainerId)
-                    { Cancel("Auto update stopped because the retainer menu did not belong to the retainer just processed."); return; }
+                    { Cancel($"{TraversalOperation} stopped because the retainer menu did not belong to the retainer just processed."); return; }
                     if (!bridge.TrySelectRetainerMenuEntry(text => text.Trim().TrimEnd('.', '…').Equals("Quit", StringComparison.OrdinalIgnoreCase), out _, out error))
-                    { Cancel($"Auto update stopped at the retainer menu: {error}"); return; }
+                    { Cancel($"{TraversalOperation} stopped at the retainer menu: {error}"); return; }
                     session = null;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
@@ -608,36 +912,36 @@ internal sealed class PricingController : IDisposable
                     deadline = now.AddSeconds(10);
                     return;
                 }
-                if (now > deadline) Cancel("Auto update stopped because the retainer option menu did not appear after closing the sale list.");
+                if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer option menu did not appear after closing the sale list.");
                 return;
             case Step.AutoWaitPicker:
                 if (bridge.IsRetainerPickerVisible && !bridge.IsRetainerMenuVisible)
                 {
                     autoRetainerIndex++;
-                    if (autoRetainerIndex >= autoRetainers.Count) { FinishAutoUpdate(); return; }
+                    if (autoRetainerIndex >= autoRetainers.Count) { FinishRetainerTraversal(); return; }
                     step = Step.AutoSelectRetainer;
                     return;
                 }
-                if (now > deadline) Cancel("Auto update stopped because the retainer picker did not appear after choosing Quit.");
+                if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer picker did not appear after choosing Quit.");
                 return;
             case Step.AutoSelectRetainer:
             {
                 var target = autoRetainers[autoRetainerIndex];
                 if (!bridge.TrySelectRetainerById(target, out var unavailable, out error))
                 {
-                    if (!unavailable) { Cancel($"Auto update stopped before selecting {target.Name}: {error}"); return; }
+                    if (!unavailable) { Cancel($"{TraversalOperation} stopped before selecting {target.Name}: {error}"); return; }
                     autoUnavailableRetainers++;
                     autoRetainersCompleted++;
                     autoRetainerIndex++;
-                    Status = $"Auto update · skipped {target.Name}: retainer is not currently available.";
-                    if (autoRetainerIndex >= autoRetainers.Count) FinishAutoUpdate();
+                    Status = $"{TraversalOperation} · skipped {target.Name}: retainer is not currently available.";
+                    if (autoRetainerIndex >= autoRetainers.Count) FinishRetainerTraversal();
                     return;
                 }
                 autoRetainerDialogueClicks = 0;
                 autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
                 step = Step.AutoWaitTargetMenu;
                 deadline = now.AddSeconds(10);
-                Status = $"Auto update · opening {target.Name}...";
+                Status = $"{TraversalOperation} · opening {target.Name}...";
                 return;
             }
             case Step.AutoWaitTargetMenu:
@@ -646,7 +950,7 @@ internal sealed class PricingController : IDisposable
                 if (bridge.TryGetSelectedRetainerId(out var selectedId) && selectedId != 0 && selectedId != expected.RetainerId &&
                     autoLastSelectedRetainerId != 0 &&
                     selectedId != autoLastSelectedRetainerId)
-                { Cancel("Auto update stopped because the game selected a different retainer than the queued one."); return; }
+                { Cancel($"{TraversalOperation} stopped because the game selected a different retainer than the queued one."); return; }
                 if (selectedId == expected.RetainerId && bridge.IsRetainerMenuVisible && !bridge.IsRetainerPickerVisible)
                 {
                     autoLastSelectedRetainerId = expected.RetainerId;
@@ -658,28 +962,28 @@ internal sealed class PricingController : IDisposable
                     if (autoRetainerDialogueClicks < 4 && now >= autoRetainerNextDialogueClick)
                     {
                         if (!bridge.TryAdvanceRetainerDialogue(expected, autoLastSelectedRetainerId, out error))
-                        { Cancel($"Auto update stopped while advancing {expected.Name}'s retainer dialogue: {error}"); return; }
+                        { Cancel($"{TraversalOperation} stopped while advancing {expected.Name}'s retainer dialogue: {error}"); return; }
                         autoRetainerDialogueClicks++;
                         autoRetainerNextDialogueClick = now.AddMilliseconds(500);
-                        Status = $"Auto update · confirming {expected.Name}'s greeting ({autoRetainerDialogueClicks}/4)...";
+                        Status = $"{TraversalOperation} · confirming {expected.Name}'s greeting ({autoRetainerDialogueClicks}/4)...";
                     }
                     else if (autoRetainerDialogueClicks >= 4 && now > deadline)
-                        Cancel($"Auto update stopped because {expected.Name}'s greeting did not advance to the retainer menu.");
+                        Cancel($"{TraversalOperation} stopped because {expected.Name}'s greeting did not advance to the retainer menu.");
                     return;
                 }
-                if (now > deadline) Cancel($"Auto update stopped because {expected.Name}'s retainer menu did not appear.");
+                if (now > deadline) Cancel($"{TraversalOperation} stopped because {expected.Name}'s retainer menu did not appear.");
                 return;
             }
             case Step.AutoSelectSellMenu:
             {
                 var expected = autoRetainers[autoRetainerIndex];
                 if (!bridge.TryGetSelectedRetainerId(out var selectedId) || selectedId != expected.RetainerId)
-                { Cancel("Auto update stopped because the retainer changed before opening its listing menu."); return; }
+                { Cancel($"{TraversalOperation} stopped because the retainer changed before opening its listing menu."); return; }
                 if (!bridge.TrySelectRetainerMenuEntry(text =>
                         text.Contains("sell", StringComparison.OrdinalIgnoreCase) &&
                         text.Contains("retainer", StringComparison.OrdinalIgnoreCase) &&
                         text.Contains("market", StringComparison.OrdinalIgnoreCase), out _, out error))
-                { Cancel($"Auto update stopped at {expected.Name}'s option menu: {error}"); return; }
+                { Cancel($"{TraversalOperation} stopped at {expected.Name}'s option menu: {error}"); return; }
                 step = Step.AutoWaitSellList;
                 deadline = now.AddSeconds(12);
                 return;
@@ -690,14 +994,14 @@ internal sealed class PricingController : IDisposable
                 if (bridge.TryGetSession(out var opened, out _) && opened.RetainerId == expected.RetainerId && opened.ContentId == autoContentId)
                 {
                     if (opened.WorldId != autoWorldId)
-                    { Cancel("Auto update stopped because the active world changed while opening the next retainer."); return; }
+                    { Cancel($"{TraversalOperation} stopped because the active world changed while opening the next retainer."); return; }
                     session = opened;
                     step = Step.AutoStartRetainer;
                     return;
                 }
                 if (bridge.TryGetSelectedRetainerId(out var selected) && selected != expected.RetainerId && selected != autoLastSelectedRetainerId)
-                { Cancel("Auto update stopped because the opened sale list belongs to an unexpected retainer."); return; }
-                if (now > deadline) Cancel($"Auto update stopped because {expected.Name}'s selling list did not open.");
+                { Cancel($"{TraversalOperation} stopped because the opened sale list belongs to an unexpected retainer."); return; }
+                if (now > deadline) Cancel($"{TraversalOperation} stopped because {expected.Name}'s selling list did not open.");
                 return;
             }
         }
@@ -707,6 +1011,36 @@ internal sealed class PricingController : IDisposable
     {
         var message = $"Auto update complete: {autoRetainersCompleted} retainer(s), {autoUpdated} listing(s) repriced, " +
             $"{autoAlreadyPriced} already at target, {autoSkipped} left unchanged, {autoUnavailableRetainers} unavailable, {autoEmptyRetainers} with no eligible listings.";
+        autoRetainers.Clear();
+        autoRetainerIndex = 0;
+        Finish(message);
+    }
+
+    private bool IsSnapshotTraversal => work == Work.SnapshotAllRetainers;
+    private string TraversalOperation => IsSnapshotTraversal ? "Retainer snapshot" : "Auto update";
+
+    private void FinishRetainerTraversal()
+    {
+        if (!IsSnapshotTraversal) { FinishAutoUpdate(); return; }
+
+        var currentRetainerIds = autoRetainers.Select(retainer => retainer.RetainerId).ToHashSet();
+        foreach (var removedRetainerId in config.UniversalisRetainerListings.Keys
+                     .Where(retainerId => !currentRetainerIds.Contains(retainerId)).ToArray())
+            config.UniversalisRetainerListings.Remove(removedRetainerId);
+
+        var stillListed = GetCachedRetainerItemIds();
+        config.UniversalisPendingItemIds = config.UniversalisPendingItemIds
+            .Where(stillListed.Contains).Distinct().Order().ToList();
+        foreach (var searchedItemId in config.UniversalisLastBoardSearchAt.Keys
+                     .Where(itemId => !stillListed.Contains(itemId)).ToArray())
+            config.UniversalisLastBoardSearchAt.Remove(searchedItemId);
+        saveConfiguration();
+
+        var changedItems = config.UniversalisPendingItemIds.Count;
+        var retainerReads = autoRetainersCompleted - autoUnavailableRetainers;
+        var message = $"Retainer snapshots refreshed: {retainerReads} retainer(s) read, " +
+            $"{snapshotChangedItemIds.Count} distinct changed item ID(s) detected, {changedItems} queued for marketboard lookup" +
+            (autoUnavailableRetainers > 0 ? $", {autoUnavailableRetainers} unavailable" : "") + ".";
         autoRetainers.Clear();
         autoRetainerIndex = 0;
         Finish(message);
@@ -1373,7 +1707,13 @@ internal sealed class PricingController : IDisposable
     {
         var wasBatchListing = work == Work.BatchListing;
         var wasSingleListing = work == Work.Single && autoApply;
-        var wasAutoUpdating = work == Work.AutoUpdateAllRetainers;
+        var wasAutoUpdating = work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers;
+        if (work == Work.MarketboardLookup)
+        {
+            marketboardLookupQueue.Clear();
+            marketboardLookupIndex = 0;
+            marketboardLookupCurrentItemId = 0;
+        }
         ResetRequest();
         work = Work.Idle;
         manualTarget = null;

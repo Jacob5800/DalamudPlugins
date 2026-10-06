@@ -52,6 +52,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private bool resultReceived;
     private bool requestComplete;
     private int expectedListingCount;
+    private uint boardSearchItemId;
+    private int boardSearchExpectedListingCount = -1;
+    private bool boardSearchResultReceived;
+    private bool boardSearchComplete;
+    private PriceSnapshot? boardSearchSnapshot;
+    private string boardSearchError = string.Empty;
     private string localError = "Compare prices in the current sell window first.";
     private nint sellAddress;
     private bool sellWasVisible;
@@ -85,6 +91,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool IsRetainerMenuVisible => IsAddonVisible("SelectString");
     public bool IsRetainerDialogueVisible => IsAddonVisible("Talk");
     public bool IsRetainerSellListVisible => IsAddonVisible("RetainerSellList");
+    public bool IsMarketBoardOpen => !IsRetainerSellListVisible && !IsSellWindowVisible &&
+        (IsAddonVisible("Market") || IsComparisonVisible);
     public bool IsLocalSearchBusy
     {
         get
@@ -862,6 +870,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool RequestCompare(SellItem expected, out string error)
     {
         if (LocalAvailabilityError != null) { error = LocalAvailabilityError; return false; }
+        if (boardSearchItemId != 0)
+        {
+            if (!boardSearchComplete)
+            { error = "A marketboard item search is still finishing."; return false; }
+            if (!TryCloseMarketBoardSearchResult(boardSearchItemId, out error)) return false;
+        }
         if (!MatchesCurrentDialog(expected, true, out _, out error)) return false;
         var proxy = InfoProxyItemSearch.Instance();
         var addon = GetSellAddon();
@@ -892,6 +906,102 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             return false;
         }
         return true;
+    }
+
+    public bool TryStartMarketBoardSearch(uint itemId, out string error)
+    {
+        error = "Open a marketboard before searching these items.";
+        if (itemId == 0 || !IsMarketBoardOpen) return false;
+        if (LocalAvailabilityError is not null) { error = LocalAvailabilityError; return false; }
+        if (boardSearchItemId != 0)
+        {
+            if (!boardSearchComplete)
+            {
+                error = "The previous item search has not completed yet.";
+                return false;
+            }
+            if (!TryCloseMarketBoardSearchResult(boardSearchItemId, out error)) return false;
+        }
+        var proxy = InfoProxyItemSearch.Instance();
+        var agent = AgentItemSearch.Instance();
+        if (proxy == null || agent == null)
+        {
+            error = "The game's marketboard search is unavailable on this client build.";
+            return false;
+        }
+        if (proxy->WaitingForListings)
+        {
+            error = "The previous marketboard request is still finishing.";
+            return false;
+        }
+        if (IsComparisonVisible)
+        {
+            error = "Close the current item listings window before starting the lookup.";
+            return false;
+        }
+        boardSearchItemId = itemId;
+        boardSearchExpectedListingCount = -1;
+        boardSearchResultReceived = false;
+        boardSearchComplete = false;
+        boardSearchSnapshot = null;
+        boardSearchError = "Waiting for the marketboard response.";
+        agent->ResultItemId = itemId;
+        agent->ShowAddon();
+        proxy->SearchItemId = itemId;
+        if (!proxy->RequestData())
+        {
+            ResetBoardSearch();
+            error = "The game could not start this marketboard search. Close other market windows and try again.";
+            return false;
+        }
+        error = string.Empty;
+        return true;
+    }
+
+    public bool TryGetMarketBoardSearchResult(uint itemId, out bool complete, out PriceSnapshot? snapshot, out string error)
+    {
+        complete = false;
+        snapshot = null;
+        error = string.Empty;
+        if (boardSearchItemId != itemId)
+        {
+            error = "The active marketboard request changed; this item remains queued.";
+            return false;
+        }
+        complete = boardSearchComplete;
+        if (!complete) return true;
+        snapshot = boardSearchSnapshot;
+        error = boardSearchError;
+        return true;
+    }
+
+    public bool TryCloseMarketBoardSearchResult(uint expectedItemId, out string error)
+    {
+        error = string.Empty;
+        if (boardSearchItemId != expectedItemId || !boardSearchComplete)
+        { error = "The marketboard search result was not verified."; return false; }
+        if (IsComparisonVisible)
+        {
+            var agent = AgentItemSearch.Instance();
+            if (agent == null || agent->ResultItemId != expectedItemId)
+            { error = "The open listings window belongs to another item; it was left open."; return false; }
+            var comparison = (AtkUnitBase*)gameGui.GetAddonByName("ItemSearchResult").Address;
+            if (comparison == null || !comparison->IsReady || !comparison->IsVisible)
+            { error = "The marketboard listings window changed before it could be closed."; return false; }
+            comparison->Close(true);
+        }
+        ResetBoardSearch();
+        return true;
+    }
+
+    private void ResetBoardSearch()
+    {
+        boardSearchItemId = 0;
+        boardSearchExpectedListingCount = -1;
+        boardSearchResultReceived = false;
+        boardSearchComplete = false;
+        boardSearchSnapshot = null;
+        boardSearchError = string.Empty;
     }
 
     public bool TryGetLocalSnapshot(SellItem expected, out PriceSnapshot? snapshot, out string error)
@@ -1060,6 +1170,14 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     {
         try
         {
+            if (boardSearchItemId != 0 && proxy != null && proxy->SearchItemId == boardSearchItemId)
+            {
+                boardSearchResultReceived = error == 0;
+                boardSearchExpectedListingCount = count;
+                boardSearchError = error == 0 ? "Waiting for all marketboard listings." :
+                    $"The marketboard request failed (0x{error:X8}); the item remains queued.";
+                if (error != 0) boardSearchComplete = true;
+            }
             if (compareItem != null && proxy != null && proxy->SearchItemId == compareItem.ItemId)
             {
                 resultReceived = error == 0;
@@ -1079,6 +1197,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         try
         {
             // Capture before the game's EndRequest handler gets a chance to reset its proxy state.
+            CaptureBoardSearchSnapshot(proxy);
             CaptureLocalSnapshot(proxy);
         }
         catch (Exception ex)
@@ -1089,6 +1208,11 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         // On some builds EndRequest itself clears WaitingForListings. If the pre-call capture saw
         // that transient state, retry after the original handler has finalized the proxy.
         endHook!.Original(proxy);
+        if (boardSearchItemId != 0 && boardSearchResultReceived && !boardSearchComplete)
+        {
+            try { CaptureBoardSearchSnapshot(proxy); }
+            catch (Exception ex) { MarkBoardSearchCaptureFailure(ex); }
+        }
         if (localSnapshot == null && resultReceived)
         {
             try { CaptureLocalSnapshot(proxy); }
@@ -1137,6 +1261,49 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             PriceSource.Local, DateTimeOffset.UtcNow, rows, true);
         localError = string.Empty;
         requestComplete = true;
+    }
+
+    private void CaptureBoardSearchSnapshot(InfoProxyItemSearch* proxy)
+    {
+        if (boardSearchItemId == 0 || proxy == null || proxy->SearchItemId != boardSearchItemId ||
+            !boardSearchResultReceived || boardSearchComplete) return;
+        if (boardSearchExpectedListingCount is < 0 or > 100 ||
+            proxy->ListingCount != boardSearchExpectedListingCount || proxy->WaitingForListings)
+        {
+            boardSearchSnapshot = null;
+            boardSearchError = "The complete marketboard response could not be verified; the item remains queued.";
+            return;
+        }
+
+        var rows = new List<MarketListing>(boardSearchExpectedListingCount);
+        for (var i = 0; i < boardSearchExpectedListingCount; i++)
+        {
+            ref var row = ref proxy->Listings[i];
+            if (row.ItemId != boardSearchItemId || row.UnitPrice is 0 or > MaximumPrice ||
+                row.Quantity == 0 || row.ListingId == 0)
+            {
+                boardSearchSnapshot = null;
+                boardSearchError = "A marketboard listing was incomplete; the item remains queued.";
+                boardSearchComplete = true;
+                return;
+            }
+            rows.Add(new MarketListing(row.ItemId, row.IsHqItem, row.UnitPrice,
+                row.Quantity, row.RetainerId, row.IsMannequin));
+        }
+
+        var worldId = player.CurrentWorld.RowId;
+        boardSearchSnapshot = new PriceSnapshot(boardSearchItemId, worldId,
+            PriceSource.Local, DateTimeOffset.UtcNow, rows, true);
+        boardSearchError = string.Empty;
+        boardSearchComplete = true;
+    }
+
+    private void MarkBoardSearchCaptureFailure(Exception ex)
+    {
+        boardSearchSnapshot = null;
+        boardSearchError = "The complete marketboard response could not be read; the item remains queued.";
+        boardSearchComplete = true;
+        log.Error(ex, "Copying complete marketboard lookup response failed.");
     }
 
     public void Dispose()

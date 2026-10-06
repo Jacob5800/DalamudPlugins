@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.4.15.0",
+  "AssemblyVersion": "0.4.16.0",
   "Description": "Automatically price eligible inventory and reprice existing listings one gil below matching competition using Universalis market prices and recent sale history.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Automatically price new and existing retainer listings.",
-  "Changelog": "### 0.4.15.0\n- Reverted automatic Compare Prices views after listings and repricing.\n- Made the retrieved market price easier to spot in a dedicated Price Lookup result row.\n\n### 0.4.14.0\n- Added Universalis market data uploads after new listings and confirmed repricing, using Dalamud's Compare Prices flow when the uploader is enabled.",
+  "Changelog": "### 0.4.16.0\n- Added saved retainer listing snapshots and a deduplicated queue of changed item IDs.\n- Added a marketboard lookup that waits for an open marketboard, searches queued items, and opens each item's listings.\n\n### 0.4.15.0\n- Reverted automatic Compare Prices views after listings and repricing.\n- Made the retrieved market price easier to spot in a dedicated Price Lookup result row.\n\n### 0.4.14.0\n- Added Universalis market data uploads after new listings and confirmed repricing, using Dalamud's Compare Prices flow when the uploader is enabled.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
