@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.13.0
+- Added carried-inventory pickers to Retainer sale whitelist and Don't reprice.
+- Added an empty-Exceptions warning before listing, with an option to suppress future warnings.
+- Enlarged the Discord button beside feedback in Help.
+
 ## 0.4.12.0
 - Added explicit World, Data Center, and Region pricing choices in Settings.
 - Added a Retainer sale whitelist that bypasses marketability and price checks for selected items; bound items, Exceptions, and saved gear-set items stay protected.
