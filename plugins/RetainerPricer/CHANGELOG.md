@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.17.0
+- Added a Retrieved price subtab in Price lookup.
+- Showed the retrieved price for Search and Captured items, including inventory and retainer-list Retrieve buttons.
+
 ## 0.4.16.0
 - Added saved retainer listing snapshots and a deduplicated queue of changed item IDs.
 - Added a separate marketboard lookup that waits for an open board, searches queued items, and opens each item's listings.

@@ -541,7 +541,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
-        ImGui.BulletText("Price lookup: search an item and retrieve its Universalis price without opening a retainer sale window. The lowest matching HQ/NQ listing is shown in a dedicated result row. This is read-only and never changes a listing. In Captured items, Snapshot inventory or Snapshot retainer listings fills a list with Retrieve, List, and Exclude actions.");
+        ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. The lowest matching HQ/NQ listing is shown separately from the suggested undercut.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory to find items, filter by name, add a selected item, or add the current marketable inventory at once. Remove an exception to allow that item again unless a saved gear set still uses it.");
@@ -944,6 +944,24 @@ internal sealed class MainWindow : Window
     private void DrawManualLookup()
     {
         ImGui.TextWrapped("Search any item and retrieve its Universalis price from your selected market scope without opening a retainer sale window. This lookup is read-only; it never changes a listing.");
+        if (ImGui.BeginTabBar("##manualLookupTabs"))
+        {
+            if (ImGui.BeginTabItem("Search"))
+            {
+                DrawManualLookupSearch();
+                ImGui.EndTabItem();
+            }
+            if (ImGui.BeginTabItem("Retrieved price"))
+            {
+                DrawManualLookupResult();
+                ImGui.EndTabItem();
+            }
+            ImGui.EndTabBar();
+        }
+    }
+
+    private void DrawManualLookupSearch()
+    {
         ImGui.SetNextItemWidth(360);
         ImGui.InputText("Search item", ref lookupSearch, 128);
         if (!StringComparer.CurrentCultureIgnoreCase.Equals(lookupSearch, lookupSearchCache))
@@ -982,44 +1000,69 @@ internal sealed class MainWindow : Window
             if (ImGui.Button("Retrieve price") && world is not null)
                 dispatch(() => controller.CheckManualItem(selected, lookupHq, world));
             ImGui.EndDisabled();
-            if (controller.ManualQuoteWarning is { } warning) ImGui.TextWrapped(warning);
-            if (controller.ManualSnapshot is { } snapshot)
-            {
-                DrawAge(snapshot);
-                var comparable = snapshot.Listings.Where(listing => listing.IsHq == lookupHq && !listing.OnMannequin).ToArray();
-                var lowestPrice = comparable.Length > 0 ? comparable.Min(listing => listing.PricePerUnit) : (uint?)null;
-                if (ImGui.BeginTable("##manualLookupResult", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
-                {
-                    ImGui.TableSetupColumn("Universalis result");
-                    ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 150);
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.TextUnformatted($"Lowest matching {(lookupHq ? "HQ" : "NQ")} listing");
-                    ImGui.TableNextColumn();
-                    if (lowestPrice is { } price)
-                        ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"{price:N0} gil each");
-                    else
-                        ImGui.TextDisabled("No matching listing");
-                    ImGui.EndTable();
-                }
-                var resultScope = snapshot.RegionName
-                    ?? (config.UseDataCenterPrices ? world?.DataCenterName ?? "the Data Center"
-                        : world?.Name ?? "the home world");
-                ImGui.TextUnformatted($"Received {snapshot.Listings.Count:N0} listings for {resultScope}.");
-                if (controller.ManualProposal is { } proposal)
-                {
-                    if (proposal.CanApply)
-                    {
-                        if (controller.ManualQuoteWarning is null)
-                            ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"Suggested undercut: {proposal.SuggestedPrice:N0} gil each");
-                        else
-                            ImGui.TextUnformatted($"Reference undercut: {proposal.SuggestedPrice:N0} gil each");
-                    }
-                    else
-                        ImGui.TextWrapped(proposal.Error ?? "No usable price.");
-                }
-            }
+        }
+
+        if (controller.ManualResultItem is not null)
+        {
+            ImGui.Separator();
+            DrawManualLookupResult();
+            ImGui.TextDisabled("The same result is available on the Retrieved price tab.");
         }
         DrawCapturedItems();
+    }
+
+    private void DrawManualLookupResult()
+    {
+        if (controller.ManualResultItem is not { } item)
+        {
+            ImGui.TextDisabled("Retrieve a price from Search or Captured items to see it here.");
+            return;
+        }
+
+        var hq = controller.ManualResultIsHq;
+        ImGui.TextUnformatted($"{item.Name} · item {item.ItemId} · {(hq ? "HQ" : "NQ")}");
+        if (controller.ManualQuoteWarning is { } warning) ImGui.TextWrapped(warning);
+        if (controller.IsManualLookupInProgress)
+        {
+            ImGui.TextDisabled(controller.ManualResultStatus ?? "Retrieving price...");
+            return;
+        }
+        if (controller.ManualSnapshot is not { } snapshot)
+        {
+            ImGui.TextDisabled(controller.ManualResultStatus ?? "No Universalis result is available for this item.");
+            return;
+        }
+
+        DrawAge(snapshot);
+        var comparable = snapshot.Listings.Where(listing => listing.IsHq == hq && !listing.OnMannequin).ToArray();
+        var lowestPrice = comparable.Length > 0 ? comparable.Min(listing => listing.PricePerUnit) : (uint?)null;
+        if (ImGui.BeginTable("##manualLookupResult", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        {
+            ImGui.TableSetupColumn("Universalis result");
+            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 150);
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn(); ImGui.TextUnformatted($"Lowest matching {(hq ? "HQ" : "NQ")} listing");
+            ImGui.TableNextColumn();
+            if (lowestPrice is { } price)
+                ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"{price:N0} gil each");
+            else
+                ImGui.TextDisabled("No matching listing");
+            ImGui.EndTable();
+        }
+        var resultScope = snapshot.RegionName ?? snapshot.DataCenterName ?? "your home world";
+        ImGui.TextUnformatted($"Received {snapshot.Listings.Count:N0} listings for {resultScope}.");
+        if (controller.ManualProposal is { } proposal)
+        {
+            if (proposal.CanApply)
+            {
+                if (controller.ManualQuoteWarning is null)
+                    ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"Suggested undercut: {proposal.SuggestedPrice:N0} gil each");
+                else
+                    ImGui.TextUnformatted($"Reference undercut: {proposal.SuggestedPrice:N0} gil each");
+            }
+            else
+                ImGui.TextWrapped(proposal.Error ?? "No usable price.");
+        }
     }
 
     private void DrawCapturedItems()

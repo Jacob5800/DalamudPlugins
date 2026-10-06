@@ -79,6 +79,7 @@ internal sealed class PricingController : IDisposable
     private readonly HashSet<uint> snapshotChangedItemIds = [];
 
     private sealed record ManualQuoteTarget(ItemChoice Item, bool IsHq, MarketWorld World);
+    private ManualQuoteTarget? manualResultTarget;
 
     public PricingController(NativeMarketBridge bridge, UniversalisClient universalis, PluginConfig config,
         IReadOnlySet<uint> marketableItemIds, Action saveConfiguration)
@@ -92,6 +93,10 @@ internal sealed class PricingController : IDisposable
     public PriceSnapshot? ManualSnapshot { get; private set; }
     public PriceProposal? ManualProposal { get; private set; }
     public string? ManualQuoteWarning { get; private set; }
+    public string? ManualResultStatus { get; private set; }
+    public ItemChoice? ManualResultItem => manualResultTarget?.Item;
+    public bool ManualResultIsHq => manualResultTarget?.IsHq ?? false;
+    public bool IsManualLookupInProgress => work == Work.Manual;
     public List<CarriedItemCandidate> InventoryCandidates { get; } = [];
     public List<CarriedItemCandidate> ExceptionInventoryCandidates { get; } = [];
     public List<SellItem> ListedCandidates { get; } = [];
@@ -264,9 +269,11 @@ internal sealed class PricingController : IDisposable
         { Status = "Could not identify your home world's Data Center. No price lookup was started."; return; }
         ResetRequest();
         manualTarget = new ManualQuoteTarget(item, isHq, world);
+        manualResultTarget = manualTarget;
         ManualSnapshot = null;
         ManualProposal = null;
         ManualQuoteWarning = null;
+        ManualResultStatus = $"Retrieving {item.Name}{(isHq ? " (HQ)" : " (NQ)")} from Universalis...";
         step = Step.Start;
         work = Work.Manual;
         session = null;
@@ -1092,6 +1099,7 @@ internal sealed class PricingController : IDisposable
     {
         work = Work.Idle;
         manualTarget = null;
+        ManualResultStatus = message;
         Status = message;
         ResetRequest();
     }
