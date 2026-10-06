@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.14.0
+- Added Universalis market data uploads after new listings and confirmed repricing, using Dalamud's Compare Prices flow when the uploader is enabled.
+
 ## 0.4.13.0
 - Added carried-inventory pickers to Retainer sale whitelist and Don't reprice.
 - Added an empty-Exceptions warning before listing, with an option to suppress future warnings.
