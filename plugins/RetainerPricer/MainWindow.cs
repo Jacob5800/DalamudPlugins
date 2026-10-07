@@ -1100,7 +1100,7 @@ internal sealed class MainWindow : Window
             if (price is { } gil)
             {
                 ImGui.TextColored(new Vector4(1f, 0.85f, 0.25f, 1f), $"{gil:N0} gil each");
-                if (time is { } at) { ImGui.SameLine(); ImGui.TextDisabled($"({Age(at)} ago)"); }
+                if (time is { } at) { ImGui.SameLine(); ImGui.TextDisabled($"({PriceAge(at)} ago)"); }
             }
             else ImGui.TextDisabled("No matching data");
         }
@@ -1702,6 +1702,15 @@ internal sealed class MainWindow : Window
 
     private string PricingRuleName => config.PriceStrategy == PriceStrategy.MatchLowest
         ? "match lowest" : "undercut by 1 gil";
+
+    private static string PriceAge(DateTimeOffset time)
+    {
+        var age = DateTimeOffset.UtcNow - time;
+        if (age < TimeSpan.Zero) age = TimeSpan.Zero;
+        if (age.TotalDays >= 1) return $"{age.Days}d and {age.Hours}h";
+        if (age.TotalHours >= 1) return $"{age.Hours}h and {age.Minutes}m";
+        return age.TotalMinutes >= 1 ? $"{age.Minutes}m" : $"{age.Seconds}s";
+    }
 
     private static string Age(DateTimeOffset time)
     {

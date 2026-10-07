@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.25.0 (testing)
+
+- Fixed selecting the matching marketboard search result by using the list item click event.
+- Retrieved prices now show data age in days and hours instead of rounded day abbreviations.
+
 ## 0.4.24.0
 
 - Fixed submitting queued item-name searches by activating the marketboard Search button.

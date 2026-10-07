@@ -1123,10 +1123,13 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 {
                     if (agent->ListingPageItems[i].ItemId != itemId) continue;
                     if (i >= search->ResultsList->ListLength) break;
-                    var renderer = search->ResultsList->ItemRendererList[i].AtkComponentListItemRenderer;
-                    if (renderer == null) break;
-                    if (!ClickRegisteredButton(&renderer->AtkComponentButton, &search->AtkUnitBase, out error))
-                        return false;
+                    var list = search->ResultsList;
+                    if (!search->IsReady || list->IsUpdatePending || list->GetItemDisabledState(i)) break;
+                    if (list->GetItemRenderer(i) == null) break;
+                    // Results are list rows. Let the list construct its normal click event,
+                    // including the selected index and renderer, instead of fabricating a button click.
+                    list->SelectItem(i);
+                    list->DispatchItemEvent(i, AtkEventType.ListItemClick);
                     boardSearchResultClicked = true;
                     break;
                 }

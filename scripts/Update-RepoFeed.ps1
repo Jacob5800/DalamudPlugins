@@ -8,6 +8,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $AssetName,
 
+    [switch] $Testing,
+
     [string] $FeedPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'repo.json')
 )
 
@@ -26,6 +28,16 @@ if ($null -eq $entry) {
     throw "No root repo.json entry exists for $($manifest.InternalName)."
 }
 
+$download = "https://github.com/Jacob5800/DalamudPlugins/releases/download/$ReleaseTag/$AssetName"
+if ($Testing) {
+    $entry | Add-Member -NotePropertyName TestingAssemblyVersion -NotePropertyValue $manifest.AssemblyVersion -Force
+    $entry | Add-Member -NotePropertyName TestingDalamudApiLevel -NotePropertyValue $manifest.DalamudApiLevel -Force
+    $entry | Add-Member -NotePropertyName DownloadLinkTesting -NotePropertyValue $download -Force
+    $entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+    ConvertTo-Json -InputObject @($feed) -Depth 10 | Set-Content -LiteralPath $FeedPath -Encoding utf8
+    return
+}
+
 $entry.Name = $manifest.Name
 $entry.AssemblyVersion = $manifest.AssemblyVersion
 $entry.RepoUrl = 'https://github.com/Jacob5800/DalamudPlugins'
@@ -42,8 +54,9 @@ $entry.Changelog = $changelog
 $download = "https://github.com/Jacob5800/DalamudPlugins/releases/download/$ReleaseTag/$AssetName"
 $entry.DownloadLinkInstall = $download
 $entry.DownloadLinkUpdate = $download
-$entry.DownloadLinkTesting = $download
 $entry.DownloadLinkTesting = $null
+$entry.TestingAssemblyVersion = $null
+$entry | Add-Member -NotePropertyName TestingDalamudApiLevel -NotePropertyValue $null -Force
 $entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
 
 ConvertTo-Json -InputObject @($feed) -Depth 10 | Set-Content -LiteralPath $FeedPath -Encoding utf8
