@@ -2,6 +2,7 @@
 
 ## 0.4.24.0
 
+- Fixed submitting queued item-name searches by activating the marketboard Search button.
 - Redesigned Retrieved price with cheapest and home-world marketboard prices, recent purchase prices, world names, and data ages for the selected HQ/NQ quality.
 
 ## 0.4.23.0

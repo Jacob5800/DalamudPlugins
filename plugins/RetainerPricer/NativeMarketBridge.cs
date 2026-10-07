@@ -1091,7 +1091,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         search->SearchText.SetString(searchName);
         agent->ListingPageLoaded = false;
         boardSearchResultClicked = false;
-        search->RunSearch(true);
+        if (!ClickRegisteredButton(search->SearchButton, &search->AtkUnitBase, out error))
+        {
+            ResetBoardSearch();
+            error = "Could not activate the marketboard Search button: " + error;
+            return false;
+        }
         error = string.Empty;
         return true;
     }
