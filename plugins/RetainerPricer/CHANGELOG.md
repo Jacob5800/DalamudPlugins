@@ -1,5 +1,11 @@
 # Retainer Pricer changelog
 
+## 0.4.21.0
+- Renamed the marketboard lookup button for clarity, fixed detection of the open Item Search window, and fixed the marketboard prompt width.
+- Added chocobo saddlebag refresh to Don't reprice.
+- Removed New / selected item, moved Sniper to the second tab, and placed Help last.
+- Fixed the venture cycle getting stuck on dialogue after assigning or collecting a venture.
+
 ## 0.4.20.0
 - Fixed Refresh all retainer listings and Auto update getting stuck on retainer farewell dialogue after choosing Quit. The dialogue handling works across retainer personalities. Also fixed the venture cycle getting stuck on farewell dialogue after choosing Quit.
 

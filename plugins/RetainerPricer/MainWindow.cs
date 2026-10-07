@@ -220,8 +220,8 @@ internal sealed class MainWindow : Window
         DrawPriceDropReviewPopup();
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
-            if (ImGui.BeginTabItem("New / selected item")) { DrawCurrent(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Price lookup")) { DrawManualLookup(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
@@ -231,7 +231,6 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Ventures")) { DrawVentures(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
             ImGui.EndTabBar();
         }
 
@@ -245,6 +244,7 @@ internal sealed class MainWindow : Window
     private void DrawMarketboardPrompt()
     {
         if (controller.MarketboardPromptPending) ImGui.OpenPopup(MarketboardRequiredPopup);
+        ImGui.SetNextWindowSize(new Vector2(480 * ImGui.GetIO().FontGlobalScale, 0), ImGuiCond.Always);
         if (!ImGui.BeginPopupModal(MarketboardRequiredPopup, ImGuiWindowFlags.AlwaysAutoResize)) return;
         ImGui.TextWrapped("Open a marketboard in game. Retainer Pricer will automatically search the queued items and open each item's listings as soon as it detects the marketboard.");
         ImGui.Spacing();
@@ -265,7 +265,7 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning);
         if (ImGui.Button("Refresh all retainer listings")) dispatch(controller.SnapshotAllRetainerListings);
         ImGui.SameLine();
-        if (ImGui.Button("Obtain Universalis info")) dispatch(controller.SearchPendingUniversalisItems);
+        if (ImGui.Button("Look up listed items on Marketboard")) dispatch(controller.SearchPendingUniversalisItems);
         ImGui.EndDisabled();
 
         ImGui.TextWrapped($"Queued item IDs: {controller.UniversalisPendingCount}. Searches are deduplicated by item ID, so the same item listed by multiple retainers is searched once.");
@@ -1406,7 +1406,17 @@ internal sealed class MainWindow : Window
             dispatch(controller.SnapshotExceptionInventory);
             noRepriceSelection = null;
         }
+        ImGui.SameLine();
+        if (ImGui.Button("Refresh chocobo saddlebag"))
+        {
+            dispatch(controller.SnapshotExceptionSaddlebag);
+            noRepriceSelection = null;
+        }
         ImGui.EndDisabled();
+        if (controller.ExceptionSaddlebagSnapshotError is { } saddlebagError)
+            ImGui.TextWrapped(saddlebagError);
+        else if (controller.ExceptionSaddlebagSnapshotAt is { } saddlebagAt)
+            ImGui.TextDisabled($"Saddlebag snapshot · {controller.ExceptionSaddlebagCandidates.Count} item stack(s) · {saddlebagAt:HH:mm:ss}");
         if (controller.ExceptionInventorySnapshotError is { } noRepriceInventoryError)
             ImGui.TextWrapped(noRepriceInventoryError);
         else if (controller.ExceptionInventorySnapshotAt is { } noRepriceSnapshotAt)
@@ -1425,6 +1435,7 @@ internal sealed class MainWindow : Window
 
         var noRepriceSearchTerm = noRepriceSearch.Trim();
         var noRepriceInventoryItems = controller.ExceptionInventoryCandidates
+            .Concat(controller.ExceptionSaddlebagCandidates)
             .Where(item => noRepriceSearchTerm.Length == 0 ||
                 item.Name.Contains(noRepriceSearchTerm, StringComparison.CurrentCultureIgnoreCase))
             .GroupBy(item => item.ItemId)
@@ -1436,7 +1447,7 @@ internal sealed class MainWindow : Window
             .ToArray();
         var preview = noRepriceSelection is { } selected
             ? $"{selected.Name}  ·  #{selected.ItemId}"
-            : "Select a carried or matching item to protect...";
+            : "Select an inventory, saddlebag, or matching item to protect...";
         ImGui.SetNextItemWidth(420);
         if (ImGui.BeginCombo("Item to protect", preview))
         {

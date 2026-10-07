@@ -76,6 +76,24 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         if (bridge.IsClientStateUnavailable || bridge.IsCharacterOrWorldChanged(contentId, worldId))
         { Cancel("Venture cycle stopped because the character disconnected or changed world."); return; }
 
+        // Talk may appear before or after any venture UI transition. Handle it once,
+        // independently of the dialogue text or retainer personality.
+        if (currentRetainer is { } speaking && bridge.IsRetainerDialogueVisible &&
+            !bridge.IsRetainerPickerVisible)
+        {
+            if (now > deadline)
+            { Cancel($"Venture cycle stopped because {speaking.Name}'s dialogue did not close."); return; }
+            if (dialogueClicks < 4)
+            {
+                if (!bridge.TryAdvanceRetainerDialogue(speaking, previouslySelectedRetainerId, out var dialogueError))
+                { Cancel($"Venture cycle stopped while advancing {speaking.Name}'s dialogue: {dialogueError}"); return; }
+                dialogueClicks++;
+                nextActionAt = now + ActionDelay;
+                Status = $"Advancing {speaking.Name}'s dialogue ({dialogueClicks}/4)...";
+            }
+            return;
+        }
+
         switch (step)
         {
             case Step.SelectRetainer:
@@ -126,22 +144,6 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 WaitForPostAction(now);
                 break;
             case Step.WaitForPicker:
-                if (bridge.IsRetainerDialogueVisible && !bridge.IsRetainerPickerVisible)
-                {
-                    if (currentRetainer is not { } departing)
-                    { Cancel("Venture cycle lost its retainer identity during farewell."); return; }
-                    if (now > deadline)
-                    { Cancel($"Venture cycle stopped because {departing.Name}'s farewell did not close."); return; }
-                    if (dialogueClicks < 4)
-                    {
-                        if (!bridge.TryAdvanceRetainerDialogue(departing, previouslySelectedRetainerId, out var error))
-                        { Cancel($"Venture cycle stopped while advancing {departing.Name}'s farewell: {error}"); return; }
-                        dialogueClicks++;
-                        nextActionAt = now + ActionDelay;
-                        Status = $"Advancing {departing.Name}'s farewell ({dialogueClicks}/4)...";
-                    }
-                    break;
-                }
                 if (bridge.IsRetainerPickerVisible)
                 {
                     retainerIndex++;
@@ -209,18 +211,6 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 return;
             }
             InspectRetainerMenu(expected, ventureId, now);
-            return;
-        }
-        if (bridge.IsRetainerDialogueVisible)
-        {
-            if (dialogueClicks >= 4)
-            { Cancel($"Venture cycle stopped because {expected.Name}'s greeting did not advance."); return; }
-            if (!bridge.TryAdvanceRetainerDialogue(expected, previouslySelectedRetainerId, out var error))
-            { Cancel($"Venture cycle stopped while advancing {expected.Name}'s greeting: {error}"); return; }
-            dialogueClicks++;
-            nextActionAt = now + ActionDelay;
-            deadline = now + ScreenTimeout;
-            Status = $"Advancing {expected.Name}'s greeting ({dialogueClicks}/4)...";
             return;
         }
         if (bridge.IsRetainerPickerVisible)
@@ -345,6 +335,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
 
     private void SetStep(Step next, DateTimeOffset now, string status)
     {
+        dialogueClicks = 0;
         step = next;
         nextActionAt = now + ActionDelay;
         deadline = now + ScreenTimeout;

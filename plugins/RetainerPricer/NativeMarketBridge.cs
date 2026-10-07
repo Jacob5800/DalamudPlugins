@@ -98,7 +98,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool IsVentureTaskAskVisible => IsAddonVisible("RetainerTaskAsk");
     public bool IsVentureTaskResultVisible => IsAddonVisible("RetainerTaskResult");
     public bool IsMarketBoardOpen => !IsRetainerSellListVisible && !IsSellWindowVisible &&
-        (IsAddonVisible("Market") || IsComparisonVisible);
+        (IsAddonVisible("ItemSearch") || IsComparisonVisible);
     public bool IsLocalSearchBusy
     {
         get
