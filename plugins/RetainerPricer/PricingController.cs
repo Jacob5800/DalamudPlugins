@@ -755,13 +755,6 @@ internal sealed class PricingController : IDisposable
                 marketboardLookupDeadline = now.AddSeconds(30);
                 return;
             }
-            if (bridge.IsLocalSearchBusy)
-            {
-                Status = "Waiting for the other marketboard request to finish...";
-                if (now > marketboardLookupDeadline)
-                    Cancel("Marketboard lookup timed out waiting for the current request. Queued items were kept.");
-                return;
-            }
             if (!bridge.TryStartMarketBoardSearch(itemId, out var startError))
             {
                 if (startError.Contains("still finishing", StringComparison.OrdinalIgnoreCase))
@@ -788,8 +781,9 @@ internal sealed class PricingController : IDisposable
         }
         if (!complete)
         {
+            Status = bridge.MarketboardSearchProgress;
             if (now > marketboardLookupDeadline)
-                Cancel($"Marketboard lookup timed out on item #{marketboardLookupCurrentItemId}. It and the remaining items stay queued.");
+                Cancel($"Marketboard lookup timed out on item #{marketboardLookupCurrentItemId}: {bridge.MarketboardSearchProgress} It and the remaining items stay queued.");
             return;
         }
         if (resultError.Length != 0 || snapshot is null)

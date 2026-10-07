@@ -1044,6 +1044,11 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     }
 
     private bool boardSearchResultClicked;
+    public string MarketboardSearchProgress => boardSearchResultReceived
+        ? $"Received listings header; waiting for {boardSearchExpectedListingCount} verified listing(s)."
+        : boardSearchResultClicked
+            ? "Selected the matching item; waiting for its listings response."
+            : "Searching the item name; waiting for a matching item result.";
 
     public bool TryStartMarketBoardSearch(uint itemId, out string error)
     {
@@ -1066,11 +1071,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             error = "The game's marketboard search is unavailable on this client build.";
             return false;
         }
-        if (proxy->WaitingForListings)
-        {
-            error = "The previous marketboard request is still finishing.";
-            return false;
-        }
         if (IsComparisonVisible)
         {
             error = "Close the current item listings window before starting the lookup.";
@@ -1086,7 +1086,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (search == null || search->SearchTextInput == null)
         { ResetBoardSearch(); error = "The marketboard item search input is unavailable."; return false; }
         search->SetModeFilter(AddonItemSearch.SearchMode.Normal, 0);
-        search->SearchTextInput->SetText(ItemName(itemId));
+        var searchName = ItemName(itemId);
+        search->SearchTextInput->SetText(searchName);
+        search->SearchText.SetString(searchName);
         agent->ListingPageLoaded = false;
         boardSearchResultClicked = false;
         search->RunSearch(true);
@@ -1125,6 +1127,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 }
             }
         }
+        if (boardSearchResultReceived && !boardSearchComplete)
+            CaptureBoardSearchSnapshot(InfoProxyItemSearch.Instance());
         complete = boardSearchComplete;
         if (!complete) return true;
         snapshot = boardSearchSnapshot;
@@ -1426,7 +1430,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (boardSearchItemId == 0 || proxy == null || proxy->SearchItemId != boardSearchItemId ||
             !boardSearchResultReceived || boardSearchComplete) return;
         if (boardSearchExpectedListingCount is < 0 or > 100 ||
-            proxy->ListingCount != boardSearchExpectedListingCount || proxy->WaitingForListings)
+            proxy->ListingCount != boardSearchExpectedListingCount)
         {
             boardSearchSnapshot = null;
             boardSearchError = "The complete marketboard response could not be verified; the item remains queued.";

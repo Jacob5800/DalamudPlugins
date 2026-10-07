@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.23.0
+- Fixed marketboard lookup waiting on the listings-state flag before it could search. Lookup completion now checks the received response and matching listing count.
+
 ## 0.4.22.0
 - Fixed queued marketboard lookups timing out by searching the item name and selecting the matching search result before requesting listings.
 
