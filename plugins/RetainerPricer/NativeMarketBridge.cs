@@ -1043,6 +1043,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    private bool boardSearchResultClicked;
+
     public bool TryStartMarketBoardSearch(uint itemId, out string error)
     {
         error = "Open a marketboard before searching these items.";
@@ -1080,15 +1082,14 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         boardSearchComplete = false;
         boardSearchSnapshot = null;
         boardSearchError = "Waiting for the marketboard response.";
-        agent->ResultItemId = itemId;
-        agent->ShowAddon();
-        proxy->SearchItemId = itemId;
-        if (!proxy->RequestData())
-        {
-            ResetBoardSearch();
-            error = "The game could not start this marketboard search. Close other market windows and try again.";
-            return false;
-        }
+        var search = (AddonItemSearch*)gameGui.GetAddonByName("ItemSearch").Address;
+        if (search == null || search->SearchTextInput == null)
+        { ResetBoardSearch(); error = "The marketboard item search input is unavailable."; return false; }
+        search->SetModeFilter(AddonItemSearch.SearchMode.Normal, 0);
+        search->SearchTextInput->SetText(ItemName(itemId));
+        agent->ListingPageLoaded = false;
+        boardSearchResultClicked = false;
+        search->RunSearch(true);
         error = string.Empty;
         return true;
     }
@@ -1102,6 +1103,27 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         {
             error = "The active marketboard request changed; this item remains queued.";
             return false;
+        }
+        // Run the normal item-name search first, then click its matching result.
+        // Opening the agent alone does not initiate the game's listings UI flow.
+        if (!boardSearchResultClicked && !boardSearchResultReceived && !IsComparisonVisible)
+        {
+            var agent = AgentItemSearch.Instance();
+            var search = (AddonItemSearch*)gameGui.GetAddonByName("ItemSearch").Address;
+            if (agent != null && agent->ListingPageLoaded && search != null && search->ResultsList != null)
+            {
+                for (var i = 0; i < Math.Min((int)agent->ListingPageItemCount, 100); i++)
+                {
+                    if (agent->ListingPageItems[i].ItemId != itemId) continue;
+                    if (i >= search->ResultsList->ListLength) break;
+                    var renderer = search->ResultsList->ItemRendererList[i].AtkComponentListItemRenderer;
+                    if (renderer == null) break;
+                    if (!ClickRegisteredButton(&renderer->AtkComponentButton, &search->AtkUnitBase, out error))
+                        return false;
+                    boardSearchResultClicked = true;
+                    break;
+                }
+            }
         }
         complete = boardSearchComplete;
         if (!complete) return true;
@@ -1132,6 +1154,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private void ResetBoardSearch()
     {
         boardSearchItemId = 0;
+        boardSearchResultClicked = false;
         boardSearchExpectedListingCount = -1;
         boardSearchResultReceived = false;
         boardSearchComplete = false;

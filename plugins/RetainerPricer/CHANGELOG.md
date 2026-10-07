@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.22.0
+- Fixed queued marketboard lookups timing out by searching the item name and selecting the matching search result before requesting listings.
+
 ## 0.4.21.0
 - Renamed the marketboard lookup button for clarity, fixed detection of the open Item Search window, and fixed the marketboard prompt width.
 - Added chocobo saddlebag refresh to Don't reprice.
