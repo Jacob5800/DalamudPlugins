@@ -126,6 +126,22 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 WaitForPostAction(now);
                 break;
             case Step.WaitForPicker:
+                if (bridge.IsRetainerDialogueVisible && !bridge.IsRetainerPickerVisible)
+                {
+                    if (currentRetainer is not { } departing)
+                    { Cancel("Venture cycle lost its retainer identity during farewell."); return; }
+                    if (now > deadline)
+                    { Cancel($"Venture cycle stopped because {departing.Name}'s farewell did not close."); return; }
+                    if (dialogueClicks < 4)
+                    {
+                        if (!bridge.TryAdvanceRetainerDialogue(departing, previouslySelectedRetainerId, out var error))
+                        { Cancel($"Venture cycle stopped while advancing {departing.Name}'s farewell: {error}"); return; }
+                        dialogueClicks++;
+                        nextActionAt = now + ActionDelay;
+                        Status = $"Advancing {departing.Name}'s farewell ({dialogueClicks}/4)...";
+                    }
+                    break;
+                }
                 if (bridge.IsRetainerPickerVisible)
                 {
                     retainerIndex++;
@@ -314,6 +330,8 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         if (!bridge.TrySelectRetainerMenuEntry(
                 text => string.Equals(text, labels.Quit, StringComparison.Ordinal), out _, out var error))
         { Cancel($"Venture cycle stopped before leaving {expected.Name}'s menu: {error}"); return; }
+        dialogueClicks = 0;
+        previouslySelectedRetainerId = expected.RetainerId;
         SetStep(Step.WaitForPicker, now, status);
     }
 

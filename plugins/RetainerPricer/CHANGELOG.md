@@ -1,7 +1,7 @@
 # Retainer Pricer changelog
 
 ## 0.4.20.0
-- Fixed Refresh all retainer listings and Auto update getting stuck on retainer farewell dialogue after choosing Quit. The dialogue handling works across retainer personalities.
+- Fixed Refresh all retainer listings and Auto update getting stuck on retainer farewell dialogue after choosing Quit. The dialogue handling works across retainer personalities. Also fixed the venture cycle getting stuck on farewell dialogue after choosing Quit.
 
 ## 0.4.19.0
 - Added an optional venture cycle with settings for idle Quick Exploration and repeating completed ventures. It uses Retainer Pricer's game UI and does not require AutoRetainer.
