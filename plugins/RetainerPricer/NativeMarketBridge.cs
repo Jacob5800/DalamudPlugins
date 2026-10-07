@@ -60,6 +60,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private int boardSearchExpectedListingCount = -1;
     private bool boardSearchResultReceived;
     private bool boardSearchComplete;
+    private DateTimeOffset boardSearchCloseNotBefore;
     private PriceSnapshot? boardSearchSnapshot;
     private string boardSearchError = string.Empty;
     private string localError = "Compare prices in the current sell window first.";
@@ -1137,7 +1138,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         }
         if (boardSearchResultReceived && !boardSearchComplete)
             CaptureBoardSearchSnapshot(InfoProxyItemSearch.Instance());
-        complete = boardSearchComplete;
+        // Keep verified listings visible briefly before the controller closes them.
+        complete = boardSearchComplete && (boardSearchSnapshot is null || DateTimeOffset.UtcNow >= boardSearchCloseNotBefore);
         if (!complete) return true;
         snapshot = boardSearchSnapshot;
         error = boardSearchError;
@@ -1166,6 +1168,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private void ResetBoardSearch()
     {
         boardSearchItemId = 0;
+        boardSearchCloseNotBefore = default;
         boardSearchResultClicked = false;
         boardSearchExpectedListingCount = -1;
         boardSearchResultReceived = false;
@@ -1466,6 +1469,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         boardSearchSnapshot = new PriceSnapshot(boardSearchItemId, worldId,
             PriceSource.Local, DateTimeOffset.UtcNow, rows, true);
         boardSearchError = string.Empty;
+        boardSearchCloseNotBefore = DateTimeOffset.UtcNow.AddMilliseconds(200);
         boardSearchComplete = true;
     }
 

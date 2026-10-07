@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.28.0 (testing)
+
+- Keep marketboard results open for an extra 0.2 seconds after receiving complete listings before closing and continuing the queue.
+
 ## 0.4.27.0 (testing)
 
 - Fixed queued marketboard lookups stopping on partially populated results while moving between items.
