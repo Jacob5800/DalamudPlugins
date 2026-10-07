@@ -1,6 +1,6 @@
 # Retainer Pricer changelog
 
-## 0.4.29.0 (testing)
+## 0.4.29.0
 
 - Added automatic retainer venture job detection and a per-retainer dropdown override for Combat, Miner, Botanist, and Fisher.
 
