@@ -24,6 +24,7 @@ internal sealed class MainWindow : Window
     private readonly AutoVendorController vendor;
     private readonly Action<bool> setServerInfoBarShown;
     private readonly VentureController ventures;
+    private readonly bool isTesting;
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
@@ -57,7 +58,7 @@ internal sealed class MainWindow : Window
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
-        Action<bool> setServerInfoBarShown, VentureController ventures) : base("Retainer Pricer")
+        Action<bool> setServerInfoBarShown, VentureController ventures, bool isTesting) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
@@ -66,6 +67,7 @@ internal sealed class MainWindow : Window
         this.vendor = vendor;
         this.setServerInfoBarShown = setServerInfoBarShown;
         this.ventures = ventures;
+        this.isTesting = isTesting;
         if (config.Source != PriceSource.Universalis)
         {
             config.Source = PriceSource.Universalis;
@@ -236,6 +238,7 @@ internal sealed class MainWindow : Window
 
         var version = typeof(MainWindow).Assembly.GetName().Version;
         var versionLabel = version is null ? "Version unavailable" : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+        if (isTesting) versionLabel += " (testing)";
         ImGui.SetCursorPos(new Vector2(ImGui.GetStyle().WindowPadding.X,
             ImGui.GetWindowHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetTextLineHeight()));
         ImGui.TextDisabled(versionLabel);
@@ -967,6 +970,7 @@ internal sealed class MainWindow : Window
         var submittedMessage = feedbackMessage.Trim();
         var version = typeof(MainWindow).Assembly.GetName().Version;
         var versionLabel = version is null ? "unknown" : $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+        if (isTesting) versionLabel += " (testing)";
         feedbackSending = true;
         feedbackStatus = "Sending your note…";
         _ = SendFeedbackAsync(submittedMessage, versionLabel);

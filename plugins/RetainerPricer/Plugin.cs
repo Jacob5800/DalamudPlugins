@@ -72,7 +72,7 @@ public sealed class Plugin : IDalamudPlugin
         ventures = new VentureController(bridge, config);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
-            shown => serverInfoBarEntry.Shown = shown, ventures);
+            shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting);
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
             log.Warning("Retainer Pricer local pricing: {Error}", localCompatibilityError);

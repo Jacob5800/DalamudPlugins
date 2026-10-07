@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.26.0 (testing)
+
+- Added (testing) beside the window version and to feedback reports when running a Dalamud testing build.
+
 ## 0.4.25.0 (testing)
 
 - Fixed selecting the matching marketboard search result by using the list item click event.
