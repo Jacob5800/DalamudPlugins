@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.19.0
+- Added an optional venture cycle with settings for idle Quick Exploration and repeating completed ventures. It uses Retainer Pricer's game UI and does not require AutoRetainer.
+- Added a pricing rule to match the lowest eligible listing or undercut it by 1 gil.
+
 ## 0.4.18.0
 - Added chocobo saddlebag snapshots to the Exceptions item picker, including the premium saddlebag when available.
 - Added bulk addition of saddlebag items to Exceptions. Exclusions remain item-based and apply to carried inventory and Retainer sell.

@@ -24,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PricingController controller;
     private readonly SniperMonitor sniper;
     private readonly AutoVendorController vendor;
+    private readonly VentureController ventures;
     private readonly MainWindow window;
     private bool wasOpen;
     private bool disposed;
@@ -35,14 +36,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        var migrateConfig = config.Version < 11;
+        var migrateConfig = config.Version < 12;
         if (config.Version < 8)
         {
             // Move users from the former 0.10 default while preserving any custom threshold.
             if (Math.Abs(config.SniperThresholdFraction - 0.10) < 0.000001)
                 config.SniperThresholdFraction = 0.910;
         }
-        if (migrateConfig) config.Version = 11;
+        if (migrateConfig) config.Version = 12;
         config.Normalize();
         if (migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
@@ -68,9 +69,10 @@ public sealed class Plugin : IDalamudPlugin
         controller = new PricingController(bridge, universalis, config, marketableItemIds, Save);
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
+        ventures = new VentureController(bridge, config);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
-            shown => serverInfoBarEntry.Shown = shown);
+            shown => serverInfoBarEntry.Shown = shown, ventures);
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
             log.Warning("Retainer Pricer local pricing: {Error}", localCompatibilityError);
@@ -99,6 +101,7 @@ public sealed class Plugin : IDalamudPlugin
                 log.Error(ex, "Retainer Pricer operation failed");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
                 vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
+                ventures.Cancel("Venture cycle stopped after an unexpected error. Check the current retainer window before continuing.");
             }
         });
     }
@@ -110,6 +113,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             controller.Update();
             vendor.Update();
+            ventures.Update();
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;
             wasOpen = open;
@@ -119,6 +123,7 @@ public sealed class Plugin : IDalamudPlugin
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
             vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
+            ventures.Cancel("Venture cycle stopped after an unexpected error. Check the current retainer window before continuing.");
         }
     }
 
@@ -137,6 +142,7 @@ public sealed class Plugin : IDalamudPlugin
         serverInfoBarEntry.Remove();
         controller.Dispose();
         vendor.Dispose();
+        ventures.Cancel();
         sniper.Dispose();
         bridge.Dispose();
         universalis.Dispose();

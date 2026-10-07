@@ -1,5 +1,19 @@
 # TODO
 
+## Unreleased — Venture cycle and pricing rule
+
+Implemented:
+
+- Added an opt-in venture cycle using Retainer Pricer's own retainer picker and game UI controls, with settings for idle Quick Exploration and repeating completed ventures. No AutoRetainer dependency or IPC.
+- Added a saved pricing choice to match the lowest eligible listing or undercut it by 1 gil.
+- Updated help, README, plugin metadata, and release changelog.
+
+Pending in-game observation:
+
+- At a summoning bell, confirm collection of a completed venture, optional reassignment, idle Quick Exploration assignment, and skipping retainers with ongoing ventures.
+- Stop the cycle during a retainer transition and confirm it leaves the current game window open without selecting another retainer.
+- Confirm both pricing choices work for manual lookup, new listings, and existing-listing updates.
+
 ## v0.4.8 — Saved gear-set protection
 
 Implemented:
