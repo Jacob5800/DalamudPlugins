@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
-    public int Version { get; set; } = 12;
+    public int Version { get; set; } = 13;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -19,6 +19,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool RunVentures { get; set; }
     public bool AssignQuickExplorationWhenIdle { get; set; } = true;
     public bool RepeatCompletedVentures { get; set; } = true;
+    public Dictionary<ulong, RetainerVentureJob> RetainerVentureJobOverrides { get; set; } = [];
     public int AutoVendorPriceThreshold { get; set; } = 1;
     public List<uint> RetainerSaleWhitelistItemIds { get; set; } = [];
     public bool DontShowEmptyExceptionsWarningAgain { get; set; }
@@ -45,6 +46,9 @@ public sealed class PluginConfig : IPluginConfiguration
     {
         if (!Enum.IsDefined(Source)) Source = PriceSource.Universalis;
         if (!Enum.IsDefined(PriceStrategy)) PriceStrategy = PriceStrategy.UndercutByOne;
+        RetainerVentureJobOverrides = (RetainerVentureJobOverrides ?? [])
+            .Where(pair => pair.Key != 0 && Enum.IsDefined(pair.Value) && pair.Value != RetainerVentureJob.Auto)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
         MaximumAgeMinutes = Math.Clamp(MaximumAgeMinutes, 1, 120);
         UniversalisCacheMinutes = Math.Clamp(UniversalisCacheMinutes, 0, 60);
         if (UseRegionPrices) UseDataCenterPrices = false;

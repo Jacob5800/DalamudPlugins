@@ -36,14 +36,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        var migrateConfig = config.Version < 12;
+        var migrateConfig = config.Version < 13;
         if (config.Version < 8)
         {
             // Move users from the former 0.10 default while preserving any custom threshold.
             if (Math.Abs(config.SniperThresholdFraction - 0.10) < 0.000001)
                 config.SniperThresholdFraction = 0.910;
         }
-        if (migrateConfig) config.Version = 12;
+        if (migrateConfig) config.Version = 13;
         config.Normalize();
         if (migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");

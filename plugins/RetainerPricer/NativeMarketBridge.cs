@@ -19,7 +19,7 @@ namespace RetainerPricer;
 public sealed record MarketSession(ulong ContentId, ulong RetainerId, uint WorldId, string WorldName,
     string? DataCenterName = null);
 
-public sealed record RetainerIdentity(ulong RetainerId, string Name);
+public sealed record RetainerIdentity(ulong RetainerId, string Name, byte ClassJobId = 0);
 
 public sealed record RetainerVentureMenuLabels(string Quit, string ViewReport,
     IReadOnlyList<string> AssignOptions, string QuickExploration);
@@ -608,7 +608,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             if (retainer == null || retainer->RetainerId == 0) return false;
             var name = retainer->NameString;
             if (string.IsNullOrWhiteSpace(name) || !ids.Add(retainer->RetainerId) || !names.Add(name)) return false;
-            result.Add(new RetainerIdentity(retainer->RetainerId, name));
+            result.Add(new RetainerIdentity(retainer->RetainerId, name, retainer->ClassJob));
         }
         retainers = result;
         return true;

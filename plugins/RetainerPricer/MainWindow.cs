@@ -558,6 +558,51 @@ internal sealed class MainWindow : Window
         { config.RepeatCompletedVentures = repeatCompleted; save(); }
         ImGui.EndDisabled();
         ImGui.TextDisabled("When repeat is off, completed ventures are collected. If idle assignment is on, the retainer then receives Quick Exploration.");
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Retainer venture jobs");
+        ImGui.TextDisabled("Jobs are detected automatically from the game. Use a dropdown to override a retainer if detection is unavailable or incorrect; overrides are saved per retainer.");
+        if (!ventures.TryGetRetainerRoster(out var roster))
+        {
+            ImGui.TextDisabled("Open the retainer picker at a summoning bell to load your retainer list.");
+        }
+        else if (ImGui.BeginTable("##retainerVentureJobs", 2,
+                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, new Vector2(0, 160)))
+        {
+            ImGui.TableSetupColumn("Retainer");
+            ImGui.TableSetupColumn("Venture job", ImGuiTableColumnFlags.WidthFixed, 190);
+            ImGui.TableHeadersRow();
+            foreach (var retainer in roster)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(retainer.Name);
+                ImGui.TableNextColumn();
+
+                var detected = RetainerVentureJobExtensions.DetectFromClassJobId(retainer.ClassJobId);
+                var hasOverride = config.RetainerVentureJobOverrides.TryGetValue(retainer.RetainerId, out var overrideJob);
+                var selectedJob = hasOverride ? overrideJob : RetainerVentureJob.Auto;
+                var preview = hasOverride
+                    ? $"{overrideJob.DisplayName()} (manual)"
+                    : detected == RetainerVentureJob.Auto
+                        ? "Auto-detect (unknown)"
+                        : $"Auto-detect ({detected.DisplayName()})";
+                ImGui.SetNextItemWidth(-1);
+                if (ImGui.BeginCombo($"##ventureJob_{retainer.RetainerId}", preview))
+                {
+                    DrawRetainerVentureJobOption(retainer.RetainerId, RetainerVentureJob.Auto,
+                        detected == RetainerVentureJob.Auto ? "Auto-detect (unknown)" : $"Auto-detect ({detected.DisplayName()})",
+                        selectedJob == RetainerVentureJob.Auto);
+                    DrawRetainerVentureJobOption(retainer.RetainerId, RetainerVentureJob.Combat, "Combat", selectedJob == RetainerVentureJob.Combat);
+                    DrawRetainerVentureJobOption(retainer.RetainerId, RetainerVentureJob.Miner, "Miner", selectedJob == RetainerVentureJob.Miner);
+                    DrawRetainerVentureJobOption(retainer.RetainerId, RetainerVentureJob.Botanist, "Botanist", selectedJob == RetainerVentureJob.Botanist);
+                    DrawRetainerVentureJobOption(retainer.RetainerId, RetainerVentureJob.Fisher, "Fisher", selectedJob == RetainerVentureJob.Fisher);
+                    ImGui.EndCombo();
+                }
+            }
+            ImGui.EndTable();
+        }
+
         ImGui.Separator();
 
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning || !config.RunVentures);
@@ -577,6 +622,19 @@ internal sealed class MainWindow : Window
         ImGui.TextDisabled("Start only while the retainer picker is open. The cycle skips unavailable retainers and retainers with an ongoing venture. If it cannot verify a menu or retainer, it stops and leaves the current game window open.");
     }
 
+    private void DrawRetainerVentureJobOption(ulong retainerId, RetainerVentureJob job, string label, bool selected)
+    {
+        if (ImGui.Selectable(label, selected))
+        {
+            if (job == RetainerVentureJob.Auto)
+                config.RetainerVentureJobOverrides.Remove(retainerId);
+            else
+                config.RetainerVentureJobOverrides[retainerId] = job;
+            save();
+        }
+        if (selected) ImGui.SetItemDefaultFocus();
+    }
+
     private void DrawHelp()
     {
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
@@ -590,7 +648,7 @@ internal sealed class MainWindow : Window
 
         ImGui.TextUnformatted("Top buttons");
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
-        ImGui.BulletText("Venture cycle: open the retainer picker at a summoning bell, enable Run ventures on the Ventures tab, then start the separate cycle. Configure Quick Exploration for idle retainers and repeat completed ventures independently. It uses the game's own menus and does not require AutoRetainer.");
+        ImGui.BulletText("Venture cycle: open the retainer picker at a summoning bell, enable Run ventures on the Ventures tab, then start the separate cycle. Retainer venture jobs are detected automatically; per-retainer dropdowns can override detection. Configure Quick Exploration for idle retainers and repeat completed ventures independently. It uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
         ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Set the four bands in the Existing listings tab. Auto update uses the same bands and pauses at the same review before moving to the next retainer.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
@@ -607,7 +665,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Exceptions, saved gear-set items, and bound items remain protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
         ImGui.BulletText("Sniper: choose its independent World, Data Center, or Region (including Materia) market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart. An ETA appears during this initial scan; afterward, Sniper listens for new listings without repeating the full catalog scan. Ordinary deals below the minimum value are hidden; 1-gil alerts always show. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
-        ImGui.BulletText("Ventures: opt in with Run ventures, then choose whether to assign Quick Exploration to idle retainers and whether to repeat completed ventures. The venture cycle does not use or require AutoRetainer.");
+        ImGui.BulletText("Ventures: opt in with Run ventures, then choose whether to assign Quick Exploration to idle retainers and whether to repeat completed ventures. Retainer jobs are auto-detected and can be overridden per retainer with the job dropdown. The venture cycle does not use or require AutoRetainer.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
         ImGui.Separator();

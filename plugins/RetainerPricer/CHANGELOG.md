@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.29.0 (testing)
+
+- Added automatic retainer venture job detection and a per-retainer dropdown override for Combat, Miner, Botanist, and Fisher.
+
 ## 0.4.28.0 (testing)
 
 - Keep marketboard results open for an extra 0.2 seconds after receiving complete listings before closing and continuing the queue.

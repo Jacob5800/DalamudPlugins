@@ -40,6 +40,9 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     public bool IsRunning => step != Step.Idle;
     public string Status { get; private set; } = "Open the retainer picker to start a venture cycle.";
 
+    public bool TryGetRetainerRoster(out IReadOnlyList<RetainerIdentity> roster)
+        => bridge.TryGetOwnRetainers(out roster);
+
     public void Start()
     {
         if (IsRunning) return;
