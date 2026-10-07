@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.27.0 (testing)
+
+- Fixed queued marketboard lookups stopping on partially populated results while moving between items.
+
 ## 0.4.26.0 (testing)
 
 - Added (testing) beside the window version and to feedback reports when running a Dalamud testing build.

@@ -1453,8 +1453,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 row.Quantity == 0 || row.ListingId == 0)
             {
                 boardSearchSnapshot = null;
-                boardSearchError = "A marketboard listing was incomplete; the item remains queued.";
-                boardSearchComplete = true;
+                // RequestResult can arrive before AddData has replaced the previous item's
+                // rows. Keep polling; only a complete, matching response can finish the item.
+                boardSearchError = "Waiting for all matching marketboard listing rows.";
                 return;
             }
             rows.Add(new MarketListing(row.ItemId, row.IsHqItem, row.UnitPrice,
