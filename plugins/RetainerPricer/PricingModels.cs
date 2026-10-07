@@ -6,9 +6,22 @@ namespace RetainerPricer;
 public enum PriceSource { Universalis, Local }
 public enum PriceStrategy { MatchLowest, UndercutByOne }
 public enum RetainerVentureJob { Auto = 0, Combat = 1, Miner = 2, Botanist = 3, Fisher = 4 }
+internal static class RetainerVentureIds
+{
+    public const uint QuickExploration = 395;
+}
 
 public static class RetainerVentureJobExtensions
 {
+    public static uint ClassJobCategoryRowId(this RetainerVentureJob job) => job switch
+    {
+        RetainerVentureJob.Miner => 17,
+        RetainerVentureJob.Botanist => 18,
+        RetainerVentureJob.Fisher => 19,
+        RetainerVentureJob.Combat => 34,
+        _ => 0
+    };
+
     public static RetainerVentureJob DetectFromClassJobId(byte classJobId) => classJobId switch
     {
         16 => RetainerVentureJob.Miner,
@@ -30,6 +43,8 @@ public static class RetainerVentureJobExtensions
 }
 
 public sealed record ItemChoice(uint ItemId, string Name);
+public sealed record RetainerVentureOption(uint TaskId, string Name, uint RetainerLevel, uint DurationMinutes,
+    uint ClassJobCategoryRowId);
 public sealed record CarriedItemCandidate(uint ItemId, string Name, bool IsHq, uint Quantity, int InventoryType, int Slot);
 public sealed record MarketWorld(uint WorldId, string Name, string? DataCenterName = null);
 

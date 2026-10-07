@@ -11,7 +11,8 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         Idle,
         SelectRetainer,
         WaitForRetainerMenu,
-        WaitForQuickExplorationMenu,
+        WaitForVentureSelectionMenu,
+        WaitForVentureTaskList,
         WaitForResult,
         WaitForTaskAsk,
         WaitForPostAction,
@@ -23,6 +24,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     private readonly NativeMarketBridge bridge = bridge;
     private readonly PluginConfig config = config;
     private readonly List<RetainerIdentity> retainers = [];
+    private readonly Dictionary<(ulong RetainerId, RetainerVentureJob Job), IReadOnlyList<RetainerVentureOption>> ventureOptionCache = [];
     private Step step;
     private RetainerVentureMenuLabels? labels;
     private RetainerIdentity? currentRetainer;
@@ -36,12 +38,60 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     private DateTimeOffset nextActionAt;
     private DateTimeOffset deadline;
     private bool actionReassigns;
+    private uint selectedTaskId;
 
     public bool IsRunning => step != Step.Idle;
     public string Status { get; private set; } = "Open the retainer picker to start a venture cycle.";
 
     public bool TryGetRetainerRoster(out IReadOnlyList<RetainerIdentity> roster)
         => bridge.TryGetOwnRetainers(out roster);
+
+    public IReadOnlyList<RetainerVentureOption> GetVentureOptions(ulong retainerId, RetainerVentureJob job)
+    {
+        var taskIds = new HashSet<uint> { RetainerVentureIds.QuickExploration };
+        if (config.RetainerAvailableVentureTaskIds.TryGetValue(retainerId, out var captured))
+            taskIds.UnionWith(captured);
+        var key = (retainerId, job);
+        if (ventureOptionCache.TryGetValue(key, out var cached)) return cached;
+        var category = RetainerVentureJobExtensions.ClassJobCategoryRowId(job);
+        var options = bridge.GetRetainerVentureOptions(taskIds)
+            .Where(option => option.TaskId == RetainerVentureIds.QuickExploration ||
+                option.ClassJobCategoryRowId == category)
+            .ToArray();
+        ventureOptionCache[key] = options;
+        return options;
+    }
+
+    public bool TryCaptureOpenVentureOptions(out string message)
+    {
+        if (!bridge.TryGetOpenRetainerVentureTasks(out var retainer, out var taskIds, out message))
+        {
+            Status = message;
+            return false;
+        }
+
+        bridge.RefreshVentureGatheringLogCache();
+        var unlockedTaskIds = bridge.GetRetainerVentureOptions(taskIds)
+            .Select(option => option.TaskId).ToHashSet();
+        var eligibleTaskIds = taskIds.Where(unlockedTaskIds.Contains).ToArray();
+        if (!config.RetainerAvailableVentureTaskIds.TryGetValue(retainer.RetainerId, out var captured))
+            config.RetainerAvailableVentureTaskIds[retainer.RetainerId] = captured = [];
+        var existing = captured.ToHashSet();
+        var added = eligibleTaskIds.Where(existing.Add).ToArray();
+        if (added.Length > 0) captured.AddRange(added);
+        ventureOptionCache.Clear();
+        var total = captured.Count;
+        var lockedCount = taskIds.Count - eligibleTaskIds.Length;
+        message = added.Length == 0
+            ? lockedCount > 0
+                ? $"No new ventures added for {retainer.Name}; skipped {lockedCount} gathering option(s) not recorded in the Gathering Log. {total} option(s) already saved."
+                : $"No new ventures found for {retainer.Name}; {total} option(s) already saved."
+            : lockedCount > 0
+                ? $"Added {added.Length} option(s) for {retainer.Name}; skipped {lockedCount} gathering option(s) not recorded in the Gathering Log. {total} saved in total."
+                : $"Added {added.Length} available venture option(s) for {retainer.Name}; {total} saved in total.";
+        Status = message;
+        return true;
+    }
 
     public void Start()
     {
@@ -105,8 +155,11 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
             case Step.WaitForRetainerMenu:
                 WaitForRetainerMenu(now);
                 break;
-            case Step.WaitForQuickExplorationMenu:
-                WaitForQuickExplorationMenu(now);
+            case Step.WaitForVentureSelectionMenu:
+                WaitForVentureSelectionMenu(now);
+                break;
+            case Step.WaitForVentureTaskList:
+                WaitForVentureTaskList(now);
                 break;
             case Step.WaitForResult:
                 if (bridge.IsVentureTaskResultVisible)
@@ -158,7 +211,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 break;
         }
 
-        if (IsRunning && now > deadline && step is Step.WaitForRetainerMenu or Step.WaitForQuickExplorationMenu)
+        if (IsRunning && now > deadline && step is Step.WaitForRetainerMenu or Step.WaitForVentureSelectionMenu or Step.WaitForVentureTaskList)
             Cancel($"Venture cycle stopped because the expected retainer menu did not appear for {currentRetainer?.Name}.");
     }
 
@@ -244,9 +297,17 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
 
         if (ventureId == 0 && config.AssignQuickExplorationWhenIdle)
         {
+            selectedTaskId = config.RetainerVentureTaskOverrides.TryGetValue(expected.RetainerId, out var configuredTaskId)
+                ? configuredTaskId
+                : RetainerVentureIds.QuickExploration;
+            selectedTaskListCategoryOpened = false;
+            if (selectedTaskId != RetainerVentureIds.QuickExploration &&
+                (!config.RetainerAvailableVentureTaskIds.TryGetValue(expected.RetainerId, out var availableTasks) ||
+                 !availableTasks.Contains(selectedTaskId)))
+            { Cancel($"The selected venture for {expected.Name} is not in its captured available list. Open that retainer's venture item list and refresh its options before starting."); return; }
             if (!bridge.TrySelectRetainerMenuEntry(text => labels.AssignOptions.Contains(text, StringComparer.Ordinal), out _, out error))
             { Cancel($"Venture cycle stopped before assigning a venture to {expected.Name}: {error}"); return; }
-            SetStep(Step.WaitForQuickExplorationMenu, now, $"Choosing a venture for {expected.Name}...");
+            SetStep(Step.WaitForVentureSelectionMenu, now, $"Choosing a venture for {expected.Name}...");
             return;
         }
 
@@ -255,7 +316,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
             : $"Leaving {expected.Name}'s venture in progress.");
     }
 
-    private void WaitForQuickExplorationMenu(DateTimeOffset now)
+    private void WaitForVentureSelectionMenu(DateTimeOffset now)
     {
         if (currentRetainer is not { } expected || labels is null)
         { Cancel("Venture cycle lost its retainer or menu state while choosing a venture."); return; }
@@ -269,17 +330,59 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
             }
             if (ventureId != 0)
             { Cancel($"Venture cycle stopped because {expected.Name} already has a venture while the assignment menu is open."); return; }
-            if (!bridge.TrySelectRetainerMenuEntry(text => string.Equals(text, labels.QuickExploration, StringComparison.Ordinal), out _, out error))
+            var category = labels.QuickExploration;
+            if (selectedTaskId != RetainerVentureIds.QuickExploration &&
+                !bridge.TryGetRetainerVentureCategory(selectedTaskId, labels, out category, out error))
+            { Cancel($"Venture cycle stopped before choosing a venture for {expected.Name}: {error}"); return; }
+            if (!bridge.TrySelectRetainerMenuEntry(text => string.Equals(text, category, StringComparison.Ordinal), out _, out error))
             {
                 if (now <= deadline) return;
-                Cancel($"Venture cycle stopped before choosing Quick Exploration for {expected.Name}: {error}");
+                Cancel($"Venture cycle stopped before choosing {category} for {expected.Name}: {error}");
                 return;
             }
-            SetStep(Step.WaitForTaskAsk, now, $"Confirming Quick Exploration for {expected.Name}...");
+            if (selectedTaskId == RetainerVentureIds.QuickExploration)
+                SetStep(Step.WaitForTaskAsk, now, $"Confirming Quick Exploration for {expected.Name}...");
+            else
+                SetStep(Step.WaitForVentureTaskList, now, $"Selecting the configured venture for {expected.Name}...");
             return;
         }
         if (bridge.IsVentureTaskAskVisible)
-        { Cancel($"Venture cycle stopped because {expected.Name}'s assignment screen opened before Quick Exploration could be verified."); return; }
+        { Cancel($"Venture cycle stopped because {expected.Name}'s assignment screen opened before the selected venture could be verified."); return; }
+    }
+
+    private bool selectedTaskListCategoryOpened;
+
+    private void WaitForVentureTaskList(DateTimeOffset now)
+    {
+        if (currentRetainer is not { } expected)
+        { Cancel("Venture cycle lost its retainer while opening the venture item list."); return; }
+        if (bridge.IsVentureTaskAskVisible)
+        { Cancel($"Venture cycle stopped because {expected.Name}'s item venture list was skipped before the selected venture could be checked."); return; }
+        if (!bridge.IsVentureTaskSupplyVisible) return;
+        if (!bridge.TryGetActiveRetainerVenture(expected, out var ventureId, out var error))
+        {
+            if (now > deadline) Cancel($"Venture cycle stopped because {expected.Name} could not be verified: {error}");
+            return;
+        }
+        if (ventureId != 0)
+        { Cancel($"Venture cycle stopped because {expected.Name} already has a venture while the assignment list is open."); return; }
+        if (bridge.TrySelectRetainerVentureTask(selectedTaskId, !selectedTaskListCategoryOpened,
+                out var changedLevelGroup, out error))
+        {
+            SetStep(Step.WaitForTaskAsk, now, $"Confirming {selectedTaskId} for {expected.Name}...");
+            return;
+        }
+        if (changedLevelGroup)
+        {
+            selectedTaskListCategoryOpened = true;
+            nextActionAt = now + ActionDelay;
+            Status = $"Opening the level range for {expected.Name}'s selected venture...";
+            return;
+        }
+        if (now > deadline)
+            Cancel($"Venture cycle stopped because the selected venture is not currently available for {expected.Name}: {error}");
+        else if (!selectedTaskListCategoryOpened)
+            Status = $"Waiting for the selected venture to appear in {expected.Name}'s item list...";
     }
 
     private void WaitForPostAction(DateTimeOffset now)

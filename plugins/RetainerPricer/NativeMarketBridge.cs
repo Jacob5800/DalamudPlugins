@@ -22,7 +22,8 @@ public sealed record MarketSession(ulong ContentId, ulong RetainerId, uint World
 public sealed record RetainerIdentity(ulong RetainerId, string Name, byte ClassJobId = 0);
 
 public sealed record RetainerVentureMenuLabels(string Quit, string ViewReport,
-    IReadOnlyList<string> AssignOptions, string QuickExploration);
+    IReadOnlyList<string> AssignOptions, string QuickExploration,
+    IReadOnlyList<string> ItemVentureCategories, IReadOnlyList<string> FieldExplorationCategories);
 
 internal sealed record RetainerPickerEntry(RetainerIdentity Retainer, bool IsAvailable);
 
@@ -63,6 +64,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private DateTimeOffset boardSearchCloseNotBefore;
     private PriceSnapshot? boardSearchSnapshot;
     private string boardSearchError = string.Empty;
+    private readonly Dictionary<uint, bool> gatheringItemUnlockCache = [];
     private string localError = "Compare prices in the current sell window first.";
     private nint sellAddress;
     private bool sellWasVisible;
@@ -98,6 +100,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool IsRetainerSellListVisible => IsAddonVisible("RetainerSellList");
     public bool IsVentureTaskAskVisible => IsAddonVisible("RetainerTaskAsk");
     public bool IsVentureTaskResultVisible => IsAddonVisible("RetainerTaskResult");
+    public bool IsVentureTaskSupplyVisible => IsAddonVisible("RetainerTaskSupply");
     public bool IsMarketBoardOpen => !IsRetainerSellListVisible && !IsSellWindowVisible &&
         (IsAddonVisible("ItemSearch") || IsComparisonVisible);
     public bool IsLocalSearchBusy
@@ -271,10 +274,17 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             }.Where(text => !string.IsNullOrWhiteSpace(text)).Distinct(StringComparer.Ordinal).ToArray();
             var bellSheet = data.GetExcelSheet<QuestDialogueTextRow>(name: "custom/000/CmnDefRetainerCall_00010");
             var quickExploration = bellSheet.GetRow(402).Value.ToString();
+            var itemVentureCategories = new[] { 195, 197, 199, 201 }
+                .Select(row => bellSheet.GetRow((uint)row).Value.ToString()).ToArray();
+            var fieldExplorationCategories = new[] { 196, 198, 200, 202 }
+                .Select(row => bellSheet.GetRow((uint)row).Value.ToString()).ToArray();
             if (string.IsNullOrWhiteSpace(quit) || string.IsNullOrWhiteSpace(viewReport) ||
-                assign.Length == 0 || string.IsNullOrWhiteSpace(quickExploration))
+                assign.Length == 0 || string.IsNullOrWhiteSpace(quickExploration) ||
+                itemVentureCategories.Any(string.IsNullOrWhiteSpace) ||
+                fieldExplorationCategories.Any(string.IsNullOrWhiteSpace))
             { error = "The game's localized venture menu labels could not be loaded."; return false; }
-            labels = new RetainerVentureMenuLabels(quit, viewReport, assign, quickExploration);
+            labels = new RetainerVentureMenuLabels(quit, viewReport, assign, quickExploration,
+                itemVentureCategories, fieldExplorationCategories);
             error = string.Empty;
             return true;
         }
@@ -325,6 +335,169 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (button == null || !button->IsEnabled)
         { error = "The venture Assign button is not enabled."; return false; }
         return ClickRegisteredButton(button, &addon->AtkUnitBase, out error);
+    }
+
+    public bool TryGetOpenRetainerVentureTasks(out RetainerIdentity retainer,
+        out IReadOnlyList<uint> taskIds, out string error)
+    {
+        retainer = null!;
+        taskIds = [];
+        var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerTaskSupply").Address;
+        if (addon == null || !addon->IsReady || !addon->IsVisible)
+        { error = "Open a retainer's venture item list first."; return false; }
+        if (addon->AtkValues == null || addon->AtkValuesCount <= 107)
+        { error = "The open venture list is still loading."; return false; }
+
+        var manager = RetainerManager.Instance();
+        if (manager == null || !manager->IsReady || manager->LastSelectedRetainerId == 0)
+        { error = "The selected retainer could not be identified."; return false; }
+        var active = manager->GetActiveRetainer();
+        if (active == null || active->RetainerId != manager->LastSelectedRetainerId ||
+            string.IsNullOrWhiteSpace(active->NameString))
+        { error = "The open venture list does not match a loaded retainer."; return false; }
+
+        var count = addon->AtkValues[107].UInt;
+        if (count > 256 || addon->AtkValuesCount < 42 + count)
+        { error = "The open venture list returned an unexpected number of entries."; return false; }
+
+        var result = new List<uint>((int)count);
+        var seen = new HashSet<uint>();
+        for (var index = 0; index < count; index++)
+        {
+            var pointer = (nint)addon->AtkValues[42 + (int)index].Pointer;
+            if (pointer == 0) continue;
+            var taskId = *(uint*)pointer;
+            if (taskId != 0 && seen.Add(taskId)) result.Add(taskId);
+        }
+
+        retainer = new RetainerIdentity(active->RetainerId, active->NameString, active->ClassJob);
+        taskIds = result;
+        error = string.Empty;
+        return true;
+    }
+
+    public IReadOnlyList<RetainerVentureOption> GetRetainerVentureOptions(IEnumerable<uint> taskIds)
+    {
+        var results = new List<RetainerVentureOption>();
+        var tasks = data.GetExcelSheet<RetainerTask>();
+        foreach (var taskId in taskIds.Distinct())
+        {
+            var task = tasks.GetRowOrDefault(taskId);
+            if (task is null) continue;
+            var row = task.Value;
+            string name;
+            uint itemId = 0;
+            if (row.IsRandom)
+            {
+                var random = data.GetExcelSheet<RetainerTaskRandom>().GetRowOrDefault(row.Task.RowId);
+                name = random?.Name.ToDalamudString().TextValue ?? string.Empty;
+            }
+            else
+            {
+                var normal = data.GetExcelSheet<RetainerTaskNormal>().GetRowOrDefault(row.Task.RowId);
+                name = normal?.Item.ValueNullable?.Name.ToString() ?? string.Empty;
+                itemId = normal?.Item.ValueNullable?.RowId ?? 0;
+            }
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var classJobCategoryRowId = row.ClassJobCategory.Value.RowId;
+            if ((classJobCategoryRowId is 17 or 18 or 19) && row.MaxTimemin != 1080 &&
+                !IsGatheringItemRecorded(itemId))
+                continue;
+            results.Add(new RetainerVentureOption(taskId, name, row.RetainerLevel, row.MaxTimemin,
+                classJobCategoryRowId));
+        }
+        return results.OrderBy(option => option.RetainerLevel).ThenBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+    }
+
+    public void RefreshVentureGatheringLogCache() => gatheringItemUnlockCache.Clear();
+
+    private bool IsGatheringItemRecorded(uint itemId)
+    {
+        if (itemId == 0) return false;
+        if (gatheringItemUnlockCache.TryGetValue(itemId, out var recorded)) return recorded;
+
+        var gatheringItemId = data.GetExcelSheet<GatheringItem>()
+            .FirstOrDefault(item => item.Item.RowId == itemId).RowId;
+        recorded = gatheringItemId != 0 && gatheringItemId <= ushort.MaxValue &&
+            QuestManager.IsGatheringItemGathered((ushort)gatheringItemId);
+        gatheringItemUnlockCache[itemId] = recorded;
+        return recorded;
+    }
+
+    public bool TryGetRetainerVentureCategory(uint taskId, RetainerVentureMenuLabels ventureLabels,
+        out string category, out string error)
+    {
+        category = string.Empty;
+        var task = data.GetExcelSheet<RetainerTask>().GetRowOrDefault(taskId);
+        if (task is null)
+        { error = $"Venture task {taskId} could not be read from game data."; return false; }
+
+        var categoryIndex = task.Value.ClassJobCategory.Value.RowId switch
+        {
+            34 => 0,
+            17 => 1,
+            18 => 2,
+            19 => 3,
+            _ => -1
+        };
+        if (categoryIndex < 0)
+        { error = $"Venture task {taskId} has an unsupported retainer job category."; return false; }
+
+        var categories = task.Value.MaxTimemin == 1080
+            ? ventureLabels.FieldExplorationCategories
+            : ventureLabels.ItemVentureCategories;
+        if (categoryIndex >= categories.Count || string.IsNullOrWhiteSpace(categories[categoryIndex]))
+        { error = "The game's venture category label is unavailable."; return false; }
+        category = categories[categoryIndex];
+        error = string.Empty;
+        return true;
+    }
+
+    public bool TrySelectRetainerVentureTask(uint taskId, bool allowLevelGroupChange,
+        out bool changedLevelGroup, out string error)
+    {
+        changedLevelGroup = false;
+        var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerTaskSupply").Address;
+        if (addon == null || !addon->IsReady || !addon->IsVisible || addon->AtkValues == null || addon->AtkValuesCount <= 107)
+        { error = "The retainer venture item list is not ready."; return false; }
+        var count = addon->AtkValues[107].UInt;
+        if (count > 256 || addon->AtkValuesCount < 42 + count)
+        { error = "The retainer venture item list returned an unexpected number of entries."; return false; }
+
+        for (var index = 0; index < count; index++)
+        {
+            var pointer = (nint)addon->AtkValues[42 + (int)index].Pointer;
+            if (pointer == 0 || *(uint*)pointer != taskId) continue;
+            var callback = stackalloc AtkValue[3];
+            callback[0] = new AtkValue { Type = AtkValueType.Int, Int = 5 };
+            callback[1] = new AtkValue { Type = AtkValueType.Int, Int = (int)index };
+            callback[2] = default;
+            addon->FireCallback(3, callback, true);
+            error = string.Empty;
+            return true;
+        }
+
+        var task = data.GetExcelSheet<RetainerTask>().GetRowOrDefault(taskId);
+        if (task is null)
+        { error = $"Venture task {taskId} could not be read from game data."; return false; }
+        if (!allowLevelGroupChange)
+        { error = "The selected venture did not appear in the loaded game list."; return false; }
+        var levelIndex = (task.Value.RetainerLevel - 1) / 5;
+        var listIndex = addon->AtkValues[40].Int - levelIndex - 1;
+        if (listIndex >= 0 && listIndex < 64)
+        {
+            var callback = stackalloc AtkValue[3];
+            callback[0] = new AtkValue { Type = AtkValueType.Int, Int = 4 };
+            callback[1] = new AtkValue { Type = AtkValueType.Int, Int = listIndex };
+            callback[2] = default;
+            addon->FireCallback(3, callback, true);
+            changedLevelGroup = true;
+            error = string.Empty;
+            return false;
+        }
+
+        error = "The selected venture is not available in this retainer's game list. Refresh its options while the corresponding venture list is open.";
+        return false;
     }
 
     public bool TryGetCharacterContext(out ulong contentId, out uint worldId, out string error)

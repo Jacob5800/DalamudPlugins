@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.30.0 (testing)
+
+- Added per-retainer venture selection, defaulting to Quick Exploration, with task options captured from the game's open venture list.
+- Miner, botanist, and fisher choices are checked against the Gathering Log and only appear after the item has been gathered; capture options per retainer and level range.
+
 ## 0.4.29.0
 
 - Added automatic retainer venture job detection and a per-retainer dropdown override for Combat, Miner, Botanist, and Fisher.
