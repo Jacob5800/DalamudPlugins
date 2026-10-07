@@ -481,7 +481,8 @@ public sealed class UniversalisClient : IDisposable
         return new PriceSnapshot(itemId, worldId, PriceSource.Universalis,
             snapshots.Min(snapshot => snapshot.ObservedAt), snapshots.SelectMany(snapshot => snapshot.Listings).ToArray(),
             snapshots.All(snapshot => snapshot.IsComplete), recentSales.Length == 0 ? null : recentSales.Max(),
-            DataCenterName: homeDataCenter, RegionName: regionalScope);
+            DataCenterName: homeDataCenter, RegionName: regionalScope,
+            Sales: snapshots.SelectMany(snapshot => snapshot.Sales ?? []).ToArray());
     }
 
     private static PriceSnapshot Parse(byte[] json, uint worldId, uint itemId, ScopeKind scopeKind, string scopeName)
@@ -557,9 +558,17 @@ public sealed class UniversalisClient : IDisposable
                     };
                     if (!validRetainer || retainerId == 0) retainerId = 0;
                 }
-                results.Add(new MarketListing(itemId, Bool(listing, "hq"), price, quantity, retainerId, Bool(listing, "onMannequin")));
+                var rowWorldId = listing.TryGetProperty("worldID", out var rowWorld) && rowWorld.TryGetUInt32(out var id)
+                    ? id : scopeKind == ScopeKind.World ? worldId : 0;
+                var rowWorldName = listing.TryGetProperty("worldName", out var name) && name.ValueKind == JsonValueKind.String
+                    ? name.GetString() : null;
+                DateTimeOffset? reviewedAt = listing.TryGetProperty("lastReviewTime", out var review) && review.TryGetInt64(out var reviewSeconds) && reviewSeconds > 0
+                    ? DateTimeOffset.FromUnixTimeSeconds(reviewSeconds) : null;
+                results.Add(new MarketListing(itemId, Bool(listing, "hq"), price, quantity, retainerId, Bool(listing, "onMannequin"),
+                    rowWorldId, rowWorldName, reviewedAt));
             }
 
+            var sales = new List<MarketSale>();
             DateTimeOffset? mostRecentSaleAt = null;
             if (root.TryGetProperty("recentHistory", out var recentHistory) && recentHistory.ValueKind != JsonValueKind.Null)
             {
@@ -571,6 +580,15 @@ public sealed class UniversalisClient : IDisposable
                         || !timestamp.TryGetInt64(out var seconds) || seconds <= 0)
                         throw Invalid("invalid recent sale timestamp.");
                     var soldAt = DateTimeOffset.FromUnixTimeSeconds(seconds);
+                    if (sale.TryGetProperty("pricePerUnit", out var salePrice) && salePrice.TryGetUInt32(out var saleGil) && saleGil > 0 &&
+                        sale.TryGetProperty("hq", out var saleHq) && saleHq.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    {
+                        var saleWorldId = sale.TryGetProperty("worldID", out var saleWorld) && saleWorld.TryGetUInt32(out var id)
+                            ? id : scopeKind == ScopeKind.World ? worldId : 0;
+                        var saleWorldName = sale.TryGetProperty("worldName", out var name) && name.ValueKind == JsonValueKind.String
+                            ? name.GetString() : null;
+                        sales.Add(new MarketSale(saleHq.GetBoolean(), saleGil, saleWorldId, saleWorldName, soldAt));
+                    }
                     if (mostRecentSaleAt is null || soldAt > mostRecentSaleAt.Value)
                         mostRecentSaleAt = soldAt;
                 }
@@ -580,7 +598,7 @@ public sealed class UniversalisClient : IDisposable
             return new(itemId, worldId, PriceSource.Universalis, observedAt, results.AsReadOnly(),
                 totalCount == results.Count, mostRecentSaleAt,
                 DataCenterName: scopeKind == ScopeKind.DataCenter ? scopeName : null,
-                RegionName: scopeKind == ScopeKind.Region ? scopeName : null);
+                RegionName: scopeKind == ScopeKind.Region ? scopeName : null, Sales: sales.AsReadOnly());
         }
         catch (JsonException ex)
         {

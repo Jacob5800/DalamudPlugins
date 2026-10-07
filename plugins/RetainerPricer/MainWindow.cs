@@ -596,7 +596,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
-        ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. The lowest matching HQ/NQ listing is shown separately from the suggested price.");
+        ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory or the chocobo saddlebag to find items, filter by name, add a selected item, or bulk-add either snapshot. Exceptions are item-based, so the same item is skipped if it is later in carried inventory or selected for Retainer sell.");
@@ -1091,22 +1091,35 @@ internal sealed class MainWindow : Window
 
         DrawAge(snapshot);
         var comparable = snapshot.Listings.Where(listing => listing.IsHq == hq && !listing.OnMannequin).ToArray();
-        var lowestPrice = comparable.Length > 0 ? comparable.Min(listing => listing.PricePerUnit) : (uint?)null;
-        if (ImGui.BeginTable("##manualLookupResult", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        var home = homeWorld();
+        string WorldLabel(uint id, string? name) => name ?? (home?.WorldId == id ? home.Name : id > 0 ? $"World #{id}" : "Unknown world");
+        void PriceLine(string label, uint? price, DateTimeOffset? time)
         {
-            ImGui.TableSetupColumn("Universalis result");
-            ImGui.TableSetupColumn("Price", ImGuiTableColumnFlags.WidthFixed, 150);
-            ImGui.TableNextRow();
-            ImGui.TableNextColumn(); ImGui.TextUnformatted($"Lowest matching {(hq ? "HQ" : "NQ")} listing");
-            ImGui.TableNextColumn();
-            if (lowestPrice is { } price)
-                ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"{price:N0} gil each");
-            else
-                ImGui.TextDisabled("No matching listing");
-            ImGui.EndTable();
+            ImGui.TextUnformatted(label);
+            ImGui.SameLine();
+            if (price is { } gil)
+            {
+                ImGui.TextColored(new Vector4(1f, 0.85f, 0.25f, 1f), $"{gil:N0} gil each");
+                if (time is { } at) { ImGui.SameLine(); ImGui.TextDisabled($"({Age(at)} ago)"); }
+            }
+            else ImGui.TextDisabled("No matching data");
         }
-        var resultScope = snapshot.RegionName ?? snapshot.DataCenterName ?? "your home world";
-        ImGui.TextUnformatted($"Received {snapshot.Listings.Count:N0} listings for {resultScope}.");
+        ImGui.Separator();
+        ImGui.TextUnformatted("Marketboard Price:");
+        var cheapest = comparable.OrderBy(listing => listing.PricePerUnit).FirstOrDefault();
+        PriceLine(cheapest is null ? "Cheapest:" : $"Cheapest ({WorldLabel(cheapest.WorldId, cheapest.WorldName)}):",
+            cheapest?.PricePerUnit, cheapest?.ReviewedAt ?? snapshot.ObservedAt);
+        var homeListing = comparable.Where(listing => listing.WorldId == snapshot.WorldId).OrderBy(listing => listing.PricePerUnit).FirstOrDefault();
+        PriceLine($"Home ({WorldLabel(snapshot.WorldId, null)}):", homeListing?.PricePerUnit,
+            homeListing?.ReviewedAt ?? snapshot.ObservedAt);
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Most Recent Purchase:");
+        var sales = (snapshot.Sales ?? []).Where(sale => sale.IsHq == hq).OrderByDescending(sale => sale.SoldAt).ToArray();
+        var latest = sales.FirstOrDefault();
+        PriceLine(latest is null ? "Latest:" : $"Latest ({WorldLabel(latest.WorldId, latest.WorldName)}):", latest?.PricePerUnit, latest?.SoldAt);
+        var homeSale = sales.FirstOrDefault(sale => sale.WorldId == snapshot.WorldId);
+        PriceLine($"Home ({WorldLabel(snapshot.WorldId, null)}):", homeSale?.PricePerUnit, homeSale?.SoldAt);
+        ImGui.Separator();
         if (controller.ManualProposal is { } proposal)
         {
             if (proposal.CanApply)
@@ -1693,6 +1706,8 @@ internal sealed class MainWindow : Window
     private static string Age(DateTimeOffset time)
     {
         var age = DateTimeOffset.UtcNow - time;
+        if (age.TotalDays >= 1) return $"{(int)age.TotalDays}d";
+        if (age.TotalHours >= 1) return $"{(int)age.TotalHours}h";
         return age.TotalMinutes >= 1 ? $"{Math.Max(0, (int)age.TotalMinutes)}m" : $"{Math.Max(0, (int)age.TotalSeconds)}s";
     }
 }

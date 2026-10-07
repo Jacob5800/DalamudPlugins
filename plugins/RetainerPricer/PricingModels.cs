@@ -16,7 +16,12 @@ public sealed record MarketListing(
     uint PricePerUnit,
     uint Quantity,
     ulong RetainerId,
-    bool OnMannequin = false);
+    bool OnMannequin = false,
+    uint WorldId = 0,
+    string? WorldName = null,
+    DateTimeOffset? ReviewedAt = null);
+
+public sealed record MarketSale(bool IsHq, uint PricePerUnit, uint WorldId, string? WorldName, DateTimeOffset SoldAt);
 
 public sealed class RetainerListingCache
 {
@@ -39,7 +44,8 @@ public sealed record PriceSnapshot(
     DateTimeOffset? RetrievedAt = null,
     bool WasCached = false,
     string? DataCenterName = null,
-    string? RegionName = null);
+    string? RegionName = null,
+    IReadOnlyList<MarketSale>? Sales = null);
 
 public sealed record PriceProposal(uint LowestPrice, uint SuggestedPrice, int MatchingListings, string? Error)
 {

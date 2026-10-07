@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.24.0
+
+- Redesigned Retrieved price with cheapest and home-world marketboard prices, recent purchase prices, world names, and data ages for the selected HQ/NQ quality.
+
 ## 0.4.23.0
 - Fixed marketboard lookup waiting on the listings-state flag before it could search. Lookup completion now checks the received response and matching listing count.
 
