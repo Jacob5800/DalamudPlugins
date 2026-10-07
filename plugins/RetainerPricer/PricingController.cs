@@ -925,6 +925,8 @@ internal sealed class PricingController : IDisposable
                     if (!bridge.TrySelectRetainerMenuEntry(text => text.Trim().TrimEnd('.', '…').Equals("Quit", StringComparison.OrdinalIgnoreCase), out _, out error))
                     { Cancel($"{TraversalOperation} stopped at the retainer menu: {error}"); return; }
                     session = null;
+                    autoRetainerDialogueClicks = 0;
+                    autoRetainerNextDialogueClick = now;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
                     return;
@@ -932,6 +934,8 @@ internal sealed class PricingController : IDisposable
                 if (bridge.IsRetainerPickerVisible)
                 {
                     session = null;
+                    autoRetainerDialogueClicks = 0;
+                    autoRetainerNextDialogueClick = now;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
                     return;
@@ -939,6 +943,21 @@ internal sealed class PricingController : IDisposable
                 if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer option menu did not appear after closing the sale list.");
                 return;
             case Step.AutoWaitPicker:
+                if (bridge.IsRetainerDialogueVisible && !bridge.IsRetainerPickerVisible)
+                {
+                    var departing = autoRetainers[autoRetainerIndex];
+                    if (now > deadline)
+                    { Cancel($"{TraversalOperation} stopped because {departing.Name}'s farewell dialogue did not close."); return; }
+                    if (autoRetainerDialogueClicks < 4 && now >= autoRetainerNextDialogueClick)
+                    {
+                        if (!bridge.TryAdvanceRetainerDialogue(departing, autoLastSelectedRetainerId, out error))
+                        { Cancel($"{TraversalOperation} stopped while closing {departing.Name}'s farewell dialogue: {error}"); return; }
+                        autoRetainerDialogueClicks++;
+                        autoRetainerNextDialogueClick = now.AddMilliseconds(500);
+                        Status = $"{TraversalOperation} · closing {departing.Name}'s farewell dialogue ({autoRetainerDialogueClicks}/4)...";
+                    }
+                    return;
+                }
                 if (bridge.IsRetainerPickerVisible && !bridge.IsRetainerMenuVisible)
                 {
                     autoRetainerIndex++;
