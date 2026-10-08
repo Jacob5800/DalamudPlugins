@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.33.0 (testing)
+
+- Sniper now monitors live listings during the initial history scan. New 1-gil alerts appear immediately, and other deals appear as their history batches complete.
+
 ## 0.4.32.0 (testing)
 
 - Sniper's Region scope now uses only the home-world region; Materia/Oceania is no longer added to other regions.

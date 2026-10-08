@@ -5,6 +5,19 @@ namespace RetainerPricer;
 internal sealed class SniperMonitor : IDisposable
 {
     private const int MaximumDeals = 250;
+    private const int MaximumPendingLiveListings = 50_000;
+
+    private sealed class RunState
+    {
+        public Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline> Baselines { get; } = [];
+        public HashSet<uint> CompletedHistoryItemIds { get; } = [];
+        public Dictionary<string, UniversalisListing> PendingLiveListings { get; } = new(StringComparer.Ordinal);
+        public int DroppedPendingListings { get; set; }
+    }
+
+    private sealed record HistoryScanSummary(int EligibleItems, IReadOnlyList<string> FailedBatches,
+        string? FatalError = null);
+
     private readonly object gate = new();
     private readonly UniversalisClient universalis;
     private readonly PluginConfig config;
@@ -15,6 +28,9 @@ internal sealed class SniperMonitor : IDisposable
     private CancellationTokenSource? cancellation;
     private string status = "Sniper is stopped.";
     private bool isListening;
+    private bool initialScanRunning;
+    private string initialScanProgress = string.Empty;
+    private string liveFeedStatus = "not connected";
 
     public SniperMonitor(UniversalisClient universalis, PluginConfig config, IReadOnlyList<ItemChoice> items,
         IReadOnlyDictionary<uint, string> worldNames)
@@ -28,6 +44,7 @@ internal sealed class SniperMonitor : IDisposable
 
     public bool IsListening { get { lock (gate) return isListening; } }
     public bool IsRunning { get { lock (gate) return cancellation is not null; } }
+    public bool IsInitialScanRunning { get { lock (gate) return initialScanRunning; } }
     public string Status { get { lock (gate) return status; } }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
@@ -47,6 +64,9 @@ internal sealed class SniperMonitor : IDisposable
             cancellation = run = new CancellationTokenSource();
             deals.Clear();
             isListening = false;
+            initialScanRunning = false;
+            initialScanProgress = string.Empty;
+            liveFeedStatus = "not connected";
             status = $"Preparing to scan {watchedItems.Count:N0} marketable items using the selected market scope…";
         }
         _ = Task.Run(() => RunAsync(world, useDataCenter, useRegion, watchedItems, Math.Clamp(config.SniperMinimumSales14Days, 1, 1_800),
@@ -74,11 +94,123 @@ internal sealed class SniperMonitor : IDisposable
             if (watchedWorlds.Count == 0)
                 throw new InvalidOperationException("The selected Sniper scope did not contain any supported worlds.");
 
-            var baselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
-            var failed = new List<string>();
-            var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
-                             UniversalisClient.SniperHistoryBatchSize;
-            var scanStartedAt = Stopwatch.GetTimestamp();
+            var runState = new RunState();
+            lock (gate)
+            {
+                initialScanRunning = true;
+                initialScanProgress = "Initial scan is starting";
+                liveFeedStatus = "connecting to Universalis live listings";
+                RefreshInitialScanStatusAndGetLocked(runState);
+            }
+
+            // Start listening before the catalog scan completes. Live listings for unscanned
+            // items are held until their history batch supplies a usable HQ/NQ baseline.
+            var historyScanTask = ScanHistoryAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
+                threshold, historyDays, minimumItemPrice, runState, cancellationToken);
+            HistoryScanSummary? historySummary = null;
+
+            var backoffSeconds = 2;
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var reconnectReason = "the server closed the connection";
+                try
+                {
+                    await using var socket = new UniversalisWebSocketClient();
+                    await socket.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                    foreach (var worldId in watchedWorlds)
+                    {
+                        await socket.SubscribeWorldAsync(worldId, "add", cancellationToken).ConfigureAwait(false);
+                        await socket.SubscribeWorldAsync(worldId, "remove", cancellationToken).ConfigureAwait(false);
+                    }
+                    // The scanner flips initialScanRunning off just before its Task completes.
+                    // Await it in that tiny window so the status below never sees a null summary.
+                    if (historySummary is null && (!IsInitialScanRunning || historyScanTask.IsCompleted))
+                        historySummary = await historyScanTask.ConfigureAwait(false);
+                    backoffSeconds = 2;
+                    lock (gate)
+                    {
+                        isListening = true;
+                        liveFeedStatus = "live feed connected";
+                        status = initialScanRunning
+                            ? RefreshInitialScanStatusAndGetLocked(runState)
+                            : BuildListeningStatus(scope, watchedWorlds.Count, watchedItems.Count, historyDays, minimumSales, historySummary!);
+                    }
+
+                    while (!cancellationToken.IsCancellationRequested && socket.State == System.Net.WebSockets.WebSocketState.Open)
+                    {
+                        var receiveTask = socket.ReceiveListingsAsync(cancellationToken);
+                        IReadOnlyList<UniversalisListing>? listings;
+                        if (historySummary is null)
+                        {
+                            var completedTask = await Task.WhenAny(receiveTask, historyScanTask).ConfigureAwait(false);
+                            if (completedTask == historyScanTask)
+                            {
+                                historySummary = await historyScanTask.ConfigureAwait(false);
+                                lock (gate)
+                                    status = BuildListeningStatus(scope, watchedWorlds.Count, watchedItems.Count,
+                                        historyDays, minimumSales, historySummary);
+                            }
+                            listings = await receiveTask.ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            listings = await receiveTask.ConfigureAwait(false);
+                        }
+                        if (listings is null) break;
+                        HandleLiveListings(listings, world, watchedWorlds, runState, threshold, minimumItemPrice);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+                catch (Exception ex)
+                {
+                    reconnectReason = ex.Message;
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+                lock (gate)
+                {
+                    isListening = false;
+                    liveFeedStatus = $"live feed reconnecting in {backoffSeconds}s ({reconnectReason})";
+                    status = initialScanRunning
+                        ? RefreshInitialScanStatusAndGetLocked(runState)
+                        : $"Universalis live feed disconnected ({reconnectReason}). Reconnecting in {backoffSeconds}s…";
+                }
+                await Task.Delay(TimeSpan.FromSeconds(backoffSeconds), cancellationToken).ConfigureAwait(false);
+                backoffSeconds = Math.Min(backoffSeconds * 2, 30);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            SetStatus($"Sniper stopped: {ex.Message}");
+        }
+        finally
+        {
+            lock (gate)
+            {
+                isListening = false;
+                initialScanRunning = false;
+                cancellation?.Dispose();
+                cancellation = null;
+                if (cancellationToken.IsCancellationRequested)
+                    status = "Sniper stopped.";
+                else if (string.IsNullOrWhiteSpace(status) || status.StartsWith("Listening", StringComparison.Ordinal))
+                    status = "Sniper is stopped.";
+            }
+        }
+    }
+
+    private async Task<HistoryScanSummary> ScanHistoryAsync(SniperMarketScope scope,
+        IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
+        int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
+        CancellationToken cancellationToken)
+    {
+        var failed = new List<string>();
+        var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
+                         UniversalisClient.SniperHistoryBatchSize;
+        var scanStartedAt = Stopwatch.GetTimestamp();
+        try
+        {
             for (var index = 0; index < watchedItems.Count; index += UniversalisClient.SniperHistoryBatchSize)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -88,7 +220,9 @@ internal sealed class SniperMonitor : IDisposable
                 var eta = completedBatches > 0
                     ? FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)
                     : "Estimating ETA from the first batch";
-                SetStatus($"Initial scan · {index:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} ({batch.Length} items) · {eta}…");
+                SetInitialScanProgress($"Initial scan · {index:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} ({batch.Length} items) · {eta}…", runState);
+
+                var batchBaselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 try
                 {
                     var batchSales = new Dictionary<uint, List<SniperSale>>();
@@ -114,7 +248,7 @@ internal sealed class SniperMonitor : IDisposable
                             var median = orderedPrices.Length % 2 == 0
                                 ? (uint)(((ulong)orderedPrices[middle - 1] + orderedPrices[middle]) / 2)
                                 : orderedPrices[middle];
-                            baselines[(itemId, qualitySales.Key)] = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median);
+                            batchBaselines[(itemId, qualitySales.Key)] = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median);
                         }
                     }
                 }
@@ -124,127 +258,176 @@ internal sealed class SniperMonitor : IDisposable
                     var label = batch.Length == 1 ? batch[0].Name : $"{batch[0].Name} … {batch[^1].Name}";
                     failed.Add($"{label}: {ex.Message}");
                 }
-            }
 
-            var eligible = baselines.Keys.Select(key => key.ItemId).Distinct().Count();
-            if (eligible == 0 && watchedItems.Count > 0)
-            {
-                var reason = failed.Count > 0
-                    ? $" {failed.Count} history batch(es) failed; first error: {failed[0]}"
-                    : $" No marketable item reached the minimum of {minimumSales} sales in {historyDays} days.";
-                SetStatus("No marketable item has a usable sales baseline." + reason + " One-gil alerts will still be monitored.");
-            }
-
-            var backoffSeconds = 2;
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var reconnectReason = "the server closed the connection";
-                try
+                var batchItemIds = batch.Select(item => item.ItemId).ToHashSet();
+                lock (gate)
                 {
-                    await using var socket = new UniversalisWebSocketClient();
-                    SetStatus($"Connecting to Universalis live listings for {scope.Label}…");
-                    await socket.ConnectAsync(cancellationToken).ConfigureAwait(false);
-                    foreach (var worldId in watchedWorlds)
+                    foreach (var (key, baseline) in batchBaselines)
+                        runState.Baselines[key] = baseline;
+                    foreach (var itemId in batchItemIds)
+                        runState.CompletedHistoryItemIds.Add(itemId);
+                    foreach (var pending in runState.PendingLiveListings
+                                 .Where(pair => batchItemIds.Contains(pair.Value.ItemId)).ToArray())
                     {
-                        await socket.SubscribeWorldAsync(worldId, "add", cancellationToken).ConfigureAwait(false);
-                        await socket.SubscribeWorldAsync(worldId, "remove", cancellationToken).ConfigureAwait(false);
+                        runState.PendingLiveListings.Remove(pending.Key);
+                        ProcessLiveListingLocked(pending.Value, world, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
-                    backoffSeconds = 2;
-                    lock (gate)
-                    {
-                        isListening = true;
-                        status = $"Listening on {scope.Label} across {watchedWorlds.Count:N0} world(s) · all {watchedItems.Count:N0} marketable items scanned, {eligible:N0} with usable {historyDays}-day history · 1-gil alerts cover all marketable items. Purchases are manual.";
-                        if (failed.Count > 0) status += $" {failed.Count} history batch(es) failed; first failure: {failed[0]}.";
-                    }
-
-                    while (!cancellationToken.IsCancellationRequested && socket.State == System.Net.WebSockets.WebSocketState.Open)
-                    {
-                        var listings = await socket.ReceiveListingsAsync(cancellationToken).ConfigureAwait(false);
-                        if (listings is null) break;
-                        foreach (var listing in listings)
-                        {
-                            if (listing.IsRemoved)
-                            {
-                                lock (gate)
-                                {
-                                    if (listing.ListingId is { Length: > 0 } removedId)
-                                        deals.RemoveAll(previous => previous.Key == $"{listing.WorldId}:{listing.ItemId}:{removedId}" ||
-                                            previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
-                                            previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
-                                    else if (listing.PricePerUnit == 1)
-                                        deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
-                                            previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
-                                    else
-                                        deals.RemoveAll(previous => previous.ItemId == listing.ItemId && previous.WorldId == listing.WorldId &&
-                                            previous.IsHq == listing.IsHq && previous.PricePerUnit == listing.PricePerUnit && previous.Quantity == listing.Quantity);
-                                }
-                                continue;
-                            }
-                            if (!watchedWorlds.Contains(listing.WorldId) || !itemNames.TryGetValue(listing.ItemId, out var name))
-                                continue;
-                            var isOneGilAlert = listing.PricePerUnit == 1;
-                            var hasBaseline = baselines.TryGetValue((listing.ItemId, listing.IsHq), out var baseline);
-                            if (!isOneGilAlert && (listing.PricePerUnit < minimumItemPrice || !hasBaseline ||
-                                listing.PricePerUnit > baseline!.MedianSalePrice * threshold))
-                                continue;
-                            var listingWorldName = worldNames.TryGetValue(listing.WorldId, out var resolvedWorldName)
-                                ? resolvedWorldName : listing.WorldId == world.WorldId ? world.Name : $"World {listing.WorldId}";
-                            var listingKey = isOneGilAlert
-                                ? $"alert:{listing.WorldId}:{listing.ItemId}:{listing.IsHq}"
-                                : listing.ListingId is { Length: > 0 } id
-                                    ? $"{listing.WorldId}:{listing.ItemId}:{id}"
-                                    : $"{listing.WorldId}:{listing.ItemId}:{listing.IsHq}:{listing.PricePerUnit}:{listing.Quantity}";
-                            var deal = new SniperDeal(listingKey, listing.ItemId, name, listing.WorldId, listingWorldName,
-                                listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
-                                baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert);
-                            lock (gate)
-                            {
-                                if (isOneGilAlert)
-                                    deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
-                                        previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
-                                else
-                                    deals.RemoveAll(previous => previous.Key == listingKey);
-                                deals.Insert(0, deal);
-                                if (deals.Count > MaximumDeals) deals.RemoveRange(MaximumDeals, deals.Count - MaximumDeals);
-                            }
-                        }
-                    }
+                    var processedItems = Math.Min(index + batch.Length, watchedItems.Count);
+                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} complete";
+                    RefreshInitialScanStatusAndGetLocked(runState);
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
-                catch (Exception ex)
-                {
-                    reconnectReason = ex.Message;
-                    lock (gate)
-                    {
-                        isListening = false;
-                        status = $"Universalis live feed disconnected ({reconnectReason}). Reconnecting…";
-                    }
-                }
-
-                if (cancellationToken.IsCancellationRequested) break;
-                SetStatus($"Universalis live feed disconnected ({reconnectReason}). Reconnecting in {backoffSeconds}s…");
-                await Task.Delay(TimeSpan.FromSeconds(backoffSeconds), cancellationToken).ConfigureAwait(false);
-                backoffSeconds = Math.Min(backoffSeconds * 2, 30);
             }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            SetStatus($"Sniper stopped: {ex.Message}");
-        }
-        finally
-        {
+
+            var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
+            var summary = new HistoryScanSummary(eligible, failed.ToArray());
             lock (gate)
             {
-                isListening = false;
-                cancellation?.Dispose();
-                cancellation = null;
-                if (string.IsNullOrWhiteSpace(status) || status.StartsWith("Listening", StringComparison.Ordinal))
-                    status = "Sniper is stopped.";
-                else if (cancellationToken.IsCancellationRequested)
-                    status = "Sniper stopped.";
+                initialScanRunning = false;
+                status = isListening
+                    ? BuildListeningStatus(scope, scope.WorldIds.Count, watchedItems.Count, historyDays, minimumSales, summary)
+                    : $"Initial history scan complete · {liveFeedStatus}. {BuildHistorySummary(summary, watchedItems.Count, minimumSales, historyDays)}";
+            }
+            return summary;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            lock (gate) initialScanRunning = false;
+            return new HistoryScanSummary(runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count(), failed.ToArray());
+        }
+        catch (Exception ex)
+        {
+            var summary = new HistoryScanSummary(runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count(), failed.ToArray(), ex.Message);
+            lock (gate)
+            {
+                initialScanRunning = false;
+                status = isListening
+                    ? BuildListeningStatus(scope, scope.WorldIds.Count, watchedItems.Count, historyDays, minimumSales, summary)
+                    : $"Initial history scan stopped: {ex.Message}. {liveFeedStatus}.";
+            }
+            return summary;
+        }
+    }
+
+    private void HandleLiveListings(IReadOnlyList<UniversalisListing> listings, MarketWorld world,
+        IReadOnlySet<uint> watchedWorlds, RunState runState, double threshold, int minimumItemPrice)
+    {
+        lock (gate)
+        {
+            foreach (var listing in listings)
+                ProcessLiveListingLocked(listing, world, watchedWorlds, runState, threshold, minimumItemPrice);
+        }
+    }
+
+    private void ProcessLiveListingLocked(UniversalisListing listing, MarketWorld world,
+        IReadOnlySet<uint> watchedWorlds, RunState runState, double threshold, int minimumItemPrice)
+    {
+        var eventKey = ListingEventKey(listing);
+        if (listing.IsRemoved)
+        {
+            runState.PendingLiveListings.Remove(eventKey);
+            if (listing.ListingId is { Length: > 0 } removedId)
+                deals.RemoveAll(previous => previous.Key == $"{listing.WorldId}:{listing.ItemId}:{removedId}" ||
+                    previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
+                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
+            else if (listing.PricePerUnit == 1)
+                deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
+                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
+            else
+                deals.RemoveAll(previous => previous.ItemId == listing.ItemId && previous.WorldId == listing.WorldId &&
+                    previous.IsHq == listing.IsHq && previous.PricePerUnit == listing.PricePerUnit && previous.Quantity == listing.Quantity);
+            if (initialScanRunning) RefreshInitialScanStatusAndGetLocked(runState);
+            return;
+        }
+
+        if (!watchedWorlds.Contains(listing.WorldId) || !itemNames.TryGetValue(listing.ItemId, out var name))
+            return;
+
+        var isOneGilAlert = listing.PricePerUnit == 1;
+        SniperQualityBaseline? baseline = null;
+        if (!isOneGilAlert)
+        {
+            if (!runState.Baselines.TryGetValue((listing.ItemId, listing.IsHq), out baseline))
+            {
+                if (!runState.CompletedHistoryItemIds.Contains(listing.ItemId))
+                {
+                    if (runState.PendingLiveListings.ContainsKey(eventKey) ||
+                        runState.PendingLiveListings.Count < MaximumPendingLiveListings)
+                        runState.PendingLiveListings[eventKey] = listing;
+                    else
+                        runState.DroppedPendingListings++;
+                }
+                return;
+            }
+
+            // A listing update may reuse its ID with a price that no longer qualifies.
+            deals.RemoveAll(previous => previous.Key == eventKey);
+            if (listing.PricePerUnit < minimumItemPrice || listing.PricePerUnit > baseline.MedianSalePrice * threshold)
+            {
+                if (initialScanRunning) RefreshInitialScanStatusAndGetLocked(runState);
+                return;
             }
         }
+
+        var listingWorldName = worldNames.TryGetValue(listing.WorldId, out var resolvedWorldName)
+            ? resolvedWorldName : listing.WorldId == world.WorldId ? world.Name : $"World {listing.WorldId}";
+        var dealKey = isOneGilAlert
+            ? $"alert:{listing.WorldId}:{listing.ItemId}:{listing.IsHq}"
+            : eventKey;
+        var deal = new SniperDeal(dealKey, listing.ItemId, name, listing.WorldId, listingWorldName,
+            listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
+            baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert);
+        if (isOneGilAlert)
+            deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
+                previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
+        else
+            deals.RemoveAll(previous => previous.Key == dealKey);
+        deals.Insert(0, deal);
+        if (deals.Count > MaximumDeals) deals.RemoveRange(MaximumDeals, deals.Count - MaximumDeals);
+        if (initialScanRunning) RefreshInitialScanStatusAndGetLocked(runState);
+    }
+
+    private static string ListingEventKey(UniversalisListing listing) =>
+        listing.ListingId is { Length: > 0 } id
+            ? $"{listing.WorldId}:{listing.ItemId}:{id}"
+            : $"{listing.WorldId}:{listing.ItemId}:{listing.IsHq}:{listing.PricePerUnit}:{listing.Quantity}";
+
+    private void SetInitialScanProgress(string progress, RunState runState)
+    {
+        lock (gate)
+        {
+            initialScanProgress = progress;
+            RefreshInitialScanStatusAndGetLocked(runState);
+        }
+    }
+
+    private string RefreshInitialScanStatusAndGetLocked(RunState runState)
+    {
+        var dropped = runState.DroppedPendingListings > 0
+            ? $" · {runState.DroppedPendingListings:N0} early listing updates skipped due to the buffer limit"
+            : string.Empty;
+        status = $"{initialScanProgress} · {deals.Count:N0} live deal(s) found so far · {liveFeedStatus}{dropped}";
+        return status;
+    }
+
+    private string BuildListeningStatus(SniperMarketScope scope, int watchedWorldCount, int watchedItemCount,
+        int historyDays, int minimumSales, HistoryScanSummary summary)
+    {
+        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · all {watchedItemCount:N0} marketable items scanned, {summary.EligibleItems:N0} with usable {historyDays}-day history · 1-gil alerts cover all marketable items. Purchases are manual.";
+        status += " " + BuildHistorySummary(summary, watchedItemCount, minimumSales, historyDays);
+        return status;
+    }
+
+    private static string BuildHistorySummary(HistoryScanSummary summary, int watchedItemCount,
+        int minimumSales, int historyDays)
+    {
+        var details = new List<string>();
+        if (summary.EligibleItems == 0 && watchedItemCount > 0)
+            details.Add($"No item reached the minimum of {minimumSales} sales in {historyDays} days; ordinary deals need a usable baseline.");
+        if (summary.FailedBatches.Count > 0)
+            details.Add($"{summary.FailedBatches.Count} history batch(es) failed; first error: {summary.FailedBatches[0]}.");
+        if (summary.FatalError is { Length: > 0 })
+            details.Add($"The history scan stopped early: {summary.FatalError}.");
+        return string.Join(" ", details);
     }
 
     private static string FormatEta(TimeSpan elapsed, int completedBatches, int remainingBatches)

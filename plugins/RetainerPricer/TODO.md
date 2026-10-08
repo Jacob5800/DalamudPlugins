@@ -1,5 +1,20 @@
 # TODO
 
+## 0.4.33.0 (testing) — Progressive Sniper deals
+
+Implemented:
+
+- Start the Universalis live feed alongside the initial history scan.
+- Buffer listing additions for items whose history batch is not ready yet, then evaluate them when its HQ/NQ baselines are available. New 1-gil alerts appear immediately.
+- Keep the live-listing buffer bounded and expose progress while deals appear during the scan.
+- Update Sniper status, help, README, manifest, and changelog.
+
+Pending in-game observation:
+
+- Confirm a new 1-gil listing appears while the history scan is running.
+- Confirm a normal listing is evaluated and shown after its item's history batch completes, before the full catalog scan ends.
+- Confirm listing removals clear pending entries/deals, reconnects keep the history scan progressing, and Stop cancels both.
+
 ## 0.4.32.0 (testing) — Home-region Sniper scope and automatic venture options
 
 Implemented:
