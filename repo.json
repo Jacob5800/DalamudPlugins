@@ -38,11 +38,11 @@
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.31.0/RetainerPricer.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.4.31.0/RetainerPricer.zip",
-    "LastUpdate": "1791474570",
-    "TestingAssemblyVersion": null,
-    "DownloadLinkTesting": null,
+    "LastUpdate": "1791480008",
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png",
-    "TestingDalamudApiLevel": null
+    "TestingAssemblyVersion": "0.4.32.0",
+    "TestingDalamudApiLevel": 15,
+    "DownloadLinkTesting": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-testing-v0.4.32.0/RetainerPricer.zip"
   },
   {
     "Author": "Jacob5800",
