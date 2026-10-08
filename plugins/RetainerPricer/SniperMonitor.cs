@@ -154,7 +154,7 @@ internal sealed class SniperMonitor : IDisposable
                     {
                         isListening = true;
                         status = $"Listening on {scope.Label} across {watchedWorlds.Count:N0} world(s) · all {watchedItems.Count:N0} marketable items scanned, {eligible:N0} with usable {historyDays}-day history · 1-gil alerts cover all marketable items. Purchases are manual.";
-                        if (failed.Count > 0) status += $" {failed.Count} history batch(es) failed.";
+                        if (failed.Count > 0) status += $" {failed.Count} history batch(es) failed; first failure: {failed[0]}.";
                     }
 
                     while (!cancellationToken.IsCancellationRequested && socket.State == System.Net.WebSockets.WebSocketState.Open)

@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.31.0
+
+- Sniper retries temporary Universalis history request failures once, so a brief timeout or interrupted connection does not discard the whole item batch.
+- Sniper reports the first failed batch reason when history could not be retrieved.
+
 ## 0.4.30.0 (testing)
 
 - Added per-retainer venture selection, defaulting to Quick Exploration, with task options captured from the game's open venture list.

@@ -23,6 +23,7 @@ public sealed class UniversalisClient : IDisposable
     private const int HistoryEntryLimit = 100;
     private const int HistoryWindowSeconds = 20 * 24 * 60 * 60;
     private const int SniperHistoryEntryLimit = 1_800;
+    private const int MaximumSniperHistoryAttempts = 2;
     private const int UniversalisRequestsPerSecond = 25;
     private static readonly TimeSpan HistoryRequestTimeout = TimeSpan.FromSeconds(60);
     private static readonly SemaphoreSlim RequestRateGate = new(1, 1);
@@ -193,30 +194,59 @@ public sealed class UniversalisClient : IDisposable
             itemIds.Any(itemId => itemId == 0) || homeWorldId == 0)
             throw new ArgumentException($"Select a valid market scope, 1 to {SniperHistoryBatchSize} items, and a home world before fetching sales history.");
         historyDays = Math.Clamp(historyDays, 3, 14);
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(HistoryRequestTimeout);
-        try
+        var itemIdsPath = string.Join(',', itemIds.Distinct());
+        var historyWindowSeconds = historyDays * 24 * 60 * 60;
+        var escapedScope = Uri.EscapeDataString(scope.Name);
+        var path = $"history/{escapedScope}/{itemIdsPath}?entriesToReturn={SniperHistoryEntryLimit}&entriesWithin={historyWindowSeconds}";
+        Exception? lastRetryFailure = null;
+        for (var attempt = 1; ; attempt++)
         {
-            var itemIdsPath = string.Join(',', itemIds.Distinct());
-            var historyWindowSeconds = historyDays * 24 * 60 * 60;
-            var escapedScope = Uri.EscapeDataString(scope.Name);
-            var path = $"history/{escapedScope}/{itemIdsPath}?entriesToReturn={SniperHistoryEntryLimit}&entriesWithin={historyWindowSeconds}";
-            var json = await RequestHistoryJsonAsync(path, deadline.Token).ConfigureAwait(false);
-            return ParseSniperSalesBatch(json, scope, homeWorldId, itemIds, historyDays, DateTimeOffset.UtcNow);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new InvalidOperationException("Universalis sales history did not respond in time.");
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new InvalidOperationException("Could not reach Universalis sales history.", ex);
-        }
-        catch (IOException ex)
-        {
-            throw new InvalidOperationException("The Universalis sales-history response was interrupted.", ex);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            deadline.CancelAfter(HistoryRequestTimeout);
+            try
+            {
+                var json = await RequestHistoryJsonAsync(path, deadline.Token).ConfigureAwait(false);
+                return ParseSniperSalesBatch(json, scope, homeWorldId, itemIds, historyDays, DateTimeOffset.UtcNow);
+            }
+            catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+            {
+                if (attempt >= MaximumSniperHistoryAttempts)
+                    throw new InvalidOperationException("Universalis sales history did not respond in time after a retry.", lastRetryFailure ?? ex);
+                lastRetryFailure = ex;
+            }
+            catch (HttpRequestException ex) when (IsTransientHistoryFailure(ex) && attempt < MaximumSniperHistoryAttempts)
+            {
+                // Universalis history requests can be slow or have their connection interrupted,
+                // especially for regional batches. Retry once without abandoning the entire batch.
+                lastRetryFailure = ex;
+            }
+            catch (HttpRequestException ex) when (IsTransientHistoryFailure(ex))
+            {
+                if (ex.StatusCode is { } statusCode)
+                    throw new InvalidOperationException($"Universalis sales history returned HTTP {(int)statusCode} after a retry.", ex);
+                throw new InvalidOperationException("Could not reach Universalis sales history after a retry.", ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("Could not reach Universalis sales history.", ex);
+            }
+            catch (IOException ex) when (attempt < MaximumSniperHistoryAttempts)
+            {
+                // Retry interrupted response reads once; user cancellation still propagates above.
+                lastRetryFailure = ex;
+            }
+            catch (IOException ex)
+            {
+                throw new InvalidOperationException("The Universalis sales-history response was interrupted after a retry.", ex);
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(attempt), ct).ConfigureAwait(false);
         }
     }
+
+    private static bool IsTransientHistoryFailure(HttpRequestException exception) =>
+        exception.StatusCode is null or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests ||
+        exception.StatusCode is { } statusCode && (int)statusCode >= 500;
 
     private async Task<byte[]> RequestHistoryJsonAsync(string path, CancellationToken ct)
     {
@@ -229,8 +259,9 @@ public sealed class UniversalisClient : IDisposable
             await WaitForRequestSlotAsync(ct).ConfigureAwait(false);
             await WaitForSniperHistoryBatchSlotAsync(ct).ConfigureAwait(false);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                throw new InvalidOperationException("Universalis has temporarily limited sales-history requests. Wait a moment, then retry.");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests ||
+                response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500)
+                throw new HttpRequestException($"Universalis temporarily returned HTTP {(int)response.StatusCode} for sales history.", null, response.StatusCode);
             if (response.StatusCode == HttpStatusCode.NotFound)
                 throw new InvalidOperationException("Universalis has no sales history for this item batch and world.");
             if (!response.IsSuccessStatusCode)

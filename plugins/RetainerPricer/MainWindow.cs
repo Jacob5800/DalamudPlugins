@@ -793,7 +793,7 @@ internal sealed class MainWindow : Window
                     : "your home-world Data Center"
                 : "your home world";
         ImGui.TextWrapped($"Start watching to scan every marketable item in {marketScope}, then listen for new listings across the same scope. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
-        ImGui.TextDisabled("History is requested in batches of up to 100 items, with at least 1 second between batch requests. An ETA appears during the initial scan only; after that, Sniper listens for new listings without repeating the full scan. Stop watching cancels the initial scan.");
+        ImGui.TextDisabled("History is requested in batches of up to 100 items, with at least 1 second between batch requests. Temporary request failures are retried once, and the status shows the first failure reason if a batch still fails. An ETA appears during the initial scan only; after that, Sniper listens for new listings without repeating the full scan. Stop watching cancels the initial scan.");
 
         var isRunning = sniper.IsRunning;
         ImGui.BeginDisabled(isRunning);

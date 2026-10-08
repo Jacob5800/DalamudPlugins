@@ -1,5 +1,17 @@
 # TODO
 
+## 0.4.31.0 — Sniper history resilience
+
+Implemented:
+
+- Retry a Sniper history request once after transient network failures, timeouts, HTTP 408/429, or server errors. Explicit user cancellation remains immediate.
+- Show the first failed history batch reason in the running status so persistent Universalis failures are diagnosable.
+- Updated the Sniper help, README, manifest, and release changelog.
+
+Pending in-game observation:
+
+- On Region scope, confirm Sniper completes the Europe and Oceania history scan after a temporary Universalis request failure and reports a useful first failure reason if the retry also fails.
+
 ## 0.4.30.0 (testing) — Per-retainer venture selection
 
 Implemented:
