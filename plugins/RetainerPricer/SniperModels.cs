@@ -7,7 +7,7 @@ internal enum SniperHistoryScopeKind { World, DataCenter, Region }
 internal sealed record SniperHistoryScope(string Name, SniperHistoryScopeKind Kind);
 
 internal sealed record SniperMarketScope(string Label, IReadOnlyList<SniperHistoryScope> HistoryScopes,
-    IReadOnlyList<uint> WorldIds);
+    IReadOnlyList<uint> WorldIds, IReadOnlyDictionary<uint, string> WorldDataCenterNames);
 
 public sealed record SniperSale(uint PricePerUnit, bool IsHq);
 

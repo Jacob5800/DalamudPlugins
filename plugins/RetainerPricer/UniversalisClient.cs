@@ -151,7 +151,8 @@ public sealed class UniversalisClient : IDisposable
         if (world.WorldId == 0) throw new ArgumentException("Select a valid home world before watching listings.");
         if (!useRegion && !useDataCenter)
             return new SniperMarketScope(world.Name, [new SniperHistoryScope(
-                world.WorldId.ToString(CultureInfo.InvariantCulture), SniperHistoryScopeKind.World)], [world.WorldId]);
+                world.WorldId.ToString(CultureInfo.InvariantCulture), SniperHistoryScopeKind.World)], [world.WorldId],
+                new Dictionary<uint, string>());
 
         if (string.IsNullOrWhiteSpace(world.DataCenterName))
             throw new InvalidOperationException("Could not identify your home world's Data Center for the selected Sniper scope.");
@@ -164,7 +165,7 @@ public sealed class UniversalisClient : IDisposable
         {
             return new SniperMarketScope($"{homeCenter.Name} Data Center",
                 [new SniperHistoryScope(homeCenter.Name, SniperHistoryScopeKind.DataCenter)],
-                homeCenter.Worlds.Distinct().ToArray());
+                homeCenter.Worlds.Distinct().ToArray(), new Dictionary<uint, string>());
         }
 
         var matchingCenters = centers.Values.Where(center =>
@@ -172,12 +173,15 @@ public sealed class UniversalisClient : IDisposable
             .ToArray();
         var historyRegions = new[] { homeCenter.Region };
         var worldIds = matchingCenters.SelectMany(center => center.Worlds).Distinct().ToArray();
+        var worldDataCenterNames = matchingCenters
+            .SelectMany(center => center.Worlds.Distinct().Select(worldId => (WorldId: worldId, center.Name)))
+            .ToDictionary(entry => entry.WorldId, entry => entry.Name);
         if (worldIds.Length == 0)
             throw new InvalidOperationException($"Universalis returned no worlds for the {homeCenter.Region} region scope.");
         var label = $"{homeCenter.Region} region";
         return new SniperMarketScope(label,
             historyRegions.Select(region => new SniperHistoryScope(region, SniperHistoryScopeKind.Region)).ToArray(),
-            worldIds);
+            worldIds, worldDataCenterNames);
     }
 
     internal async Task<IReadOnlyDictionary<uint, SniperSalesSnapshot>> FetchSniperSalesBatchAsync(

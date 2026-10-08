@@ -793,7 +793,7 @@ internal sealed class MainWindow : Window
                     ? $"the {dataCenterName} Data Center"
                     : "your home-world Data Center"
                 : "your home world";
-        ImGui.TextWrapped($"Start watching to scan every marketable item in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. It highlights deals and 1-gil listings for you to review; it never buys automatically.");
+        ImGui.TextWrapped($"Start watching to scan every marketable item in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. In Region scope, each server name includes its Data Center. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
         ImGui.TextDisabled("History is requested in batches of up to 100 items, with at least 1 second between batch requests. New 1-gil listings show immediately; other new listings are checked as their history batch completes. Temporary request failures are retried once, and the status shows the first failure reason if a batch still fails. An ETA appears during the initial scan only; after that, Sniper keeps listening without repeating the full scan. Stop watching cancels the scan and live feed.");
 
         var isRunning = sniper.IsRunning;

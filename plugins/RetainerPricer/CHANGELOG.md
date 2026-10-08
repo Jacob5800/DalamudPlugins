@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.34.0
+
+- In Region scope, Sniper now shows each server's Data Center beside its world name.
+
 ## 0.4.33.0 (testing)
 
 - Sniper now monitors live listings during the initial history scan. New 1-gil alerts appear immediately, and other deals appear as their history batches complete.

@@ -157,7 +157,7 @@ internal sealed class SniperMonitor : IDisposable
                             listings = await receiveTask.ConfigureAwait(false);
                         }
                         if (listings is null) break;
-                        HandleLiveListings(listings, world, watchedWorlds, runState, threshold, minimumItemPrice);
+                        HandleLiveListings(listings, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
@@ -270,7 +270,7 @@ internal sealed class SniperMonitor : IDisposable
                                  .Where(pair => batchItemIds.Contains(pair.Value.ItemId)).ToArray())
                     {
                         runState.PendingLiveListings.Remove(pending.Key);
-                        ProcessLiveListingLocked(pending.Value, world, watchedWorlds, runState, threshold, minimumItemPrice);
+                        ProcessLiveListingLocked(pending.Value, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
                     var processedItems = Math.Min(index + batch.Length, watchedItems.Count);
                     initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} complete";
@@ -308,17 +308,17 @@ internal sealed class SniperMonitor : IDisposable
         }
     }
 
-    private void HandleLiveListings(IReadOnlyList<UniversalisListing> listings, MarketWorld world,
+    private void HandleLiveListings(IReadOnlyList<UniversalisListing> listings, MarketWorld world, SniperMarketScope scope,
         IReadOnlySet<uint> watchedWorlds, RunState runState, double threshold, int minimumItemPrice)
     {
         lock (gate)
         {
             foreach (var listing in listings)
-                ProcessLiveListingLocked(listing, world, watchedWorlds, runState, threshold, minimumItemPrice);
+                ProcessLiveListingLocked(listing, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
         }
     }
 
-    private void ProcessLiveListingLocked(UniversalisListing listing, MarketWorld world,
+    private void ProcessLiveListingLocked(UniversalisListing listing, MarketWorld world, SniperMarketScope scope,
         IReadOnlySet<uint> watchedWorlds, RunState runState, double threshold, int minimumItemPrice)
     {
         var eventKey = ListingEventKey(listing);
@@ -370,6 +370,8 @@ internal sealed class SniperMonitor : IDisposable
 
         var listingWorldName = worldNames.TryGetValue(listing.WorldId, out var resolvedWorldName)
             ? resolvedWorldName : listing.WorldId == world.WorldId ? world.Name : $"World {listing.WorldId}";
+        if (scope.WorldDataCenterNames.TryGetValue(listing.WorldId, out var dataCenterName))
+            listingWorldName += $" ({dataCenterName})";
         var dealKey = isOneGilAlert
             ? $"alert:{listing.WorldId}:{listing.ItemId}:{listing.IsHq}"
             : eventKey;

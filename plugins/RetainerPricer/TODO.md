@@ -1,5 +1,14 @@
 # TODO
 
+## 0.4.34.0 — Region scope server labels
+
+Implemented:
+
+- Region scope now labels each server as `World (Data Center)`, for example `Alpha (Light)`. World and Data Center scopes keep their existing server labels.
+
+Pending in-game observation:
+
+- Confirm Region scope displays the correct Data Center for each deal while World and Data Center scopes show plain server names.
 ## 0.4.33.0 (testing) — Progressive Sniper deals
 
 Implemented:
