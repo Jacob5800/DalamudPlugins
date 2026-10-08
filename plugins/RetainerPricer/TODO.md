@@ -1,5 +1,20 @@
 # TODO
 
+## 0.4.32.0 (testing) — Home-region Sniper scope and automatic venture options
+
+Implemented:
+
+- Sniper Region scope now queries only Data Centers in the home world's region. Oceania is included only for a home world in Oceania; it is not appended to other regions.
+- Venture choices are generated from the game's task data and each retainer's current job and level. Gathering tasks remain gated by the Gathering Log, with the unlock cache refreshing once a minute while the Ventures tab is open.
+- Replaced open-menu capture with a single refresh action that refreshes all loaded retainers without navigating their venture menus.
+- The refresh result is shown next to its button, including the count of available options or a message explaining why refresh could not run.
+
+Pending in-game observation:
+
+- Confirm Region scope for a non-Oceania home world scans only its own region, while an Oceania home world still scans Oceania.
+- Confirm the automatically generated venture lists match retainer job, level, and Gathering Log unlocks; refresh after an unlock and confirm assignment reaches the intended task.
+- Confirm a temporary Universalis history failure retries once, and persistent failure status reports its cause in the home-region scope.
+
 ## 0.4.31.0 — Sniper history resilience
 
 Implemented:
@@ -10,7 +25,7 @@ Implemented:
 
 Pending in-game observation:
 
-- On Region scope, confirm Sniper completes the Europe and Oceania history scan after a temporary Universalis request failure and reports a useful first failure reason if the retry also fails.
+- Rechecked with the 0.4.32 home-region scope candidate above.
 
 ## 0.4.30.0 (testing) — Per-retainer venture selection
 
@@ -22,7 +37,6 @@ Implemented:
 
 Pending in-game observation:
 
-- At a summoning bell, capture venture choices for combat, miner, botanist, and fisher retainers; confirm locked gathering items do not appear and newly gathered items appear after refreshing the capture.
 - Confirm Quick Exploration remains the default, selected tasks are assigned to the correct retainer, and completed/ongoing venture handling is unchanged.
 - Stop the cycle during a retainer transition and confirm it leaves the current game window open without selecting another retainer.
 

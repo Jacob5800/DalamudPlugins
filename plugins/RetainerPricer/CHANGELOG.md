@@ -1,5 +1,11 @@
 # Retainer Pricer changelog
 
+## 0.4.32.0 (testing)
+
+- Sniper's Region scope now uses only the home-world region; Materia/Oceania is no longer added to other regions.
+- Venture choices are generated from each retainer's job and level, with gathering choices limited to items recorded in the Gathering Log. No venture item menu capture is needed.
+- Refresh available ventures now shows the result beside the button, including the number of options found or what is needed to refresh.
+
 ## 0.4.31.0
 
 - Sniper retries temporary Universalis history request failures once, so a brief timeout or interrupted connection does not discard the whole item batch.

@@ -24,7 +24,8 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     private readonly NativeMarketBridge bridge = bridge;
     private readonly PluginConfig config = config;
     private readonly List<RetainerIdentity> retainers = [];
-    private readonly Dictionary<(ulong RetainerId, RetainerVentureJob Job), IReadOnlyList<RetainerVentureOption>> ventureOptionCache = [];
+    private readonly Dictionary<(ulong RetainerId, byte Level, RetainerVentureJob Job), IReadOnlyList<RetainerVentureOption>> ventureOptionCache = [];
+    private DateTimeOffset ventureOptionCacheRefreshedAt;
     private Step step;
     private RetainerVentureMenuLabels? labels;
     private RetainerIdentity? currentRetainer;
@@ -42,55 +43,59 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
 
     public bool IsRunning => step != Step.Idle;
     public string Status { get; private set; } = "Open the retainer picker to start a venture cycle.";
+    public string VentureOptionsStatus { get; private set; } = "Venture options are generated automatically from each retainer's job and level.";
 
     public bool TryGetRetainerRoster(out IReadOnlyList<RetainerIdentity> roster)
         => bridge.TryGetOwnRetainers(out roster);
 
-    public IReadOnlyList<RetainerVentureOption> GetVentureOptions(ulong retainerId, RetainerVentureJob job)
+    public IReadOnlyList<RetainerVentureOption> GetVentureOptions(RetainerIdentity retainer, RetainerVentureJob job)
     {
-        var taskIds = new HashSet<uint> { RetainerVentureIds.QuickExploration };
-        if (config.RetainerAvailableVentureTaskIds.TryGetValue(retainerId, out var captured))
-            taskIds.UnionWith(captured);
-        var key = (retainerId, job);
+        var now = DateTimeOffset.UtcNow;
+        if (now - ventureOptionCacheRefreshedAt >= TimeSpan.FromMinutes(1))
+        {
+            bridge.RefreshVentureGatheringLogCache();
+            ventureOptionCache.Clear();
+            ventureOptionCacheRefreshedAt = now;
+        }
+        var key = (retainer.RetainerId, retainer.Level, job);
         if (ventureOptionCache.TryGetValue(key, out var cached)) return cached;
-        var category = RetainerVentureJobExtensions.ClassJobCategoryRowId(job);
-        var options = bridge.GetRetainerVentureOptions(taskIds)
-            .Where(option => option.TaskId == RetainerVentureIds.QuickExploration ||
-                option.ClassJobCategoryRowId == category)
-            .ToArray();
+        var options = bridge.GetRetainerVentureOptions(retainer.Level, job);
         ventureOptionCache[key] = options;
         return options;
     }
 
-    public bool TryCaptureOpenVentureOptions(out string message)
+    public bool RefreshVentureOptions(out string message)
     {
-        if (!bridge.TryGetOpenRetainerVentureTasks(out var retainer, out var taskIds, out message))
+        try
         {
-            Status = message;
+            if (!bridge.TryGetOwnRetainers(out var roster))
+            {
+                message = "Open the retainer picker at a summoning bell so Retainer Pricer can read your retainer roster.";
+                VentureOptionsStatus = message;
+                return false;
+            }
+
+            bridge.RefreshVentureGatheringLogCache();
+            ventureOptionCache.Clear();
+            ventureOptionCacheRefreshedAt = DateTimeOffset.UtcNow;
+            var availableCount = 0;
+            foreach (var retainer in roster)
+            {
+                var job = config.RetainerVentureJobOverrides.TryGetValue(retainer.RetainerId, out var jobOverride)
+                    ? jobOverride
+                    : RetainerVentureJobExtensions.DetectFromClassJobId(retainer.ClassJobId);
+                availableCount += GetVentureOptions(retainer, job).Count;
+            }
+            message = $"Refreshed venture options: {availableCount} available item ventures across {roster.Count} retainers. Gathering ventures require their items to be recorded in your Gathering Log.";
+            VentureOptionsStatus = message;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = $"Couldn't refresh venture options: {ex.Message}";
+            VentureOptionsStatus = message;
             return false;
         }
-
-        bridge.RefreshVentureGatheringLogCache();
-        var unlockedTaskIds = bridge.GetRetainerVentureOptions(taskIds)
-            .Select(option => option.TaskId).ToHashSet();
-        var eligibleTaskIds = taskIds.Where(unlockedTaskIds.Contains).ToArray();
-        if (!config.RetainerAvailableVentureTaskIds.TryGetValue(retainer.RetainerId, out var captured))
-            config.RetainerAvailableVentureTaskIds[retainer.RetainerId] = captured = [];
-        var existing = captured.ToHashSet();
-        var added = eligibleTaskIds.Where(existing.Add).ToArray();
-        if (added.Length > 0) captured.AddRange(added);
-        ventureOptionCache.Clear();
-        var total = captured.Count;
-        var lockedCount = taskIds.Count - eligibleTaskIds.Length;
-        message = added.Length == 0
-            ? lockedCount > 0
-                ? $"No new ventures added for {retainer.Name}; skipped {lockedCount} gathering option(s) not recorded in the Gathering Log. {total} option(s) already saved."
-                : $"No new ventures found for {retainer.Name}; {total} option(s) already saved."
-            : lockedCount > 0
-                ? $"Added {added.Length} option(s) for {retainer.Name}; skipped {lockedCount} gathering option(s) not recorded in the Gathering Log. {total} saved in total."
-                : $"Added {added.Length} available venture option(s) for {retainer.Name}; {total} saved in total.";
-        Status = message;
-        return true;
     }
 
     public void Start()
@@ -301,10 +306,12 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 ? configuredTaskId
                 : RetainerVentureIds.QuickExploration;
             selectedTaskListCategoryOpened = false;
+            var selectedJob = config.RetainerVentureJobOverrides.TryGetValue(expected.RetainerId, out var jobOverride)
+                ? jobOverride
+                : RetainerVentureJobExtensions.DetectFromClassJobId(expected.ClassJobId);
             if (selectedTaskId != RetainerVentureIds.QuickExploration &&
-                (!config.RetainerAvailableVentureTaskIds.TryGetValue(expected.RetainerId, out var availableTasks) ||
-                 !availableTasks.Contains(selectedTaskId)))
-            { Cancel($"The selected venture for {expected.Name} is not in its captured available list. Open that retainer's venture item list and refresh its options before starting."); return; }
+                !GetVentureOptions(expected, selectedJob).Any(option => option.TaskId == selectedTaskId))
+            { Cancel($"The selected venture for {expected.Name} is not available for its job, level, or Gathering Log."); return; }
             if (!bridge.TrySelectRetainerMenuEntry(text => labels.AssignOptions.Contains(text, StringComparer.Ordinal), out _, out error))
             { Cancel($"Venture cycle stopped before assigning a venture to {expected.Name}: {error}"); return; }
             SetStep(Step.WaitForVentureSelectionMenu, now, $"Choosing a venture for {expected.Name}...");

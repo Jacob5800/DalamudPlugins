@@ -19,7 +19,7 @@ namespace RetainerPricer;
 public sealed record MarketSession(ulong ContentId, ulong RetainerId, uint WorldId, string WorldName,
     string? DataCenterName = null);
 
-public sealed record RetainerIdentity(ulong RetainerId, string Name, byte ClassJobId = 0);
+public sealed record RetainerIdentity(ulong RetainerId, string Name, byte ClassJobId = 0, byte Level = 0);
 
 public sealed record RetainerVentureMenuLabels(string Quit, string ViewReport,
     IReadOnlyList<string> AssignOptions, string QuickExploration,
@@ -65,6 +65,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private PriceSnapshot? boardSearchSnapshot;
     private string boardSearchError = string.Empty;
     private readonly Dictionary<uint, bool> gatheringItemUnlockCache = [];
+    private Dictionary<uint, ushort[]>? gatheringItemIdsByItemId;
     private string localError = "Compare prices in the current sell window first.";
     private nint sellAddress;
     private bool sellWasVisible;
@@ -337,45 +338,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return ClickRegisteredButton(button, &addon->AtkUnitBase, out error);
     }
 
-    public bool TryGetOpenRetainerVentureTasks(out RetainerIdentity retainer,
-        out IReadOnlyList<uint> taskIds, out string error)
-    {
-        retainer = null!;
-        taskIds = [];
-        var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerTaskSupply").Address;
-        if (addon == null || !addon->IsReady || !addon->IsVisible)
-        { error = "Open a retainer's venture item list first."; return false; }
-        if (addon->AtkValues == null || addon->AtkValuesCount <= 107)
-        { error = "The open venture list is still loading."; return false; }
-
-        var manager = RetainerManager.Instance();
-        if (manager == null || !manager->IsReady || manager->LastSelectedRetainerId == 0)
-        { error = "The selected retainer could not be identified."; return false; }
-        var active = manager->GetActiveRetainer();
-        if (active == null || active->RetainerId != manager->LastSelectedRetainerId ||
-            string.IsNullOrWhiteSpace(active->NameString))
-        { error = "The open venture list does not match a loaded retainer."; return false; }
-
-        var count = addon->AtkValues[107].UInt;
-        if (count > 256 || addon->AtkValuesCount < 42 + count)
-        { error = "The open venture list returned an unexpected number of entries."; return false; }
-
-        var result = new List<uint>((int)count);
-        var seen = new HashSet<uint>();
-        for (var index = 0; index < count; index++)
-        {
-            var pointer = (nint)addon->AtkValues[42 + (int)index].Pointer;
-            if (pointer == 0) continue;
-            var taskId = *(uint*)pointer;
-            if (taskId != 0 && seen.Add(taskId)) result.Add(taskId);
-        }
-
-        retainer = new RetainerIdentity(active->RetainerId, active->NameString, active->ClassJob);
-        taskIds = result;
-        error = string.Empty;
-        return true;
-    }
-
     public IReadOnlyList<RetainerVentureOption> GetRetainerVentureOptions(IEnumerable<uint> taskIds)
     {
         var results = new List<RetainerVentureOption>();
@@ -409,6 +371,21 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return results.OrderBy(option => option.RetainerLevel).ThenBy(option => option.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
+    public IReadOnlyList<RetainerVentureOption> GetRetainerVentureOptions(byte retainerLevel, RetainerVentureJob job)
+    {
+        var category = job.ClassJobCategoryRowId();
+        var taskIds = new HashSet<uint> { RetainerVentureIds.QuickExploration };
+        if (category != 0)
+        {
+            foreach (var task in data.GetExcelSheet<RetainerTask>())
+            {
+                if (task.RetainerLevel <= retainerLevel && task.ClassJobCategory.Value.RowId == category)
+                    taskIds.Add(task.RowId);
+            }
+        }
+        return GetRetainerVentureOptions(taskIds);
+    }
+
     public void RefreshVentureGatheringLogCache() => gatheringItemUnlockCache.Clear();
 
     private bool IsGatheringItemRecorded(uint itemId)
@@ -416,10 +393,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (itemId == 0) return false;
         if (gatheringItemUnlockCache.TryGetValue(itemId, out var recorded)) return recorded;
 
-        var gatheringItemId = data.GetExcelSheet<GatheringItem>()
-            .FirstOrDefault(item => item.Item.RowId == itemId).RowId;
-        recorded = gatheringItemId != 0 && gatheringItemId <= ushort.MaxValue &&
-            QuestManager.IsGatheringItemGathered((ushort)gatheringItemId);
+        gatheringItemIdsByItemId ??= data.GetExcelSheet<GatheringItem>()
+            .Where(item => item.Item.RowId != 0 && item.RowId is > 0 and <= ushort.MaxValue)
+            .GroupBy(item => item.Item.RowId)
+            .ToDictionary(group => group.Key, group => group.Select(item => (ushort)item.RowId).Distinct().ToArray());
+        recorded = gatheringItemIdsByItemId.TryGetValue(itemId, out var gatheringItemIds) &&
+            gatheringItemIds.Any(QuestManager.IsGatheringItemGathered);
         gatheringItemUnlockCache[itemId] = recorded;
         return recorded;
     }
@@ -781,7 +760,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             if (retainer == null || retainer->RetainerId == 0) return false;
             var name = retainer->NameString;
             if (string.IsNullOrWhiteSpace(name) || !ids.Add(retainer->RetainerId) || !names.Add(name)) return false;
-            result.Add(new RetainerIdentity(retainer->RetainerId, name, retainer->ClassJob));
+            result.Add(new RetainerIdentity(retainer->RetainerId, name, retainer->ClassJob, retainer->Level));
         }
         retainers = result;
         return true;

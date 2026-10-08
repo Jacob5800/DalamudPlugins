@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
-    public int Version { get; set; } = 13;
+    public int Version { get; set; } = 14;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -21,7 +21,6 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool RepeatCompletedVentures { get; set; } = true;
     public Dictionary<ulong, RetainerVentureJob> RetainerVentureJobOverrides { get; set; } = [];
     public Dictionary<ulong, uint> RetainerVentureTaskOverrides { get; set; } = [];
-    public Dictionary<ulong, List<uint>> RetainerAvailableVentureTaskIds { get; set; } = [];
     public int AutoVendorPriceThreshold { get; set; } = 1;
     public List<uint> RetainerSaleWhitelistItemIds { get; set; } = [];
     public bool DontShowEmptyExceptionsWarningAgain { get; set; }
@@ -54,9 +53,6 @@ public sealed class PluginConfig : IPluginConfiguration
         RetainerVentureTaskOverrides = (RetainerVentureTaskOverrides ?? [])
             .Where(pair => pair.Key != 0 && pair.Value != 0)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
-        RetainerAvailableVentureTaskIds = (RetainerAvailableVentureTaskIds ?? [])
-            .Where(pair => pair.Key != 0 && pair.Value is not null)
-            .ToDictionary(pair => pair.Key, pair => pair.Value.Where(id => id != 0).Distinct().ToList());
         MaximumAgeMinutes = Math.Clamp(MaximumAgeMinutes, 1, 120);
         UniversalisCacheMinutes = Math.Clamp(UniversalisCacheMinutes, 0, 60);
         if (UseRegionPrices) UseDataCenterPrices = false;

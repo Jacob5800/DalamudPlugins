@@ -168,19 +168,13 @@ public sealed class UniversalisClient : IDisposable
         }
 
         var matchingCenters = centers.Values.Where(center =>
-                StringComparer.OrdinalIgnoreCase.Equals(center.Region, homeCenter.Region) ||
-                !StringComparer.OrdinalIgnoreCase.Equals(homeCenter.Region, "Oceania") &&
-                StringComparer.OrdinalIgnoreCase.Equals(center.Region, "Oceania"))
+                StringComparer.OrdinalIgnoreCase.Equals(center.Region, homeCenter.Region))
             .ToArray();
-        var historyRegions = StringComparer.OrdinalIgnoreCase.Equals(homeCenter.Region, "Oceania")
-            ? new[] { "Oceania" }
-            : new[] { homeCenter.Region, "Oceania" };
+        var historyRegions = new[] { homeCenter.Region };
         var worldIds = matchingCenters.SelectMany(center => center.Worlds).Distinct().ToArray();
         if (worldIds.Length == 0)
             throw new InvalidOperationException($"Universalis returned no worlds for the {homeCenter.Region} region scope.");
-        var label = StringComparer.OrdinalIgnoreCase.Equals(homeCenter.Region, "Oceania")
-            ? "Oceania (Materia)"
-            : $"{homeCenter.Region} + Oceania (Materia)";
+        var label = $"{homeCenter.Region} region";
         return new SniperMarketScope(label,
             historyRegions.Select(region => new SniperHistoryScope(region, SniperHistoryScopeKind.Region)).ToArray(),
             worldIds);
