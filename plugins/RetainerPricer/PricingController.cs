@@ -8,6 +8,8 @@ internal sealed class PriceRow(SellItem item)
     public string Status { get; set; } = "Waiting";
     public bool AwaitingPriceDropDecision { get; set; }
     public bool PriceDropApproved { get; set; }
+    public bool PriceDropReviewRecheck { get; set; }
+    public bool PriceDropIgnored { get; set; }
     public int PriceDropReviewThresholdPercent { get; set; }
 }
 
@@ -52,6 +54,7 @@ internal sealed class PricingController : IDisposable
     private bool batchSellingOnly;
     private readonly Dictionary<uint, uint> batchSoldQuantitiesByItemId = [];
     private readonly HashSet<uint> batchMaximumReachedItemIds = [];
+    private readonly Dictionary<uint, bool> priceDropDecisionsThisRun = [];
     private readonly List<RetainerIdentity> autoRetainers = [];
     private int autoRetainerIndex;
     private int autoRetainersCompleted;
@@ -477,6 +480,7 @@ internal sealed class PricingController : IDisposable
     public void UpdateExistingListings()
     {
         if (Busy) return;
+        priceDropDecisionsThisRun.Clear();
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         Rows.Clear();
         if (bridge.TryReadSellItem(out _, out _)) { Status = "Close the individual selling window first, leaving the retainer's selling list open."; return; }
@@ -495,8 +499,13 @@ internal sealed class PricingController : IDisposable
     {
         var row = PriceDropReviewItem;
         if (row is null) return;
+        priceDropDecisionsThisRun[row.Item.ItemId] = true;
         row.AwaitingPriceDropDecision = false;
         row.PriceDropApproved = true;
+        row.PriceDropReviewRecheck = true;
+        foreach (var matchingRow in Rows.Where(candidate => candidate.Item.ItemId == row.Item.ItemId &&
+                     candidate.AwaitingPriceDropDecision))
+            matchingRow.PriceDropReviewRecheck = true;
         row.Proposal = null;
         row.Snapshot = null;
         row.Status = "Approved; checking the price again before repricing.";
@@ -511,8 +520,17 @@ internal sealed class PricingController : IDisposable
     {
         var row = PriceDropReviewItem;
         if (row is null) return;
+        priceDropDecisionsThisRun[row.Item.ItemId] = false;
         row.AwaitingPriceDropDecision = false;
-        row.Status = "Ignored after price-drop review; listing left unchanged.";
+        row.PriceDropIgnored = true;
+        row.Status = "Ignored after price-drop review; listing left unchanged for this run.";
+        foreach (var matchingRow in Rows.Where(candidate => candidate.Item.ItemId == row.Item.ItemId &&
+                     candidate.AwaitingPriceDropDecision))
+        {
+            matchingRow.AwaitingPriceDropDecision = false;
+            matchingRow.PriceDropIgnored = true;
+            matchingRow.Status = "Ignored using the earlier review choice for this item in the current run.";
+        }
         Status = $"Ignored the large price drop for {row.Item.Name}; its listing was left unchanged.";
     }
 
@@ -568,6 +586,7 @@ internal sealed class PricingController : IDisposable
         }
 
         autoRetainerIndex = 0;
+        priceDropDecisionsThisRun.Clear();
         autoRetainerDialogueClicks = 0;
         autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
         autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
@@ -1295,7 +1314,8 @@ internal sealed class PricingController : IDisposable
                     return;
                 }
             }
-            if (workingItem is not null && !row.AwaitingPriceDropDecision && row.Proposal is { CanApply: true } proposal
+            if (workingItem is not null && !row.AwaitingPriceDropDecision && !row.PriceDropIgnored
+                && row.Proposal is { CanApply: true } proposal
                 && proposal.SuggestedPrice != workingItem.CurrentPrice)
             {
                 if (workSource == PriceSource.Local && !bridge.TryCloseCompare(workingItem, out var closeError))
@@ -1654,6 +1674,22 @@ internal sealed class PricingController : IDisposable
         row.PriceDropReviewThresholdPercent = config.PriceDropReviewPercentFor(row.Item.CurrentPrice);
         if (!row.Proposal.CanApply) row.Status = row.Proposal.Error!;
         else if (row.Proposal.SuggestedPrice == row.Item.CurrentPrice) row.Status = "Already priced";
+        else if ((decimal)row.Proposal.SuggestedPrice * 100
+            < (decimal)row.Item.CurrentPrice * (100 - row.PriceDropReviewThresholdPercent)
+            && priceDropDecisionsThisRun.TryGetValue(row.Item.ItemId, out var approvedThisRun))
+        {
+            if (approvedThisRun)
+            {
+                row.AwaitingPriceDropDecision = false;
+                row.PriceDropApproved = true;
+                row.Status = "Approved for this item in the current run; applying the fresh quote.";
+            }
+            else
+            {
+                row.PriceDropIgnored = true;
+                row.Status = "Ignored using the earlier review choice for this item in the current run.";
+            }
+        }
         else if (!row.PriceDropApproved && (decimal)row.Proposal.SuggestedPrice * 100
             < (decimal)row.Item.CurrentPrice * (100 - row.PriceDropReviewThresholdPercent))
         {
@@ -1665,7 +1701,17 @@ internal sealed class PricingController : IDisposable
     }
 
     private void AdvanceScanIndex(PriceRow row)
-        => index = row.PriceDropApproved ? Rows.Count : index + 1;
+    {
+        if (!row.PriceDropReviewRecheck)
+        {
+            index++;
+            return;
+        }
+
+        var nextMatchingHeldRow = Rows.FindIndex(index + 1, candidate =>
+            candidate.Item.ItemId == row.Item.ItemId && candidate.AwaitingPriceDropDecision);
+        index = nextMatchingHeldRow < 0 ? Rows.Count : nextMatchingHeldRow;
+    }
 
     private void ScanFailed(PriceRow row, string error)
     {
@@ -1739,7 +1785,14 @@ internal sealed class PricingController : IDisposable
         localRequested = false;
     }
 
-    private void Finish(string message) { work = Work.Idle; workingItem = null; Status = message; ResetRequest(); }
+    private void Finish(string message)
+    {
+        work = Work.Idle;
+        workingItem = null;
+        priceDropDecisionsThisRun.Clear();
+        Status = message;
+        ResetRequest();
+    }
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
@@ -1754,6 +1807,7 @@ internal sealed class PricingController : IDisposable
         }
         ResetRequest();
         work = Work.Idle;
+        priceDropDecisionsThisRun.Clear();
         manualTarget = null;
         if (wasAutoUpdating)
         {

@@ -1,5 +1,17 @@
 # TODO
 
+## 0.4.35.0 — Remember price-drop choices per run
+
+Implemented:
+
+- Keep approve or ignore decisions keyed by item ID for the active Update existing listings or Auto update run, across Auto update's retainer traversal.
+- Recheck and apply later listings for an approved item; leave later listings unchanged for an ignored item. Clear decisions on completion, cancellation, or a new run.
+- Update the review prompt, help, README, manifest, and changelog.
+
+Pending in-game observation:
+
+- Confirm approving or ignoring a large drop for an item applies the same choice to later retainers in the same Auto update run, and that the next run asks again.
+
 ## 0.4.34.0 — Region scope server labels
 
 Implemented:
