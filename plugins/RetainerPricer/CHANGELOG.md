@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.36.0
+
+- Retainer sell can now sell bound items added to its whitelist. Bound items not on the whitelist remain protected.
+
 ## 0.4.35.0
 
 - Remember approve or ignore choices for a large price drop on the same item throughout the current repricing run; ask again on the next run.

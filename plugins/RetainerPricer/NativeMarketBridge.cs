@@ -613,7 +613,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     public IReadOnlyList<CarriedItemCandidate> ReadCarriedInventory(IReadOnlySet<uint> marketableItemIds,
         IReadOnlySet<uint> excludedItemIds, out int exceptionSkipped, out int unmarketableSkipped, out string error,
-        IReadOnlySet<uint>? additionalAllowedItemIds = null, bool includeUnmarketable = false)
+        IReadOnlySet<uint>? additionalAllowedItemIds = null, bool includeUnmarketable = false, IReadOnlySet<uint>? allowedBoundItemIds = null, bool includeBound = false)
     {
         var result = new List<CarriedItemCandidate>();
         exceptionSkipped = 0;
@@ -639,9 +639,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 if (stock == null || stock->IsEmpty() || stock->GetQuantity() == 0) continue;
                 var itemId = stock->GetBaseItemId();
                 if (itemId == 0) continue;
-                // Spiritbond indicates gear is bound to this character, so it can no longer be
-                // transferred or listed even when the base Item row is normally marketable.
-                if (IsBound(stock)) { unmarketableSkipped++; continue; }
+                // Bound items stay out of market actions and normal Retainer sell runs. The picker can display them, but active sales allow them only when whitelisted.
+                // The game may still allow the retainer to sell those items for NPC base gil.
+                if (IsBound(stock) && !includeBound && allowedBoundItemIds?.Contains(itemId) != true) { unmarketableSkipped++; continue; }
                 if (!includeUnmarketable && !marketableItemIds.Contains(itemId) && additionalAllowedItemIds?.Contains(itemId) != true)
                 { unmarketableSkipped++; continue; }
                 if (excludedItemIds.Contains(itemId)) { exceptionSkipped++; continue; }
@@ -1025,7 +1025,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     }
 
     public bool TrySellInventoryItemThroughRetainer(CarriedItemCandidate expected, MarketSession expectedSession,
-        out string error)
+        bool allowBound, out string error)
     {
         if (!TryGetSession(out var session, out error)) return false;
         if (session.ContentId != expectedSession.ContentId || session.RetainerId != expectedSession.RetainerId ||
@@ -1046,7 +1046,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (stock->GetBaseItemId() != expected.ItemId || stock->IsHighQuality() != expected.IsHq ||
             stock->GetQuantity() != expected.Quantity)
         { error = "The inventory item changed before the retainer sale. The run stopped safely."; return false; }
-        if (IsBound(stock))
+        if (IsBound(stock) && !allowBound)
         { error = $"{expected.Name} is bound and cannot be sold. It was skipped."; return false; }
 
         var agent = AgentRetainer.Instance();

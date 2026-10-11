@@ -1,5 +1,17 @@
 # TODO
 
+## 0.4.36.0 — Retainer sale whitelist for bound items
+
+Implemented:
+
+- Show bound carried items in the Retainer sale whitelist picker and allow them through the retainer sale flow only when whitelisted.
+- Keep Exceptions and saved gear-set protection in force.
+
+Pending in-game observation:
+
+- Confirm a vendorable bound item can be sold when whitelisted, while a bound item outside the whitelist remains skipped.
+
+
 ## 0.4.35.0 — Remember price-drop choices per run
 
 Implemented:

@@ -49,7 +49,7 @@ internal sealed class AutoVendorController : IDisposable
     {
         if (IsRunning) return;
         var items = bridge.ReadCarriedInventory(marketableItemIds, new HashSet<uint>(),
-            out _, out var omitted, out var error, includeUnmarketable: true);
+            out _, out var omitted, out var error, includeUnmarketable: true, includeBound: true);
         RetainerSaleInventoryCandidates.Clear();
         RetainerSaleInventoryCandidates.AddRange(items);
         RetainerSaleInventoryOmitted = omitted;
@@ -57,7 +57,7 @@ internal sealed class AutoVendorController : IDisposable
         RetainerSaleInventorySnapshotAt = error.Length == 0 ? DateTimeOffset.Now : null;
         Status = error.Length != 0
             ? error
-            : $"Retainer sale picker ready: {items.Count} carried stack(s), including nonmarketable items; {omitted} bound or unnamed stack(s) omitted.";
+            : $"Retainer sale picker ready: {items.Count} carried stack(s), including bound and nonmarketable items; {omitted} unnamed stack(s) omitted.";
     }
 
     public void Start()
@@ -82,7 +82,7 @@ internal sealed class AutoVendorController : IDisposable
 
         retainerSaleWhitelist = config.RetainerSaleWhitelistItemIds.ToHashSet();
         candidates = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
-            out var excluded, out var unmarketable, out var inventoryError, retainerSaleWhitelist);
+            out var excluded, out var unmarketable, out var inventoryError, retainerSaleWhitelist, allowedBoundItemIds: retainerSaleWhitelist);
         if (inventoryError.Length != 0)
         { Status = inventoryError; candidates = []; return; }
         if (candidates.Count == 0)
@@ -154,7 +154,7 @@ internal sealed class AutoVendorController : IDisposable
         }
 
         var inventory = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
-            out _, out _, out var inventoryError, retainerSaleWhitelist);
+            out _, out _, out var inventoryError, retainerSaleWhitelist, allowedBoundItemIds: retainerSaleWhitelist);
         if (inventoryError.Length != 0)
         { Cancel($"Retainer sell stopped because inventory could not be refreshed: {inventoryError}"); return; }
         candidate = inventory.FirstOrDefault(item => item.ItemId == planned.ItemId && item.IsHq == planned.IsHq);
@@ -237,7 +237,7 @@ internal sealed class AutoVendorController : IDisposable
             Skip($"Kept {item.Name}: {ItemProtection.Reason(item.ItemId, config, savedGearsetItemIds)}");
             return;
         }
-        if (!bridge.TrySellInventoryItemThroughRetainer(item, activeRetainer, out var sellError))
+        if (!bridge.TrySellInventoryItemThroughRetainer(item, activeRetainer, retainerSaleWhitelist.Contains(item.ItemId), out var sellError))
         { Cancel($"Retainer sell stopped before selling {item.Name}: {sellError}"); return; }
         deadline = DateTimeOffset.UtcNow.AddSeconds(10);
         step = Step.Verify;
