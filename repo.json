@@ -74,7 +74,7 @@
     "Author": "Neko Boi Nick",
     "Name": "Housing Timeout Reminder",
     "InternalName": "HousingTimeoutReminder",
-    "AssemblyVersion": "1.0.5.1",
+    "AssemblyVersion": "1.0.5.2",
     "Description": "A plugin to remind you about your house on FFXIV just in case you forgot to visit it.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/HousingTimeoutReminder",
@@ -88,14 +88,14 @@
     "LoadPriority": 0,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/HousingTimeoutReminder/main/HousingTimeoutReminder/images/icon.png",
     "Punchline": "Remind you to visit your house just in case you forgot.",
-    "Changelog": "### 1.0.5.1\n- Make the reminder window movable and opaque, with its position saved after dragging.\n- Skip FC reminders when the character's rank lacks Estate Hall Access, regardless of custom rank names.\n- Show unknown FC permissions until the game's FC Members tab supplies the character's rank data.\n- Refresh detected FC addresses when the FC estate changes.",
+    "Changelog": "### 1.0.5.2\n- Add /house as an alternative command to /htimeout.\n- Add an Enable FC estate reminders setting, enabled by default. Turning it off hides FC reminders for all saved characters while keeping personal-house reminders active.",
     "AcceptsFeedback": true,
-    "LastUpdate": "1791768280",
+    "LastUpdate": "1791769410",
     "IsHide": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.1/HousingTimeoutReminder.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.2/HousingTimeoutReminder.zip",
     "IsTestingExclusive": false,
     "TestingAssemblyVersion": null,
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.1/HousingTimeoutReminder.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.2/HousingTimeoutReminder.zip",
     "DownloadLinkTesting": null
   }
 ]
