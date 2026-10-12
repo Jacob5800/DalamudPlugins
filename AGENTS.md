@@ -20,3 +20,6 @@
 - Keep each plugin's project version, JSON manifest `AssemblyVersion`, and its tag version aligned.
 - Release tags use `PortraitAtelier-v<version>`, `StrategyBoardLibrary-v<version>`, and `RetainerPricer-v<version>`.
 - Run the relevant build/validation workflow and inspect its result. Do not publish a version whose build failed.
+
+- Plugins from separate repositories (including Housing Timeout Reminder) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The three consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
+

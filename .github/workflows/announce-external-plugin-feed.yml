@@ -1,0 +1,39 @@
+name: Announce external plugin feed updates
+
+on:
+  push:
+    branches: [main]
+    paths: [repo.json]
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Post changelogs for newly released external plugins
+        shell: pwsh
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $before = if ($env:BEFORE_SHA -match '^0+$') { @() } else {
+            $previous = git show "$($env:BEFORE_SHA):repo.json"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not read the previous feed.' }
+            @($previous | ConvertFrom-Json)
+          }
+          $current = @(Get-Content repo.json -Raw | ConvertFrom-Json)
+          # These plugins announce in their own release workflows already.
+          $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary')
+          foreach ($plugin in $current) {
+            if ($plugin.InternalName -in $managed) { continue }
+            $old = $before | Where-Object InternalName -eq $plugin.InternalName | Select-Object -First 1
+            if ($old -and $old.AssemblyVersion -eq $plugin.AssemblyVersion) { continue }
+            ./scripts/Send-DiscordRelease.ps1 -ReleaseTag "$($plugin.InternalName)-v$($plugin.AssemblyVersion)"
+          }

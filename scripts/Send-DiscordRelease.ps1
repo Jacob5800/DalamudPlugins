@@ -55,13 +55,15 @@ if ($notes.Length -gt 4000) {
     $notes = $notes.Substring(0, 3997).TrimEnd() + '...'
 }
 
+$releaseUrl = ([string]$plugin.DownloadLinkInstall) -replace '/releases/download/([^/]+)/[^/]+$', '/releases/tag/$1'
+
 $payload = [ordered]@{
     username = 'Dalamud Plugin Releases'
     allowed_mentions = @{ parse = @() }
     embeds = @(
         [ordered]@{
             title = "$($plugin.Name) $($plugin.AssemblyVersion) released"
-            url = "https://github.com/Jacob5800/DalamudPlugins/releases/tag/$ReleaseTag"
+            url = $releaseUrl
             description = $notes
             color = 14202275
             footer = @{ text = 'Jacob5800/DalamudPlugins' }
