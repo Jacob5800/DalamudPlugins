@@ -22,6 +22,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public Dictionary<ulong, RetainerVentureJob> RetainerVentureJobOverrides { get; set; } = [];
     public Dictionary<ulong, uint> RetainerVentureTaskOverrides { get; set; } = [];
     public int AutoVendorPriceThreshold { get; set; } = 1;
+    public List<uint> DontVendorItemIds { get; set; } = [];
     public List<uint> RetainerSaleWhitelistItemIds { get; set; } = [];
     public bool DontShowEmptyExceptionsWarningAgain { get; set; }
     public int PriceDropUnder10KPercent { get; set; } = 50;
@@ -58,6 +59,7 @@ public sealed class PluginConfig : IPluginConfiguration
         if (UseRegionPrices) UseDataCenterPrices = false;
         MinimumPrice = Math.Clamp(MinimumPrice, 1, 999_999_999);
         AutoVendorPriceThreshold = Math.Clamp(AutoVendorPriceThreshold, 1, 999_999_999);
+        DontVendorItemIds = (DontVendorItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         RetainerSaleWhitelistItemIds = (RetainerSaleWhitelistItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         PriceDropUnder10KPercent = Math.Clamp(PriceDropUnder10KPercent, 1, 99);
         PriceDrop10KTo999KPercent = Math.Clamp(PriceDrop10KTo999KPercent, 1, 99);

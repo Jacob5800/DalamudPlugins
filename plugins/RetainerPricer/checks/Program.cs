@@ -131,8 +131,8 @@ using (var http = new HttpClient(new StubHandler((request, _) =>
        })))
 using (var client = new UniversalisClient(http))
 {
-    var firstBatch = await client.FetchSniperSalesBatchAsync(74, sniperItemIds, 7);
-    var secondBatch = await client.FetchSniperSalesBatchAsync(74, sniperItemIds, 7);
+    var firstBatch = await client.FetchSniperSalesBatchAsync(new SniperHistoryScope("74", SniperHistoryScopeKind.World), sniperItemIds, 7, 74);
+    var secondBatch = await client.FetchSniperSalesBatchAsync(new SniperHistoryScope("74", SniperHistoryScopeKind.World), sniperItemIds, 7, 74);
     Assert(firstBatch.Count == sniperItemIds.Length && firstBatch[sniperItemIds[0]].Qualities.Single().MedianSalePrice == 125,
         "Parse all items and sale baselines from the multi-item history response");
     Assert(sniperRequestTimes.Count == 2 && sniperRequestTimes[1] - sniperRequestTimes[0] >= TimeSpan.FromSeconds(1),

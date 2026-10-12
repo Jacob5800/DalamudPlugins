@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.37.0 (testing)
+- Added a Don't vendor list to Retainer sell. Protected items skip NPC sales, including whitelisted items, while remaining eligible for marketboard listing.
+
 ## 0.4.36.0
 
 - Retainer sell can now sell bound items added to its whitelist. Bound items not on the whitelist remain protected.

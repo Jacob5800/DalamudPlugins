@@ -80,6 +80,7 @@ internal sealed class AutoVendorController : IDisposable
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out _, out var protectionError))
         { Status = protectionError; return; }
 
+        excludedItemIds.UnionWith(config.DontVendorItemIds);
         retainerSaleWhitelist = config.RetainerSaleWhitelistItemIds.ToHashSet();
         candidates = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
             out var excluded, out var unmarketable, out var inventoryError, retainerSaleWhitelist, allowedBoundItemIds: retainerSaleWhitelist);
@@ -142,6 +143,7 @@ internal sealed class AutoVendorController : IDisposable
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out var savedGearsetItemIds, out var protectionError))
         { Cancel(protectionError); return; }
 
+        excludedItemIds.UnionWith(config.DontVendorItemIds);
         var planned = candidates[index];
         var isWhitelisted = retainerSaleWhitelist.Contains(planned.ItemId);
         if ((!marketableItemIds.Contains(planned.ItemId) && !isWhitelisted) || excludedItemIds.Contains(planned.ItemId))
@@ -232,6 +234,8 @@ internal sealed class AutoVendorController : IDisposable
         var activeRetainer = retainerSession!;
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out excludedItemIds, out var savedGearsetItemIds, out var protectionError))
         { Cancel(protectionError); return; }
+        if (config.DontVendorItemIds.Contains(item.ItemId))
+        { Skip($"Kept {item.Name}: on the Don't vendor list."); return; }
         if (excludedItemIds.Contains(item.ItemId))
         {
             Skip($"Kept {item.Name}: {ItemProtection.Reason(item.ItemId, config, savedGearsetItemIds)}");

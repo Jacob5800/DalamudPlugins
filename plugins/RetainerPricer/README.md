@@ -27,3 +27,7 @@ Universalis requests for pricing are on demand and limited to the selected item 
 ## Install
 
 In Dalamud Settings → Experimental → Custom Plugin Repositories, add `https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/repo.json` for installer updates.
+
+### Don't vendor
+
+The **Don't vendor** list at the bottom of **Retainer sell** blocks NPC sales of selected items (HQ and NQ), even when whitelisted. It does not exclude items from **Start listing items** or batch marketboard listings. Use the search/picker and Add/Remove controls as with the other lists.

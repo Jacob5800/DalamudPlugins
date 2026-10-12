@@ -45,6 +45,10 @@ internal sealed class MainWindow : Window
     private ItemChoice? batchSelection;
     private int batchQuantityInput = 10;
     private int batchMaximumTotalInput;
+    private string dontVendorSearch = "";
+    private string dontVendorSearchCache = "";
+    private List<ItemChoice> dontVendorMatches = [];
+    private ItemChoice? dontVendorSelection;
     private string retainerSaleSearch = "";
     private string retainerSaleSearchCache = "";
     private List<ItemChoice> retainerSaleMatches = [];
@@ -716,6 +720,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory or the chocobo saddlebag to find items, filter by name, add a selected item, or bulk-add either snapshot. Exceptions are item-based, so the same item is skipped if it is later in carried inventory or selected for Retainer sell.");
+        ImGui.BulletText("Don't vendor: protects selected items from NPC sales in Retainer sell, even when whitelisted. Marketboard listing and repricing remain available.");
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Bound items can be sold only when whitelisted; Exceptions and saved gear-set items stay protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
@@ -952,7 +957,7 @@ internal sealed class MainWindow : Window
                 : "your home world";
         ImGui.TextWrapped("Retainer sell checks marketable carried inventory by default and sells whole stacks whose matching HQ/NQ market listing is at or below the threshold. Items on the whitelist bypass both the marketability and price checks. It uses the price scope from Settings and skips Exceptions, saved gear-set items, and your own retainer listings for normal price checks.");
         ImGui.TextWrapped("Summon a retainer and open “Sell items in your inventory” before starting. For each qualifying item, the plugin uses the retainer's “Have Retainer Sell Items” action, which sells it for the same base gil as an NPC shop; it does not create a marketboard listing. Whitelisted items bypass market-price checks, and bound items can be sold only through this whitelist. Exceptions and saved gear-set items remain protected; the game decides whether each selected item can be sold. The plugin verifies the inventory change before continuing.");
-        ImGui.TextDisabled($"Price scope: {scope}. Missing, incomplete, or failed price checks are skipped. Retainer sales cannot be undone; add items to Exceptions before starting if you want to keep them. Saved gear-set items are protected automatically.");
+        ImGui.TextDisabled($"Price scope: {scope}. Missing, incomplete, or failed price checks are skipped. Retainer sales cannot be undone; add items to Don't vendor below to protect them from NPC sales while keeping marketboard listing eligibility. Saved gear-set items are protected automatically.");
 
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
         var threshold = config.AutoVendorPriceThreshold;
@@ -1060,6 +1065,89 @@ internal sealed class MainWindow : Window
             ImGui.EndChild();
         }
 
+        ImGui.Separator();
+        ImGui.PushID("dontVendor");
+        ImGui.TextUnformatted("DON'T VENDOR");
+        ImGui.TextWrapped("Protect these items from NPC sales, even if they are whitelisted. Start listing items and batch marketboard listings can still list them under the normal listing rules. Applies to HQ and NQ.");
+        ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
+        ImGui.SetNextItemWidth(360);
+        ImGui.InputText("Search item names", ref dontVendorSearch, 128);
+        if (!StringComparer.CurrentCultureIgnoreCase.Equals(dontVendorSearch, dontVendorSearchCache))
+            dontVendorSelection = null;
+        RefreshMatches(dontVendorSearch, ref dontVendorSearchCache, ref dontVendorMatches);
+        var protectedSearch = dontVendorSearch.Trim();
+        var protectedInventoryItems = vendor.RetainerSaleInventoryCandidates
+            .Where(item => protectedSearch.Length == 0 || item.Name.Contains(protectedSearch, StringComparison.CurrentCultureIgnoreCase))
+            .GroupBy(item => item.ItemId)
+            .Select(group => new ItemChoice(group.Key, group.First().Name))
+            .ToList();
+        var availableProtectedMatches = protectedInventoryItems.Concat(dontVendorMatches)
+            .Where(item => !config.DontVendorItemIds.Contains(item.ItemId) &&
+                !config.ExcludedItemIds.Contains(item.ItemId))
+            .GroupBy(item => item.ItemId)
+            .Select(group => group.First())
+            .ToList();
+        var protectedItemPreview = dontVendorSelection is { } selectedProtectedItem
+            ? $"{selectedProtectedItem.Name}  ·  #{selectedProtectedItem.ItemId}"
+            : "Select an inventory or matching item...";
+        ImGui.SetNextItemWidth(420);
+        if (ImGui.BeginCombo("Don't vendor item", protectedItemPreview))
+        {
+            if (availableProtectedMatches.Count == 0)
+                ImGui.TextDisabled(dontVendorSearch.Trim().Length < 2 && protectedInventoryItems.Count == 0
+                    ? "Enter at least two characters to search the item list."
+                    : "No additional matching or carried items found.");
+            foreach (var item in availableProtectedMatches)
+            {
+                var label = $"{item.Name}  ·  #{item.ItemId}";
+                if (ImGui.Selectable(label, dontVendorSelection?.ItemId == item.ItemId))
+                    dontVendorSelection = item;
+            }
+            ImGui.EndCombo();
+        }
+        var canAddProtectedItem = dontVendorSelection is { } chosenProtectedItem &&
+            !config.DontVendorItemIds.Contains(chosenProtectedItem.ItemId) &&
+            !config.ExcludedItemIds.Contains(chosenProtectedItem.ItemId);
+        ImGui.BeginDisabled(!canAddProtectedItem);
+        if (ImGui.Button("Add to Don't vendor") && dontVendorSelection is { } addProtectedItem)
+        {
+            config.DontVendorItemIds.Add(addProtectedItem.ItemId);
+            config.Normalize();
+            save();
+            dontVendorSelection = null;
+        }
+        ImGui.EndDisabled();
+        ImGui.EndDisabled();
+
+        ImGui.Separator();
+        ImGui.TextUnformatted($"Don't vendor · {config.DontVendorItemIds.Count}");
+        if (config.DontVendorItemIds.Count == 0)
+            ImGui.TextDisabled("No protected items yet. Add an item above to prevent NPC sales.");
+        else
+        {
+            if (ImGui.BeginChild("##dontVendorWhitelist", new Vector2(0, 150), true))
+            {
+                foreach (var itemId in config.DontVendorItemIds.ToArray())
+                {
+                    var name = itemChoices.FirstOrDefault(item => item.ItemId == itemId)?.Name ?? $"Item {itemId}";
+                    ImGui.PushID((int)itemId);
+                    ImGui.TextUnformatted($"{name}  ·  #{itemId}");
+                    ImGui.SameLine();
+                    ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
+                    if (ImGui.SmallButton("Remove"))
+                    {
+                        config.DontVendorItemIds.Remove(itemId);
+                        config.Normalize();
+                        save();
+                    }
+                    ImGui.EndDisabled();
+                    ImGui.PopID();
+                }
+            }
+            ImGui.EndChild();
+        }
+
+        ImGui.PopID();
         if (!vendor.IsRunning)
         {
             ImGui.BeginDisabled(controller.Busy || ventures.IsRunning);
