@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.39.0 (testing)
+- Auto update now updates prices first, then runs ventures when enabled, and has an orange button.
+- Update existing listings now processes all retainers without ventures.
+- Added a green Update listings current retainer only button at the bottom of Existing listings.
+
 ## 0.4.38.0 (testing)
 - Made Start retainer sales, Start venture cycle, and Start watching green.
 - Added collapsible Retainer sale whitelist and Don't vendor sections with item counts; the start button remains visible.

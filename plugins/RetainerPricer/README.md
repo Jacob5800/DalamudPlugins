@@ -34,3 +34,12 @@ The **Don't vendor** list at the bottom of **Retainer sell** blocks NPC sales of
 
 Retainer sell's whitelist and Don't vendor lists can be expanded or collapsed using their headers, which show saved item counts. Collapsing a list does not disable it. The green Start retainer sales button remains outside these sections.
 
+
+Auto update completes the price pass first, then starts the venture cycle if **Run ventures** is enabled, using your current venture settings. Stopped or failed pricing runs do not start ventures. Auto update is orange.
+
+
+**Update existing listings** reprices all retainers, with no venture cycle. **Auto update** reprices all retainers and then runs ventures when enabled. Both can start from the retainer picker or an open selling list.
+
+
+The green **Update listings current retainer only** button below Existing listings updates only the open retainer and does not start ventures.
+

@@ -477,7 +477,9 @@ internal sealed class PricingController : IDisposable
             : error;
     }
 
-    public void UpdateExistingListings()
+    public void UpdateExistingListings() => StartRetainerPriceUpdate(runVenturesAfter: false);
+
+    public void UpdateListingsCurrentRetainerOnly()
     {
         if (Busy) return;
         priceDropDecisionsThisRun.Clear();
@@ -534,7 +536,11 @@ internal sealed class PricingController : IDisposable
         Status = $"Ignored the large price drop for {row.Item.Name}; its listing was left unchanged.";
     }
 
-    public void AutoUpdateAllRetainers()
+    private bool runVenturesAfterPriceUpdate;
+
+    public void AutoUpdateAllRetainers() => StartRetainerPriceUpdate(runVenturesAfter: true);
+
+    private void StartRetainerPriceUpdate(bool runVenturesAfter)
     {
         if (Busy) return;
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
@@ -593,6 +599,7 @@ internal sealed class PricingController : IDisposable
         autoUpdated = autoAlreadyPriced = autoSkipped = 0;
         workSource = PriceSource.Universalis;
         autoUpdateStartedAt = DateTimeOffset.UtcNow;
+        runVenturesAfterPriceUpdate = runVenturesAfter;
         work = Work.AutoUpdateAllRetainers;
         nextTick = autoUpdateStartedAt;
         var startDescription = startedAtPicker ? "top-to-bottom from the retainer picker" : $"with {autoRetainers[0].Name}";
@@ -1063,6 +1070,8 @@ internal sealed class PricingController : IDisposable
         }
     }
 
+    public event Action? AutoUpdateCompleted;
+
     private void FinishAutoUpdate()
     {
         var message = $"Auto update complete: {autoRetainersCompleted} retainer(s), {autoUpdated} listing(s) repriced, " +
@@ -1070,6 +1079,9 @@ internal sealed class PricingController : IDisposable
         autoRetainers.Clear();
         autoRetainerIndex = 0;
         Finish(message);
+        var startVentures = runVenturesAfterPriceUpdate;
+        runVenturesAfterPriceUpdate = false;
+        if (startVentures) AutoUpdateCompleted?.Invoke();
     }
 
     private bool IsSnapshotTraversal => work == Work.SnapshotAllRetainers;
@@ -1796,6 +1808,7 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        runVenturesAfterPriceUpdate = false;
         var wasBatchListing = work == Work.BatchListing;
         var wasSingleListing = work == Work.Single && autoApply;
         var wasAutoUpdating = work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers;

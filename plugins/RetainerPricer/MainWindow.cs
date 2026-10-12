@@ -124,15 +124,13 @@ internal sealed class MainWindow : Window
         if (retainerError() is { } nativeError) ImGui.TextWrapped(nativeError);
         var busy = controller.Busy || vendor.IsRunning || ventures.IsRunning;
         ImGui.BeginDisabled(busy);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.75f, 0.35f, 0.08f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.90f, 0.45f, 0.12f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.60f, 0.25f, 0.05f, 1));
         if (controller.IsAutoUpdatingAllRetainers)
-        {
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
             ImGui.Button("Auto update...");
-            ImGui.PopStyleColor(3);
-        }
         else if (ImGui.Button("Auto update")) dispatch(controller.AutoUpdateAllRetainers);
+        ImGui.PopStyleColor(3);
         ImGui.SameLine();
         if (controller.IsListingItemsRunning && !controller.IsBatchSellingOnlyRunning)
         {
@@ -394,9 +392,8 @@ internal sealed class MainWindow : Window
         { config.PriceDrop10MPlusPercent = from10M; config.Normalize(); save(); }
         ImGui.EndDisabled();
         ImGui.Separator();
-        if (controller.Rows.Count == 0) return;
-        if (ImGui.BeginTable("##existingPrices", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY
-            | ImGuiTableFlags.Resizable, new Vector2(0, Math.Max(150, ImGui.GetContentRegionAvail().Y - 30))))
+        if (controller.Rows.Count != 0 && ImGui.BeginTable("##existingPrices", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY
+            | ImGuiTableFlags.Resizable, new Vector2(0, Math.Max(150, ImGui.GetContentRegionAvail().Y - 95))))
         {
             ImGui.TableSetupColumn("Item");
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 45);
@@ -429,6 +426,15 @@ internal sealed class MainWindow : Window
             }
             ImGui.EndTable();
         }
+        ImGui.Separator();
+        ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning || !controller.HasRetainer);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
+        if (ImGui.Button("Update listings current retainer only")) dispatch(controller.UpdateListingsCurrentRetainerOnly);
+        ImGui.PopStyleColor(3);
+        ImGui.EndDisabled();
+        ImGui.TextDisabled("Open this retainer's selling list first. Updates only this retainer; does not run ventures.");
     }
 
     private void DrawPriceDropReviewPopup()
@@ -713,8 +719,9 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Venture cycle: at a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings on the currently open retainer. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers and does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
+        ImGui.BulletText("Auto update runs prices first, then a venture cycle when Run ventures is enabled. Stopping or a pricing failure does not start ventures. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
 
         ImGui.Separator();

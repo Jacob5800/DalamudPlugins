@@ -70,6 +70,7 @@ public sealed class Plugin : IDalamudPlugin
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);
+        controller.AutoUpdateCompleted += StartVenturesAfterAutoUpdate;
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting);
@@ -127,12 +128,19 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
+    private void StartVenturesAfterAutoUpdate()
+    {
+        if (config.RunVentures && !disposed && !vendor.IsRunning && !sniper.IsRunning)
+            ventures.Start();
+    }
+
     private void Toggle() => window.Toggle();
     private void Save() => pluginInterface.SavePluginConfig(config);
 
     public void Dispose()
     {
         disposed = true;
+        controller.AutoUpdateCompleted -= StartVenturesAfterAutoUpdate;
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;
         pluginInterface.UiBuilder.OpenMainUi -= Toggle;
