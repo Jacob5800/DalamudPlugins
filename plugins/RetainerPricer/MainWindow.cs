@@ -594,11 +594,12 @@ internal sealed class MainWindow : Window
             ImGui.TextDisabled("Open the retainer picker at a summoning bell to load your retainer list.");
         }
         else if (ImGui.BeginTable("##retainerVentureJobs", 3,
-                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, new Vector2(0, 160)))
+                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable,
+                     new Vector2(0, Math.Max(160, ImGui.GetContentRegionAvail().Y - 125))))
         {
-            ImGui.TableSetupColumn("Retainer");
-            ImGui.TableSetupColumn("Venture job", ImGuiTableColumnFlags.WidthFixed, 190);
-            ImGui.TableSetupColumn("Which Venture?", ImGuiTableColumnFlags.WidthFixed, 330);
+            ImGui.TableSetupColumn("Retainer", ImGuiTableColumnFlags.WidthStretch, 1);
+            ImGui.TableSetupColumn("Venture job", ImGuiTableColumnFlags.WidthFixed, 220);
+            ImGui.TableSetupColumn("Which Venture?", ImGuiTableColumnFlags.WidthStretch, 2);
             ImGui.TableHeadersRow();
             foreach (var retainer in roster)
             {

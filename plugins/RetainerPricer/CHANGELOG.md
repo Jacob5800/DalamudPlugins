@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.41.0 (testing)
+- Expanded the venture table to use the available window height, widened Which Venture, and made its columns resizable.
+
 ## 0.4.40.0 (testing)
 - Added Time left in venture to saved retainer snapshots, with a countdown and Complete/No venture status after refresh.
 - Added item-name search to each retainer's Which venture dropdown.

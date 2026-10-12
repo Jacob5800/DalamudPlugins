@@ -46,3 +46,6 @@ The green **Update listings current retainer only** button below Existing listin
 
 Saved retainer snapshots include **Time left in venture**; refresh snapshots to capture current venture completion times. The countdown is based on the saved completion time. **Which venture** includes an item-name search field: leave it empty to browse all available choices.
 
+
+The Ventures table expands with the window and has resizable columns, with extra width for Which Venture.
+
