@@ -66,6 +66,8 @@ public sealed class RetainerListingCache
     public ulong RetainerId { get; set; }
     public string RetainerName { get; set; } = string.Empty;
     public DateTimeOffset RefreshedAt { get; set; }
+    public ushort? VentureId { get; set; }
+    public DateTimeOffset? VentureCompletesAt { get; set; }
     public List<RetainerListingCacheEntry> Listings { get; set; } = [];
 }
 

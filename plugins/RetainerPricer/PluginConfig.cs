@@ -78,6 +78,8 @@ public sealed class PluginConfig : IPluginConfiguration
                 RetainerId = pair.Key,
                 RetainerName = pair.Value.RetainerName ?? string.Empty,
                 RefreshedAt = pair.Value.RefreshedAt,
+                VentureId = pair.Value.VentureId,
+                VentureCompletesAt = pair.Value.VentureCompletesAt,
                 Listings = (pair.Value.Listings ?? []).Where(item => item.ItemId != 0 && item.Quantity != 0).ToList()
             });
         UniversalisPendingItemIds = (UniversalisPendingItemIds ?? []).Where(id => id != 0).Distinct().ToList();

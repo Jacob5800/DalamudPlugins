@@ -43,3 +43,6 @@ Auto update completes the price pass first, then starts the venture cycle if **R
 
 The green **Update listings current retainer only** button below Existing listings updates only the open retainer and does not start ventures.
 
+
+Saved retainer snapshots include **Time left in venture**; refresh snapshots to capture current venture completion times. The countdown is based on the saved completion time. **Which venture** includes an item-name search field: leave it empty to browse all available choices.
+

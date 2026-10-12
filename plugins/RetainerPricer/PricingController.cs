@@ -743,11 +743,14 @@ internal sealed class PricingController : IDisposable
         snapshotChangedItemIds.UnionWith(changedIds);
         var pending = config.UniversalisPendingItemIds.ToHashSet();
         pending.UnionWith(changedIds);
+        bridge.TryGetActiveRetainerVentureSnapshot(retainer, out var ventureId, out var ventureCompletesAt);
         config.UniversalisRetainerListings[retainer.RetainerId] = new RetainerListingCache
         {
             RetainerId = retainer.RetainerId,
             RetainerName = retainer.Name,
             RefreshedAt = DateTimeOffset.UtcNow,
+            VentureId = ventureId,
+            VentureCompletesAt = ventureCompletesAt,
             Listings = current
         };
         var stillListed = GetCachedRetainerItemIds();

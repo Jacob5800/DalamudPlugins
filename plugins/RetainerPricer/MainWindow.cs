@@ -25,6 +25,7 @@ internal sealed class MainWindow : Window
     private readonly Action<bool> setServerInfoBarShown;
     private readonly VentureController ventures;
     private readonly bool isTesting;
+    private readonly Dictionary<ulong, string> ventureSearches = [];
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
@@ -310,11 +311,12 @@ internal sealed class MainWindow : Window
             ImGui.TextDisabled("No retainer snapshots yet. Open the retainer picker or a selling list, then refresh.");
             return;
         }
-        if (ImGui.BeginTable("##universalisRetainerSnapshots", 3,
+        if (ImGui.BeginTable("##universalisRetainerSnapshots", 4,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY, new Vector2(0, 180)))
         {
             ImGui.TableSetupColumn("Retainer");
             ImGui.TableSetupColumn("Listings", ImGuiTableColumnFlags.WidthFixed, 90);
+            ImGui.TableSetupColumn("Time left in venture", ImGuiTableColumnFlags.WidthFixed, 160);
             ImGui.TableSetupColumn("Last refreshed", ImGuiTableColumnFlags.WidthFixed, 180);
             ImGui.TableHeadersRow();
             foreach (var snapshot in controller.UniversalisRetainerSnapshots)
@@ -322,6 +324,12 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RetainerName);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.Listings.Count.ToString());
+                ImGui.TableNextColumn();
+                if (snapshot.VentureId is null) ImGui.TextDisabled("Unknown — refresh");
+                else if (snapshot.VentureId == 0) ImGui.TextDisabled("No venture");
+                else if (snapshot.VentureCompletesAt is not { } endsAt) ImGui.TextDisabled("Unknown — refresh");
+                else if (endsAt <= DateTimeOffset.UtcNow) ImGui.TextUnformatted("Complete");
+                else ImGui.TextUnformatted((endsAt - DateTimeOffset.UtcNow).ToString(@"hh\:mm\:ss"));
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RefreshedAt.LocalDateTime.ToString("g"));
             }
             ImGui.EndTable();
@@ -634,11 +642,22 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn();
                 ImGui.BeginDisabled(busy);
                 ImGui.SetNextItemWidth(-1);
+                var ventureSearch = ventureSearches.GetValueOrDefault(retainer.RetainerId, string.Empty);
+                if (ImGui.InputTextWithHint($"##ventureSearch_{retainer.RetainerId}", "Type an item or venture name...", ref ventureSearch, 128))
+                    ventureSearches[retainer.RetainerId] = ventureSearch;
+                var ventureFilter = ventureSearch.Trim();
+                ImGui.SetNextItemWidth(-1);
                 if (ImGui.BeginCombo($"##ventureTask_{retainer.RetainerId}", venturePreview))
                 {
-                    DrawRetainerVentureTaskOption(retainer.RetainerId, RetainerVentureIds.QuickExploration,
-                        "Quick Exploration (default)", selectedTaskId == RetainerVentureIds.QuickExploration);
-                    foreach (var option in options.Where(option => option.TaskId != RetainerVentureIds.QuickExploration))
+                    var quickMatches = "Quick Exploration".Contains(ventureFilter, StringComparison.CurrentCultureIgnoreCase);
+                    if (quickMatches)
+                        DrawRetainerVentureTaskOption(retainer.RetainerId, RetainerVentureIds.QuickExploration,
+                            "Quick Exploration (default)", selectedTaskId == RetainerVentureIds.QuickExploration);
+                    var matchingOptions = options.Where(option => option.TaskId != RetainerVentureIds.QuickExploration &&
+                        option.Name.Contains(ventureFilter, StringComparison.CurrentCultureIgnoreCase)).ToList();
+                    if (!quickMatches && matchingOptions.Count == 0)
+                        ImGui.TextDisabled("No available ventures match this name.");
+                    foreach (var option in matchingOptions)
                         DrawRetainerVentureTaskOption(retainer.RetainerId, option.TaskId,
                             FormatVentureOption(option), option.TaskId == selectedTaskId);
                     ImGui.EndCombo();
@@ -726,6 +745,7 @@ internal sealed class MainWindow : Window
 
         ImGui.Separator();
         ImGui.TextUnformatted("Tabs");
+        ImGui.BulletText("Saved retainer snapshots show venture time remaining after refreshing. Which venture lets you type an item name to filter the dropdown; leave the search empty to browse.");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
         ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");

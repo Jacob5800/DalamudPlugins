@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.40.0 (testing)
+- Added Time left in venture to saved retainer snapshots, with a countdown and Complete/No venture status after refresh.
+- Added item-name search to each retainer's Which venture dropdown.
+
 ## 0.4.39.0 (testing)
 - Auto update now updates prices first, then runs ventures when enabled, and has an orange button.
 - Update existing listings now processes all retainers without ventures.

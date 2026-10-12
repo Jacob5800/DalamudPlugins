@@ -260,6 +260,18 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    public bool TryGetActiveRetainerVentureSnapshot(RetainerIdentity expected, out ushort? ventureId,
+        out DateTimeOffset? completesAt)
+    {
+        ventureId = null;
+        completesAt = null;
+        if (!TryGetActiveRetainerVenture(expected, out var id, out _)) return false;
+        var active = RetainerManager.Instance()->GetActiveRetainer();
+        ventureId = id;
+        if (id != 0 && active->VentureComplete != 0)
+            completesAt = DateTimeOffset.FromUnixTimeSeconds(active->VentureComplete);
+        return true;
+    }
     public bool TryGetRetainerVentureMenuLabels(out RetainerVentureMenuLabels labels, out string error)
     {
         labels = null!;
