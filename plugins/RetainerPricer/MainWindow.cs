@@ -645,8 +645,12 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
 
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning || !config.RunVentures);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
         if (ImGui.Button(ventures.IsRunning ? "Venture cycle running..." : "Start venture cycle"))
             dispatch(ventures.Start);
+        ImGui.PopStyleColor(3);
         ImGui.EndDisabled();
         if (ventures.IsRunning)
         {
@@ -858,7 +862,11 @@ internal sealed class MainWindow : Window
 
         ImGui.Separator();
         ImGui.BeginDisabled(isRunning || world is null);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
         if (ImGui.Button("Start watching")) sniper.Start(world, config.SniperUseDataCenterPrices, config.SniperUseRegionPrices);
+        ImGui.PopStyleColor(3);
         ImGui.EndDisabled();
         if (sniper.IsRunning)
         {
@@ -971,7 +979,8 @@ internal sealed class MainWindow : Window
         ImGui.EndDisabled();
 
         ImGui.Separator();
-        ImGui.TextDisabled("RETAINER SALE WHITELIST");
+        if (ImGui.CollapsingHeader($"Retainer sale whitelist · {config.RetainerSaleWhitelistItemIds.Count}##saleWhitelistSection"))
+        {
         ImGui.TextWrapped("Items on this list skip the marketability and price checks and are sent straight to the retainer sale action at NPC base value. Other eligible stacks still need a matching market price and skip your own retainer listings. Exceptions, saved gear-set items, and bound items stay protected; the game still decides whether each whitelisted item can be sold.");
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
         if (ImGui.Button(vendor.RetainerSaleInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
@@ -1065,9 +1074,11 @@ internal sealed class MainWindow : Window
             ImGui.EndChild();
         }
 
+        }
         ImGui.Separator();
+        if (ImGui.CollapsingHeader($"Don't vendor · {config.DontVendorItemIds.Count}##dontVendorSection"))
+        {
         ImGui.PushID("dontVendor");
-        ImGui.TextUnformatted("DON'T VENDOR");
         ImGui.TextWrapped("Protect these items from NPC sales, even if they are whitelisted. Start listing items and batch marketboard listings can still list them under the normal listing rules. Applies to HQ and NQ.");
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
         ImGui.SetNextItemWidth(360);
@@ -1148,10 +1159,15 @@ internal sealed class MainWindow : Window
         }
 
         ImGui.PopID();
+        }
         if (!vendor.IsRunning)
         {
             ImGui.BeginDisabled(controller.Busy || ventures.IsRunning);
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
             if (ImGui.Button("Start retainer sales")) dispatch(vendor.Start);
+            ImGui.PopStyleColor(3);
             ImGui.EndDisabled();
         }
         else

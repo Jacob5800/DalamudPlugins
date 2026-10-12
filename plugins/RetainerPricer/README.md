@@ -31,3 +31,6 @@ In Dalamud Settings → Experimental → Custom Plugin Repositories, add `https:
 ### Don't vendor
 
 The **Don't vendor** list at the bottom of **Retainer sell** blocks NPC sales of selected items (HQ and NQ), even when whitelisted. It does not exclude items from **Start listing items** or batch marketboard listings. Use the search/picker and Add/Remove controls as with the other lists.
+
+Retainer sell's whitelist and Don't vendor lists can be expanded or collapsed using their headers, which show saved item counts. Collapsing a list does not disable it. The green Start retainer sales button remains outside these sections.
+

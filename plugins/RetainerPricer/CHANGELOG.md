@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.38.0 (testing)
+- Made Start retainer sales, Start venture cycle, and Start watching green.
+- Added collapsible Retainer sale whitelist and Don't vendor sections with item counts; the start button remains visible.
+
 ## 0.4.37.0
 - Added a Don't vendor list to Retainer sell. Protected items skip NPC sales, including whitelisted items, while remaining eligible for marketboard listing.
 
