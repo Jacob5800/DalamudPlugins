@@ -15,6 +15,7 @@ namespace RetainerPricer;
 /// <summary>Fetches Universalis market data and sale histories. Never uploads data or opens a live feed.</summary>
 public sealed class UniversalisClient : IDisposable
 {
+    public Action<string>? DiagnosticLog { get; set; }
     private enum ScopeKind { World, DataCenter, Region }
     private sealed record DataCenterInfo(string Name, string Region, IReadOnlyList<uint> Worlds);
 
@@ -205,6 +206,7 @@ public sealed class UniversalisClient : IDisposable
         {
             // Retry smaller groups sequentially, retaining the outer scan's concurrency bound.
             // Every new catalog batch still starts at 100; reductions affect only this failed batch.
+            DiagnosticLog?.Invoke($"Sniper history fallback: scope={scope.Name}; items={itemIds.Count}; splitting to {(itemIds.Count > 50 ? 50 : 25)}; error={ex.Message}");
             await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
             var results = new Dictionary<uint, SniperSalesSnapshot>();
             var smallerSize = itemIds.Count > 50 ? 50 : 25;
@@ -231,6 +233,7 @@ public sealed class UniversalisClient : IDisposable
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
             deadline.CancelAfter(HistoryRequestTimeout);
+            var requestStartedAt = Stopwatch.GetTimestamp();
             try
             {
                 var json = await RequestHistoryJsonAsync(path, deadline.Token).ConfigureAwait(false);
@@ -238,33 +241,39 @@ public sealed class UniversalisClient : IDisposable
             }
             catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 if (attempt >= MaximumSniperHistoryAttempts)
                     throw new InvalidOperationException("Universalis sales history did not respond in time after a retry.", lastRetryFailure ?? ex);
                 lastRetryFailure = ex;
             }
             catch (HttpRequestException ex) when (IsTransientHistoryFailure(ex) && attempt < MaximumSniperHistoryAttempts)
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 // Universalis history requests can be slow or have their connection interrupted,
                 // especially for regional batches. Retry once without abandoning the entire batch.
                 lastRetryFailure = ex;
             }
             catch (HttpRequestException ex) when (IsTransientHistoryFailure(ex))
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 if (ex.StatusCode is { } statusCode)
                     throw new InvalidOperationException($"Universalis sales history returned HTTP {(int)statusCode} after a retry.", ex);
                 throw new InvalidOperationException("Could not reach Universalis sales history after a retry.", ex);
             }
             catch (HttpRequestException ex)
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 throw new InvalidOperationException("Could not reach Universalis sales history.", ex);
             }
             catch (IOException ex) when (attempt < MaximumSniperHistoryAttempts)
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 // Retry interrupted response reads once; user cancellation still propagates above.
                 lastRetryFailure = ex;
             }
             catch (IOException ex)
             {
+                DiagnosticLog?.Invoke($"Sniper history request failed: scope={scope.Name}; ids={itemIdsPath}; items={itemIds.Count}; historyDays={historyDays}; entryLimit={SniperHistoryEntryLimit}; attempt={attempt}/{MaximumSniperHistoryAttempts}; elapsedSeconds={Stopwatch.GetElapsedTime(requestStartedAt).TotalSeconds:F2}; error={ex.GetType().Name}: {ex.Message}");
                 throw new InvalidOperationException("The Universalis sales-history response was interrupted after a retry.", ex);
             }
 

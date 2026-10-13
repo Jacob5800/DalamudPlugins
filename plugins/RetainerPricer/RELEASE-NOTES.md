@@ -1,5 +1,6 @@
-### 0.5.0.8
+### 0.5.0.9
 
-- Reduced Sniper history requests from up to 1,800 to 500 sales per item (HQ and NQ combined) to reduce request size. The minimum-sales setting is now capped at 500.
-- Renamed Sales/day to Est. sales/day. Fixed-window scans use the chosen window when fewer than 500 sales are returned. When the cap is reached, or history days is 0, the estimate uses the time from the oldest returned sale to the history check.
-- Hover the estimate to see the same-quality sample count, actual time coverage and calculation basis. Sample-based rates show a dash when there are fewer than two matching-quality sales or no usable time span. Medians continue using the returned matching-quality sales; estimates can differ from actual demand.
+- Reduced Sniper to two concurrent 100-item history batches. Smaller 50/25-item fallback retries remain available. This reduces load but does not guarantee Universalis timeouts are resolved.
+- Scan progress now says items and batches attempted, with separate history-loaded and failed-item counts. The disabled retry button explains that retries become available after the scan finishes.
+- Added Dalamud log diagnostics for failed history requests: scope, item IDs, batch size, history days, sales cap, attempt number, elapsed time and error. Logs also record fallback splitting and scan summaries to help diagnose persistent failures.
+- The bottom-left version label and feedback reports now display all four version numbers, such as 0.5.0.9.

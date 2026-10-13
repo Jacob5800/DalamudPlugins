@@ -75,6 +75,7 @@ public sealed class Plugin : IDalamudPlugin
             .GroupBy(world => world.RowId)
             .ToDictionary(group => group.Key, group => group.First().Name.ToString());
         controller = new PricingController(bridge, universalis, config, marketableItemIds, Save);
+        universalis.DiagnosticLog = message => log.Warning("{Diagnostic}", message);
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);

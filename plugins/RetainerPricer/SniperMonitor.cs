@@ -243,12 +243,15 @@ internal sealed class SniperMonitor : IDisposable
         var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
                          UniversalisClient.SniperHistoryBatchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
+        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=2; maxBatchItems=100; maxSalesPerItem=500");
         var completedBatches = 0;
         var processedItems = 0;
+        var loadedItems = 0;
+        var failedItemsThisScan = 0;
         try
         {
             await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
-                new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = cancellationToken },
+                new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = cancellationToken },
                 async (batch, batchCancellation) =>
             {
                 batchCancellation.ThrowIfCancellationRequested();
@@ -328,14 +331,17 @@ internal sealed class SniperMonitor : IDisposable
                         ProcessLiveListingLocked(pending.Value, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
                     processedItems += batch.Length;
+                    if (batchSucceeded) loadedItems += batch.Length;
+                    else failedItemsThisScan += batch.Length;
                     completedBatches++;
-                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · {completedBatches}/{batchCount} batches complete · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
+                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items attempted · {loadedItems:N0} history loaded · {failedItemsThisScan:N0} failed · {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · {completedBatches}/{batchCount} batches attempted · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
                     RefreshInitialScanStatusAndGetLocked(runState);
                 }
             }).ConfigureAwait(false);
 
             var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
             var summary = new HistoryScanSummary(eligible, failed.ToArray(), FailedItems: runState.FailedItemIds.Count);
+            universalis.DiagnosticLog?.Invoke($"Sniper scan finished: scope={scope.Label}; requestedItems={watchedItems.Count}; failedBatches={failed.Count}; unresolvedItems={summary.FailedItems}; usableItems={eligible}; elapsedSeconds={Stopwatch.GetElapsedTime(scanStartedAt).TotalSeconds:F2}");
             lock (gate)
             {
                 runState.Summary = summary;
