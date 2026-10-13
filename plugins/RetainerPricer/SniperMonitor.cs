@@ -33,6 +33,8 @@ internal sealed class SniperMonitor : IDisposable
     private string status = "Sniper is stopped.";
     private bool isListening;
     private bool worldOnlyRun;
+    private int activeMarketScope;
+    public int? WatchingMarketScope { get { lock (gate) return cancellation is not null && !cancellation.IsCancellationRequested ? activeMarketScope : null; } }
     private bool initialScanRunning;
     private string initialScanProgress = string.Empty;
     private Func<Task>? retryFailedHistory;
@@ -84,6 +86,7 @@ internal sealed class SniperMonitor : IDisposable
             if (cancellation is not null) return;
             cancellation = run = new CancellationTokenSource();
             worldOnlyRun = !useDataCenter && !useRegion;
+            activeMarketScope = useRegion ? 2 : useDataCenter ? 1 : 0;
             failedHistoryItemCount = 0;
             retryFailedHistory = null;
             deals.Clear();

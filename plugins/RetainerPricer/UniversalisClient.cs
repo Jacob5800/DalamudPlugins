@@ -182,6 +182,15 @@ public sealed class UniversalisClient : IDisposable
             worldIds, worldDataCenterNames);
     }
 
+    internal async Task<PriceSnapshot> FetchUndercutAsync(MarketWorld world, uint itemId, int marketScope, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RequestTimeout);
+        var scope = await ResolveSniperMarketScopeAsync(world, marketScope == 1, marketScope == 2, deadline.Token).ConfigureAwait(false);
+        var query = scope.HistoryScopes.Single();
+        var kind = marketScope == 2 ? ScopeKind.Region : marketScope == 1 ? ScopeKind.DataCenter : ScopeKind.World;
+        return await FetchScopeAsync(world.WorldId, itemId, kind, query.Name, deadline.Token).ConfigureAwait(false);
+    }
     internal async Task<IReadOnlyDictionary<uint, SniperSalesSnapshot>> FetchSniperSalesBatchAsync(
         SniperHistoryScope scope, IReadOnlyList<uint> itemIds, int historyDays, uint homeWorldId,
         CancellationToken ct = default)

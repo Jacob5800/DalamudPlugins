@@ -13,6 +13,7 @@ internal sealed class UndercutNotifier : IDisposable
     private DateTimeOffset nextCheck;
     private uint currentWorld;
     private uint pendingWorld;
+    private int currentScope = -1;
     private CancellationTokenSource? scanCancellation;
     public IReadOnlyList<UndercutRow> Rows { get; private set; } = [];
     public string Status { get; private set; } = "Refresh all retainer listings, then start watching.";
@@ -46,8 +47,10 @@ internal sealed class UndercutNotifier : IDisposable
             nextCheck = DateTimeOffset.MinValue;
             return;
         }
-        if (currentWorld != world.WorldId)
+        if (currentWorld != world.WorldId || currentScope != config.UndercutMarketScope)
         {
+            scanCancellation?.Cancel();
+            currentScope = config.UndercutMarketScope;
             currentWorld = world.WorldId;
             Rows = [];
             alerted.Clear();
@@ -80,16 +83,16 @@ internal sealed class UndercutNotifier : IDisposable
             }).ToArray();
         if (snapshots.Length == 0) { Status = "No saved listings. Refresh all retainer listings first."; nextCheck = DateTimeOffset.UtcNow.AddSeconds(60); return; }
         nextCheck = DateTimeOffset.UtcNow.AddSeconds(60);
-        Status = "Checking home-world prices with Universalis…";
+        Status = "Checking selected market scope with Universalis…";
         pendingWorld = world.WorldId;
         scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-        pending = Scan(world.WorldId, world.Name, snapshots, config.UniversalisRetainerListings.Keys.ToHashSet(), scanCancellation.Token);
+        pending = Scan(world, config.UndercutMarketScope, snapshots, config.UniversalisRetainerListings.Keys.ToHashSet(), scanCancellation.Token);
     }
 
     private static (ulong, uint, bool, uint) Key(UndercutRow row) =>
         (row.RetainerId, row.Listing.ItemId, row.Listing.IsHq, row.Listing.Price);
 
-    private async Task<(List<UndercutRow>, string)> Scan(uint world, string worldName, RetainerListingCache[] snapshots, HashSet<ulong> own, CancellationToken token)
+    private async Task<(List<UndercutRow>, string)> Scan(MarketWorld world, int marketScope, RetainerListingCache[] snapshots, HashSet<ulong> own, CancellationToken token)
     {
         var rows = new List<UndercutRow>();
         var failed = 0;
@@ -98,17 +101,18 @@ internal sealed class UndercutNotifier : IDisposable
             if (token.IsCancellationRequested) break;
             try
             {
-                var prices = await client.FetchAsync(world, id, token, cacheMinutes: 0).ConfigureAwait(false);
+                var prices = await client.FetchUndercutAsync(world, id, marketScope, token).ConfigureAwait(false);
                 if (!prices.IsComplete) { failed++; continue; }
                 foreach (var retainer in snapshots)
                     foreach (var listing in retainer.Listings.Where(value => value.ItemId == id && value.Price > 0))
                     {
                         var lowest = prices.Listings.Where(value => value.IsHq == listing.IsHq &&
                             value.PricePerUnit > 0 && value.RetainerId != 0 && !value.OnMannequin && !own.Contains(value.RetainerId))
-                            .Select(value => value.PricePerUnit).DefaultIfEmpty(uint.MaxValue).Min();
-                        if (lowest < listing.Price)
+                            .OrderBy(value => value.PricePerUnit).ThenBy(value => value.WorldId).FirstOrDefault();
+                        if (lowest is not null && lowest.PricePerUnit < listing.Price)
                         {
-                            var row = new UndercutRow(retainer.RetainerId, retainer.RetainerName, listing, lowest, worldName,
+                            var row = new UndercutRow(retainer.RetainerId, retainer.RetainerName, listing, lowest.PricePerUnit,
+                                lowest.WorldName ?? (lowest.WorldId == world.WorldId || marketScope == 0 ? world.Name : $"World {lowest.WorldId}"),
                                 retainer.RefreshedAt, prices.ObservedAt, (prices.Sales ?? [])
                                     .Where(sale => sale.IsHq == listing.IsHq && sale.PricePerUnit > 0 &&
                                         sale.SoldAt <= DateTimeOffset.UtcNow && DateTimeOffset.UtcNow - sale.SoldAt <= PriceCalculator.RequiredSaleHistoryWindow)

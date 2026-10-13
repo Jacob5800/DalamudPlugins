@@ -44,6 +44,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public Dictionary<uint, DateTimeOffset> UniversalisLastBoardSearchAt { get; set; } = [];
     public double SniperThresholdFraction { get; set; } = 0.910;
     public int SniperMinimumSales14Days { get; set; } = 5;
+    public int UndercutMarketScope { get; set; }
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
     public double SniperMinimumDiscountPercent { get; set; }
@@ -103,6 +104,7 @@ public sealed class PluginConfig : IPluginConfiguration
         SniperThresholdFraction = double.IsFinite(SniperThresholdFraction)
             ? Math.Clamp(SniperThresholdFraction, 0.01, 1.0) : 0.910;
         SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 1_800);
+        UndercutMarketScope = Math.Clamp(UndercutMarketScope, 0, 2);
         SniperHistoryDays = Math.Clamp(SniperHistoryDays, 0, 14);
         SniperMinimumItemPrice = Math.Clamp(SniperMinimumItemPrice, 1, 999_999_999);
         SniperMinimumDiscountPercent = double.IsFinite(SniperMinimumDiscountPercent) ? Math.Clamp(SniperMinimumDiscountPercent, 0, 100) : 0;

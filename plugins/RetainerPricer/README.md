@@ -83,3 +83,5 @@ Sniper columns are Item | Data Center | Server | Quality | Quantity | Listing | 
 Sniper retries timed-out or temporarily failed 100-item history batches as sequential groups of 50, then 25 if necessary. New batches start at 100 again. If any items still fail, the status says Scan incomplete and Retry failed items repeats only those items while keeping the live feed and successful baselines.
 
 Specific-item mode is highlighted orange. Sniper history days 0 uses any-age returned sales (up to 1,800 per item) while still requiring minimum sales; Sales/day is unavailable in that mode.
+
+Undercut notifier has its own World (default), Data Center and Region (home region only) scope. Starting Sniper with the same scope also runs notifier checks every 60 seconds; stopping Sniper ends linked checks unless independent notifier watching is active. The notifier alone does not start Sniper. Server identifies the lowest matching competitor. These are separate listing requests, not Sniper sales-history estimates.

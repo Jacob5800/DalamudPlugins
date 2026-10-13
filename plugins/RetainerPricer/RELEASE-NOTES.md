@@ -1,6 +1,5 @@
-### 0.5.0.6
+### 0.5.0.7
 
-- Reduced Sniper to three concurrent history batches. The 100 → 50 → 25 fallback and Retry failed items remain available.
-- Fixed 1-gil alerts failing to attach available same-quality sales history. They still appear immediately and now update when their history batch finishes, even if the sales count is below the ordinary-deal minimum.
-- 1-gil alerts show their type, item name and listing price in yellow while the last-sale date is unknown, and red when it is available. Unknown can mean history is pending, failed, or no matching sales were returned.
-- With History days set to 0, Last sale age turns red when the latest recorded sale is more than 30 days old.
+- Fixed selecting or clearing a specific Sniper item corrupting UI text colors and making other labels disappear. Orange highlighting now resets correctly. Reload the plugin after updating if your UI is already affected.
+- Added an independent World (default), Data Center, or Region (home region only) selector to Undercut notifier. The Server column identifies the lowest matching competitor in that scope.
+- Starting Sniper with the same market scope also runs notifier checks every 60 seconds. Stopping Sniper ends linked checks unless independent notifier watching is active. Starting the notifier alone never starts Sniper. Notifier checks use separate current-listing requests, not Sniper sales-history estimates.

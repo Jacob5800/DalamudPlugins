@@ -866,7 +866,13 @@ internal sealed class MainWindow : Window
 
     private void DrawUndercutNotifier()
     {
-        ImGui.TextWrapped("Refresh all retainer listings at a summoning bell first. Start watching checks your saved prices against matching HQ/NQ listings on your home world every 60 seconds. Saved own-retainer IDs and listings with unknown owners are ignored. Universalis data and saved prices may be outdated; refresh snapshots after sales or repricing. This never changes a price.");
+        ImGui.TextWrapped("Refresh all retainer listings at a summoning bell first. Start watching checks your saved prices against matching HQ/NQ listings in the selected World, Data Center or home-region scope every 60 seconds. Saved own-retainer IDs and listings with unknown owners are ignored. Universalis data and saved prices may be outdated; refresh snapshots after sales or repricing. This never changes a price.");
+        ImGui.BeginDisabled(undercuts.Checking);
+        var notifierScope = config.UndercutMarketScope;
+        if (ImGui.Combo("Market scope##undercuts", ref notifierScope, "World\0Data Center\0Region (home region only)\0"))
+        { config.UndercutMarketScope = notifierScope; save(); }
+        ImGui.EndDisabled();
+        ImGui.TextDisabled("Matching Sniper scope also starts notifier checks. Notifier watching alone never starts Sniper.");
         var echo = config.UndercutEchoMessages;
         if (ImGui.Checkbox("Send Echo messages for new undercuts", ref echo)) { config.UndercutEchoMessages = echo; save(); }
         var hide = config.HideUndercutInDuties;
@@ -895,7 +901,7 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.Listing.Price:N0}");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.LowestPrice:N0}");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.CompetitorServer);
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Server checked for this competitor. Undercut notifier checks your home world only.");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Server hosting the lowest matching competitor in the selected notifier scope.");
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? $"{sale.PricePerUnit:N0}" : "No sale in 30 days");
                 if (ImGui.IsItemHovered() && row.LastRecordedSale is { } lastSale)
@@ -917,7 +923,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage with up to two decimal places), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
-        ImGui.BulletText("Undercut notifier: World-scope Sniper watching also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 30 days; hover for its date.");
+        ImGui.BulletText("Undercut notifier: Sniper watching in the same World, Data Center or Region scope also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check Universalis prices in the selected scope every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 30 days; hover for its date.");
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");
@@ -1022,7 +1028,8 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(isRunning);
         ImGui.SetNextItemWidth(300);
         if (ImGui.InputText("Search specific item##sniper", ref sniperItemSearch, 128)) sniperItemSelection = null;
-        if (sniperItemSelection is not null) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.6f, 0.15f, 1f));
+        var highlightSpecificItem = sniperItemSelection is not null;
+        if (highlightSpecificItem) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.6f, 0.15f, 1f));
         if (ImGui.BeginCombo("Item to watch##sniper", sniperItemSelection?.Name ?? "All marketable items"))
         {
             if (ImGui.Selectable("All marketable items", sniperItemSelection is null))
@@ -1032,7 +1039,7 @@ internal sealed class MainWindow : Window
                     if (ImGui.Selectable($"{item.Name}##sniperItem{item.ItemId}", sniperItemSelection?.ItemId == item.ItemId)) sniperItemSelection = item;
             ImGui.EndCombo();
         }
-        if (sniperItemSelection is not null) ImGui.PopStyleColor();
+        if (highlightSpecificItem) ImGui.PopStyleColor();
         if (sniperItemSelection is not null) ImGui.TextColored(new Vector4(1f, 0.6f, 0.15f, 1f), $"Specific item only: {sniperItemSelection.Name} (HQ and NQ)");
         else ImGui.TextDisabled("Watching all marketable items. Search and select an item to limit the scan.");
         ImGui.TextUnformatted("Market scope");
