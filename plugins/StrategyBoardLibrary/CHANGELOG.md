@@ -1,5 +1,8 @@
 # Strategy Board Library changelog
 
+## 0.1.2.0
+- Updated compatibility for FFXIV patch 7.57.
+
 ## 0.1.1.0
 - Added a Discord shortcut at the bottom of the plugin window.
 - Added a custom strategy-board icon.

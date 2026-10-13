@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.42.0
+- Updated compatibility for FFXIV patch 7.57.
+
 ## 0.4.41.0
 - Expanded the venture table to use the available window height, widened Which Venture, and made its columns resizable.
 
