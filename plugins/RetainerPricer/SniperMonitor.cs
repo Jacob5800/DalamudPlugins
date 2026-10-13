@@ -243,7 +243,7 @@ internal sealed class SniperMonitor : IDisposable
         var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
                          UniversalisClient.SniperHistoryBatchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
-        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=2; maxBatchItems=100; maxSalesPerItem=500");
+        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches={(historyDays == 0 ? 1 : 2)}; maxBatchItems=100; maxSalesPerItem=500");
         var completedBatches = 0;
         var processedItems = 0;
         var loadedItems = 0;
@@ -251,7 +251,7 @@ internal sealed class SniperMonitor : IDisposable
         try
         {
             await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
-                new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = cancellationToken },
+                new ParallelOptions { MaxDegreeOfParallelism = historyDays == 0 ? 1 : 2, CancellationToken = cancellationToken },
                 async (batch, batchCancellation) =>
             {
                 batchCancellation.ThrowIfCancellationRequested();

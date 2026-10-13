@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.9",
+  "AssemblyVersion": "0.5.0.10",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "### 0.5.0.9\n\n- Reduced Sniper to two concurrent 100-item history batches. Smaller 50/25-item fallback retries remain available. This reduces load but does not guarantee Universalis timeouts are resolved.\n- Scan progress now says items and batches attempted, with separate history-loaded and failed-item counts. The disabled retry button explains that retries become available after the scan finishes.\n- Added Dalamud log diagnostics for failed history requests: scope, item IDs, batch size, history days, sales cap, attempt number, elapsed time and error. Logs also record fallback splitting and scan summaries to help diagnose persistent failures.\n- The bottom-left version label and feedback reports now display all four version numbers, such as 0.5.0.9.",
+  "Changelog": "### 0.5.0.10\n\n- History days 0 (any age) now uses one history batch at a time, with at least one second between request starts, including retries and smaller fallback requests.\n- Fixed-window scans keep two concurrent batches. Both modes retain 100-item starting batches, 50/25-item fallback and the 500-sale cap. This change reduces request pressure; persistent Universalis timeouts may still occur.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

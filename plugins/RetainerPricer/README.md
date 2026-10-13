@@ -87,3 +87,5 @@ Specific-item mode is highlighted orange. Sniper history days 0 uses any-age ret
 Undercut notifier has its own World (default), Data Center and Region (home region only) scope. Starting Sniper with the same scope also runs notifier checks every 60 seconds; stopping Sniper ends linked checks unless independent notifier watching is active. The notifier alone does not start Sniper. Server identifies the lowest matching competitor. These are separate listing requests, not Sniper sales-history estimates.
 
 Est. sales/day uses the configured days for uncapped fixed-window scans, or the oldest returned sale-to-history-check span for capped or any-age samples. Hover for sample count and coverage.
+
+History days 0 uses one history batch at a time with at least one second between request starts, including retry and smaller fallback requests. Fixed-window scans retain two concurrent batches. Both keep 100-item starting batches and the 50/25-item fallback.
