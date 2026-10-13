@@ -154,7 +154,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void StartVenturesAfterAutoUpdate()
     {
-        if (config.RunVentures && !disposed && !vendor.IsRunning && !sniper.IsRunning)
+        if (config.RunVentures && !disposed && !vendor.IsRunning)
             ventures.Start();
     }
 

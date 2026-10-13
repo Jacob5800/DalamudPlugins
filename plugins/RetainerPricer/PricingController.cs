@@ -5,6 +5,10 @@ internal sealed class PriceRow(SellItem item, string retainerName = "")
     public SellItem Item { get; } = item;
     public string RetainerName { get; } = retainerName;
     public PriceSnapshot? Snapshot { get; set; }
+    public MarketSale? LastRecordedSale => (Snapshot?.Sales ?? [])
+        .Where(sale => sale.IsHq == Item.IsHq && sale.SoldAt <= DateTimeOffset.UtcNow &&
+            DateTimeOffset.UtcNow - sale.SoldAt <= PriceCalculator.RequiredSaleHistoryWindow)
+        .OrderByDescending(sale => sale.SoldAt).FirstOrDefault();
     public PriceProposal? Proposal { get; set; }
     public string Status { get; set; } = "Waiting";
     public bool AwaitingPriceDropDecision { get; set; }

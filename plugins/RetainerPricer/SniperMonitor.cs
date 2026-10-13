@@ -332,10 +332,12 @@ internal sealed class SniperMonitor : IDisposable
             if (listing.ListingId is { Length: > 0 } removedId)
                 deals.RemoveAll(previous => previous.Key == $"{listing.WorldId}:{listing.ItemId}:{removedId}" ||
                     previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
-                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
+                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq &&
+                    (previous.ListingId == removedId || previous.ListingId is null &&
+                        previous.PricePerUnit == listing.PricePerUnit && previous.Quantity == listing.Quantity));
             else if (listing.PricePerUnit == 1)
                 deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
-                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);
+                    previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq && previous.Quantity == listing.Quantity);
             else
                 deals.RemoveAll(previous => previous.ItemId == listing.ItemId && previous.WorldId == listing.WorldId &&
                     previous.IsHq == listing.IsHq && previous.PricePerUnit == listing.PricePerUnit && previous.Quantity == listing.Quantity);
@@ -347,6 +349,9 @@ internal sealed class SniperMonitor : IDisposable
             return;
 
         var isOneGilAlert = listing.PricePerUnit == 1;
+        if (!isOneGilAlert && listing.ListingId is { Length: > 0 } updatedId)
+            deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ListingId == updatedId &&
+                previous.WorldId == listing.WorldId && previous.ItemId == listing.ItemId);
         SniperQualityBaseline? baseline = null;
         if (!isOneGilAlert)
         {

@@ -1,5 +1,11 @@
 # Retainer Pricer changelog
 
+## 0.4.56.0
+- Existing listings now supports retainer and item-name filters, clickable column sorting, and Last sold price with sale-date tooltips.
+- Added plain-language hover explanations to Sniper deal values. Whole-stack profit and savings are shown on hover over per-item values instead of separate columns.
+- Venture cycles can run while Sniper watches.
+- Fixed unrelated listing removals hiding grouped 1-gil alerts.
+
 ## 0.4.55.0
 - Sniper now shows discount, recorded sales per day, estimated purchase cost, savings, and estimated resale profit per item and stack. Profit columns are on by default and can be hidden.
 - Added optional minimum discount, savings and profit filters with configurable fee assumptions. 1-gil alerts bypass these filters.
