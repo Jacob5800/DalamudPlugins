@@ -78,7 +78,10 @@ public sealed class Plugin : IDalamudPlugin
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);
         undercuts = new UndercutNotifier(universalis, config);
-        inventoryMenus = new InventoryListMenu(contextMenu, config, Save, itemChoices.Select(item => item.ItemId));
+        inventoryMenus = new InventoryListMenu(contextMenu, config, Save, bridge, itemSheet
+            .Where(item => item.RowId != 0)
+            .ToDictionary(item => item.RowId, item =>
+                (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
         controller.AutoUpdateCompleted += StartVenturesAfterAutoUpdate;
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,

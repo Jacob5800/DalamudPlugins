@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.45.0
+- Hide inventory Add options when an item cannot use the corresponding market or vendor action, including protected-item conflicts. Remove options remain available for saved entries.
+
 ## 0.4.44.0
 - Added custom 1–10,000 gil and 1–100% undercut rules. Their amount inputs appear only when selected.
 - Inventory right-click Add options are green; Remove options are red.

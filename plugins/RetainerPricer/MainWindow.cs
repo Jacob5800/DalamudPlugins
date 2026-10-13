@@ -793,7 +793,7 @@ internal sealed class MainWindow : Window
         }
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer or /retainer.");
-        ImGui.BulletText("Inventory right-click: green Add / red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
+        ImGui.BulletText("Inventory right-click: green Add / red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
         ImGui.BulletText("Undercut notifier: refresh your retainer listings, then Start watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped.");
         ImGui.Separator();
 
