@@ -10,6 +10,7 @@ internal sealed class SniperMonitor : IDisposable
     private sealed class RunState
     {
         public Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline> Baselines { get; } = [];
+        public Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline> AvailableHistory { get; } = [];
         public HashSet<uint> CompletedHistoryItemIds { get; } = [];
         public Dictionary<string, UniversalisListing> PendingLiveListings { get; } = new(StringComparer.Ordinal);
         public HashSet<uint> WatchedItemIds { get; init; } = [];
@@ -244,12 +245,13 @@ internal sealed class SniperMonitor : IDisposable
         try
         {
             await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
-                new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+                new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = cancellationToken },
                 async (batch, batchCancellation) =>
             {
                 batchCancellation.ThrowIfCancellationRequested();
                 var batchSucceeded = false;
                 var batchBaselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
+                var availableHistory = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 try
                 {
                     var batchSales = new Dictionary<uint, List<SniperSale>>();
@@ -271,13 +273,15 @@ internal sealed class SniperMonitor : IDisposable
                         foreach (var qualitySales in sales.GroupBy(sale => sale.IsHq))
                         {
                             var orderedPrices = qualitySales.Select(sale => sale.PricePerUnit).OrderBy(price => price).ToArray();
-                            if (orderedPrices.Length < minimumSales) continue;
+                            if (orderedPrices.Length == 0) continue;
                             var middle = orderedPrices.Length / 2;
                             var median = orderedPrices.Length % 2 == 0
                                 ? (uint)(((ulong)orderedPrices[middle - 1] + orderedPrices[middle]) / 2)
                                 : orderedPrices[middle];
-                            batchBaselines[(itemId, qualitySales.Key)] = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median,
+                            var history = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median,
                                 historyDays, DateTimeOffset.UtcNow, qualitySales.Max(sale => sale.SoldAt));
+                            availableHistory[(itemId, qualitySales.Key)] = history;
+                            if (orderedPrices.Length >= minimumSales) batchBaselines[(itemId, qualitySales.Key)] = history;
                         }
                     }
                 }
@@ -293,6 +297,15 @@ internal sealed class SniperMonitor : IDisposable
                 {
                     foreach (var (key, baseline) in batchBaselines)
                         runState.Baselines[key] = baseline;
+                    foreach (var (key, history) in availableHistory) runState.AvailableHistory[key] = history;
+                    for (var dealIndex = 0; dealIndex < deals.Count; dealIndex++)
+                    {
+                        var alert = deals[dealIndex];
+                        if (alert.IsOneGilAlert && availableHistory.TryGetValue((alert.ItemId, alert.IsHq), out var history))
+                            deals[dealIndex] = alert with { MedianSalePrice = history.MedianSalePrice,
+                                SalesInHistoryWindow = history.SaleCount, HistoryDays = history.HistoryDays,
+                                HistoryFetchedAt = history.HistoryFetchedAt, LastSaleAt = history.LastSaleAt };
+                    }
                     foreach (var itemId in batchItemIds)
                     {
                         if (batchSucceeded) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); }
@@ -386,6 +399,7 @@ internal sealed class SniperMonitor : IDisposable
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ListingId == updatedId &&
                 previous.WorldId == listing.WorldId && previous.ItemId == listing.ItemId);
         SniperQualityBaseline? baseline = null;
+        if (isOneGilAlert) runState.AvailableHistory.TryGetValue((listing.ItemId, listing.IsHq), out baseline);
         if (!isOneGilAlert)
         {
             if (!runState.Baselines.TryGetValue((listing.ItemId, listing.IsHq), out baseline))
