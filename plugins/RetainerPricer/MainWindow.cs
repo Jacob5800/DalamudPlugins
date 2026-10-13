@@ -881,9 +881,9 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Check now##undercut")) undercuts.CheckNow();
         ImGui.EndDisabled();
         ImGui.TextWrapped(undercuts.Status);
-        if (ImGui.BeginTable("##undercuts", 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable("##undercutsV2", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            foreach (var title in new[] { "Item", "Retainer", "Your saved price", "Lowest competitor", "Last recorded sale", "Snapshot", "Market data" }) ImGui.TableSetupColumn(title);
+            foreach (var title in new[] { "Item", "Retainer", "Your saved price", "Lowest competitor", "Server", "Last recorded sale", "Snapshot", "Market data" }) ImGui.TableSetupColumn(title);
             ImGui.TableHeadersRow();
             foreach (var row in undercuts.Rows)
             {
@@ -892,6 +892,8 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Retainer);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.Listing.Price:N0}");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.LowestPrice:N0}");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.CompetitorServer);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Server checked for this competitor. Undercut notifier checks your home world only.");
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? $"{sale.PricePerUnit:N0}" : "No sale in 30 days");
                 if (ImGui.IsItemHovered() && row.LastRecordedSale is { } lastSale)
@@ -1130,11 +1132,12 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDealsLayoutV2", 12, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+        if (ImGui.BeginTable("##sniperDealsLayoutV3", 13, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
         {
+            ImGui.TableSetupColumn("Type of alert", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 220);
             ImGui.TableSetupColumn("Data Center", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Server", ImGuiTableColumnFlags.WidthFixed, 110);
@@ -1147,7 +1150,7 @@ internal sealed class MainWindow : Window
             ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
-            ImGui.TableSetColumnEnabled(10, config.SniperShowProfitEstimates);
+            ImGui.TableSetColumnEnabled(11, config.SniperShowProfitEstimates);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             var sortedDeals = deals.ToList();
@@ -1157,17 +1160,18 @@ internal sealed class MainWindow : Window
                 var spec = sorting.Specs[0];
                 Func<SniperDeal, IComparable> key = spec.ColumnIndex switch
                 {
-                    0 => deal => deal.ItemName,
-                    1 => deal => deal.DataCenterName ?? "",
-                    2 => deal => deal.WorldName,
-                    3 => deal => deal.IsHq,
-                    4 => deal => deal.Quantity,
-                    5 => deal => deal.PricePerUnit,
-                    6 => deal => deal.MedianSalePrice,
-                    7 => deal => deal.DiscountPercent,
-                    8 => deal => deal.SalesPerDay,
-                    9 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
-                    10 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
+                    0 => deal => deal.IsOneGilAlert ? "1 gil" : "Deal",
+                    1 => deal => deal.ItemName,
+                    2 => deal => deal.DataCenterName ?? "",
+                    3 => deal => deal.WorldName,
+                    4 => deal => deal.IsHq,
+                    5 => deal => deal.Quantity,
+                    6 => deal => deal.PricePerUnit,
+                    7 => deal => deal.MedianSalePrice,
+                    8 => deal => deal.DiscountPercent,
+                    9 => deal => deal.SalesPerDay,
+                    10 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
+                    11 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
                     _ => deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)
                 };
                 sortedDeals = spec.SortDirection == ImGuiSortDirection.Ascending
@@ -1189,7 +1193,9 @@ internal sealed class MainWindow : Window
                 var unitProfit = deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
                 var unitSaving = deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent);
                 var purchase = decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity);
-                Cell((deal.IsOneGilAlert ? "1 GIL ALERT · " : "") + deal.ItemName,
+                Cell(deal.IsOneGilAlert ? "1 gil" : "Deal",
+                    deal.IsOneGilAlert ? "Listing priced at 1 gil per item. These alerts bypass deal filters and do not require sales history." : "Listing qualifies against your configured sales-median threshold.", deal.IsOneGilAlert);
+                Cell(deal.ItemName,
                     $"{deal.ItemName}\nLive listing received: {deal.DetectedAt.ToLocalTime():g}. Purchases are manual; availability can change.", deal.IsOneGilAlert);
                 Cell(deal.DataCenterName ?? "—", "Data Center containing the listing's server. A dash means its Data Center could not be resolved.");
                 Cell(deal.WorldName, "Server where this listing was received. Visit this server to check and purchase it manually.");
