@@ -61,3 +61,5 @@ Pricing rules include Match lowest, Undercut by 1 gil, Custom gil amount (1–10
 Inventory Add options are filtered per action: market options require a tradable, searchable, unbound, non-collectible item; vendor options require an NPC sell value. Exceptions can protect either category. Batch, repricing, and sale-whitelist additions also respect existing Exceptions and saved gear sets; Don't vendor takes priority over the sale whitelist. Saved entries always retain their Remove option even if the current stack is ineligible.
 
 Open the plugin with /retainerpricer, /retainer, or /rp. If another plugin already owns /rp, the original commands remain available.
+
+Sniper watching in World scope automatically runs Undercut notifier checks. Stopping Sniper stops linked checks, unless independent notifier watching is enabled. Starting the notifier independently never starts Sniper. Data Center and Region Sniper runs are not linked; the notifier always compares home-world listings.

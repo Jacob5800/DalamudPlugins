@@ -28,6 +28,7 @@ internal sealed class SniperMonitor : IDisposable
     private CancellationTokenSource? cancellation;
     private string status = "Sniper is stopped.";
     private bool isListening;
+    private bool worldOnlyRun;
     private bool initialScanRunning;
     private string initialScanProgress = string.Empty;
     private string liveFeedStatus = "not connected";
@@ -44,6 +45,7 @@ internal sealed class SniperMonitor : IDisposable
 
     public bool IsListening { get { lock (gate) return isListening; } }
     public bool IsRunning { get { lock (gate) return cancellation is not null; } }
+    public bool IsWatchingWorld { get { lock (gate) return cancellation is not null && !cancellation.IsCancellationRequested && worldOnlyRun; } }
     public bool IsInitialScanRunning { get { lock (gate) return initialScanRunning; } }
     public string Status { get { lock (gate) return status; } }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
@@ -62,6 +64,7 @@ internal sealed class SniperMonitor : IDisposable
         {
             if (cancellation is not null) return;
             cancellation = run = new CancellationTokenSource();
+            worldOnlyRun = !useDataCenter && !useRegion;
             deals.Clear();
             isListening = false;
             initialScanRunning = false;

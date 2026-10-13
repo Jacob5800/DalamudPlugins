@@ -16,13 +16,26 @@ internal sealed class UndercutNotifier : IDisposable
     private CancellationTokenSource? scanCancellation;
     public IReadOnlyList<UndercutRow> Rows { get; private set; } = [];
     public string Status { get; private set; } = "Refresh all retainer listings, then start watching.";
-    public bool Running { get; private set; }
+    public bool ManualWatching { get; private set; }
+    public bool WatchingWithSniper { get; private set; }
+    public bool Running => ManualWatching || WatchingWithSniper;
     public bool Checking => pending is not null;
 
     public UndercutNotifier(UniversalisClient client, PluginConfig config) => (this.client, this.config) = (client, config);
-    public void Start() { Running = true; nextCheck = DateTimeOffset.MinValue; }
-    public void Stop() { Running = false; scanCancellation?.Cancel(); Status = "Watching stopped."; }
-    public void CheckNow() { Running = true; nextCheck = DateTimeOffset.MinValue; }
+    public void Start() { ManualWatching = true; nextCheck = DateTimeOffset.MinValue; }
+    public void Stop()
+    {
+        ManualWatching = false;
+        if (!WatchingWithSniper) { scanCancellation?.Cancel(); Status = "Watching stopped."; }
+    }
+    public void CheckNow() { ManualWatching = true; nextCheck = DateTimeOffset.MinValue; }
+    public void SetSniperWatching(bool watching)
+    {
+        var wasRunning = Running;
+        WatchingWithSniper = watching;
+        if (!wasRunning && Running) nextCheck = DateTimeOffset.MinValue;
+        if (wasRunning && !Running) { scanCancellation?.Cancel(); Status = "Watching stopped with Sniper."; }
+    }
 
     // Called on the framework thread; only copied data is read by the async request worker.
     public void Update(MarketWorld? world, bool paused, Action<UndercutRow> notify)

@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.47.0
+- Sniper watching in World scope also runs Undercut notifier checks. Independent notifier watching never starts Sniper and can continue after Sniper stops.
+
 ## 0.4.46.0
 - Added /rp as an alternative command.
 - Add to retainer sale whitelist and Add to don't vendor are yellow. Other Add options stay green and all Remove options stay red.

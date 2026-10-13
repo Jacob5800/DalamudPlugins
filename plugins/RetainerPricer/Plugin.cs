@@ -132,6 +132,7 @@ public sealed class Plugin : IDalamudPlugin
             controller.Update();
             vendor.Update();
             ventures.Update();
+            undercuts.SetSniperWatching(sniper.IsWatchingWorld);
             undercuts.Update(bridge.GetHomeWorld(), UndercutsPaused(), row =>
             {
                 var name = window.ItemName(row.Listing.ItemId);
