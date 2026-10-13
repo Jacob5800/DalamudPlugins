@@ -34,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IChatGui chat;
     private bool wasOpen;
     private bool disposed;
+    private readonly bool rpAliasRegistered;
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
@@ -102,6 +103,9 @@ public sealed class Plugin : IDalamudPlugin
         { HelpMessage = "Open Retainer Pricer: automatically price new listings and review existing listing updates." });
         commands.AddHandler("/retainer", new CommandInfo((_, _) => Toggle())
         { HelpMessage = "Open Retainer Pricer." });
+        rpAliasRegistered = commands.AddHandler("/rp", new CommandInfo((_, _) => Toggle())
+        { HelpMessage = "Open Retainer Pricer." });
+        if (!rpAliasRegistered) log.Warning("The /rp command is already registered by another plugin. Use /retainerpricer or /retainer.");
     }
 
     private void Dispatch(Action action)
@@ -170,6 +174,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
         commands.RemoveHandler("/retainerpricer");
         commands.RemoveHandler("/retainer");
+        if (rpAliasRegistered) commands.RemoveHandler("/rp");
         serverInfoBarEntry.Remove();
         controller.Dispose();
         vendor.Dispose();

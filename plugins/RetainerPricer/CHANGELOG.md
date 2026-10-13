@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.46.0
+- Added /rp as an alternative command.
+- Add to retainer sale whitelist and Add to don't vendor are yellow. Other Add options stay green and all Remove options stay red.
+
 ## 0.4.45.0
 - Hide inventory Add options when an item cannot use the corresponding market or vendor action, including protected-item conflicts. Remove options remain available for saved entries.
 
