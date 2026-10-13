@@ -186,6 +186,29 @@ public sealed class UniversalisClient : IDisposable
         SniperHistoryScope scope, IReadOnlyList<uint> itemIds, int historyDays, uint homeWorldId,
         CancellationToken ct = default)
     {
+        try
+        {
+            return await FetchSniperSalesBatchCoreAsync(scope, itemIds, historyDays, homeWorldId, ct).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && itemIds.Count > 25 &&
+            (ex.InnerException is OperationCanceledException or IOException ||
+             ex.InnerException is HttpRequestException http && IsTransientHistoryFailure(http)))
+        {
+            // Retry smaller groups sequentially, retaining the outer scan's concurrency bound.
+            // Every new catalog batch still starts at 100; reductions affect only this failed batch.
+            await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
+            var results = new Dictionary<uint, SniperSalesSnapshot>();
+            var smallerSize = itemIds.Count > 50 ? 50 : 25;
+            foreach (var group in itemIds.Chunk(smallerSize))
+                foreach (var pair in await FetchSniperSalesBatchAsync(scope, group, historyDays, homeWorldId, ct).ConfigureAwait(false))
+                    results[pair.Key] = pair.Value;
+            return results;
+        }
+    }
+    private async Task<IReadOnlyDictionary<uint, SniperSalesSnapshot>> FetchSniperSalesBatchCoreAsync(
+        SniperHistoryScope scope, IReadOnlyList<uint> itemIds, int historyDays, uint homeWorldId,
+        CancellationToken ct = default)
+    {
         if (string.IsNullOrWhiteSpace(scope.Name) || itemIds.Count is 0 or > SniperHistoryBatchSize ||
             itemIds.Any(itemId => itemId == 0) || homeWorldId == 0)
             throw new ArgumentException($"Select a valid market scope, 1 to {SniperHistoryBatchSize} items, and a home world before fetching sales history.");

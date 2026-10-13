@@ -1,5 +1,11 @@
 # Retainer Pricer changelog
 
+## 0.5.0.4 (testing)
+
+- Sniper now uses up to four concurrent history batches. Batches start at 100 items; persistent timeouts or temporary network/server failures retry as sequential groups of 50, then 25. Each new batch starts at 100 again.
+- If history requests still fail, Sniper shows Scan incomplete and the unresolved item count instead of implying full coverage. Ordinary deals need successful sales history; 1-gil alerts remain available.
+- Added Retry failed items. It requests only unresolved items while preserving successful history and the live listing feed. Stop watching also cancels retries.
+
 ## 0.5.0.3 (testing)
 
 - Added a specific-item search and picker in Sniper. All marketable items remains the default. Select an item before Start watching to scan only its history and watch new HQ/NQ listings for that item in the selected market scope. Choose All marketable items to return to the full scan.

@@ -13,11 +13,13 @@ internal sealed class SniperMonitor : IDisposable
         public HashSet<uint> CompletedHistoryItemIds { get; } = [];
         public Dictionary<string, UniversalisListing> PendingLiveListings { get; } = new(StringComparer.Ordinal);
         public HashSet<uint> WatchedItemIds { get; init; } = [];
+        public HashSet<uint> FailedItemIds { get; } = [];
+        public HistoryScanSummary? Summary { get; set; }
         public int DroppedPendingListings { get; set; }
     }
 
     private sealed record HistoryScanSummary(int EligibleItems, IReadOnlyList<string> FailedBatches,
-        string? FatalError = null);
+        string? FatalError = null, int FailedItems = 0);
 
     private readonly object gate = new();
     private readonly UniversalisClient universalis;
@@ -32,6 +34,19 @@ internal sealed class SniperMonitor : IDisposable
     private bool worldOnlyRun;
     private bool initialScanRunning;
     private string initialScanProgress = string.Empty;
+    private Func<Task>? retryFailedHistory;
+    private int failedHistoryItemCount;
+    public int FailedHistoryItemCount { get { lock (gate) return failedHistoryItemCount; } }
+    public void RetryFailedItems()
+    {
+        lock (gate)
+        {
+            if (initialScanRunning || cancellation is null || failedHistoryItemCount == 0 || retryFailedHistory is null) return;
+            initialScanRunning = true;
+            initialScanProgress = "Retrying failed history items…";
+            _ = Task.Run(retryFailedHistory);
+        }
+    }
     private string liveFeedStatus = "not connected";
 
     public SniperMonitor(UniversalisClient universalis, PluginConfig config, IReadOnlyList<ItemChoice> items,
@@ -68,6 +83,8 @@ internal sealed class SniperMonitor : IDisposable
             if (cancellation is not null) return;
             cancellation = run = new CancellationTokenSource();
             worldOnlyRun = !useDataCenter && !useRegion;
+            failedHistoryItemCount = 0;
+            retryFailedHistory = null;
             deals.Clear();
             isListening = false;
             initialScanRunning = false;
@@ -103,6 +120,13 @@ internal sealed class SniperMonitor : IDisposable
             var runState = new RunState { WatchedItemIds = watchedItems.Select(item => item.ItemId).ToHashSet() };
             lock (gate)
             {
+                retryFailedHistory = async () =>
+                {
+                    ItemChoice[] failedItems;
+                    lock (gate) failedItems = watchedItems.Where(item => runState.FailedItemIds.Contains(item.ItemId)).ToArray();
+                    await ScanHistoryAsync(scope, failedItems, world, watchedWorlds, minimumSales,
+                        threshold, historyDays, minimumItemPrice, runState, cancellationToken).ConfigureAwait(false);
+                };
                 initialScanRunning = true;
                 initialScanProgress = "Initial scan is starting";
                 liveFeedStatus = "connecting to Universalis live listings";
@@ -139,7 +163,7 @@ internal sealed class SniperMonitor : IDisposable
                         liveFeedStatus = "live feed connected";
                         status = initialScanRunning
                             ? RefreshInitialScanStatusAndGetLocked(runState)
-                            : BuildListeningStatus(scope, watchedWorlds.Count, watchedItems.Count, historyDays, minimumSales, historySummary!);
+                            : BuildListeningStatus(scope, watchedWorlds.Count, watchedItems.Count, historyDays, minimumSales, runState.Summary ?? historySummary!);
                     }
 
                     while (!cancellationToken.IsCancellationRequested && socket.State == System.Net.WebSockets.WebSocketState.Open)
@@ -154,7 +178,7 @@ internal sealed class SniperMonitor : IDisposable
                                 historySummary = await historyScanTask.ConfigureAwait(false);
                                 lock (gate)
                                     status = BuildListeningStatus(scope, watchedWorlds.Count, watchedItems.Count,
-                                        historyDays, minimumSales, historySummary);
+                                        historyDays, minimumSales, runState.Summary ?? historySummary);
                             }
                             listings = await receiveTask.ConfigureAwait(false);
                         }
@@ -220,10 +244,11 @@ internal sealed class SniperMonitor : IDisposable
         try
         {
             await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
-                new ParallelOptions { MaxDegreeOfParallelism = 6, CancellationToken = cancellationToken },
+                new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
                 async (batch, batchCancellation) =>
             {
                 batchCancellation.ThrowIfCancellationRequested();
+                var batchSucceeded = false;
                 var batchBaselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 try
                 {
@@ -240,6 +265,7 @@ internal sealed class SniperMonitor : IDisposable
                             sales.AddRange(snapshot.Sales);
                         }
                     }
+                    batchSucceeded = true;
                     foreach (var (itemId, sales) in batchSales)
                     {
                         foreach (var qualitySales in sales.GroupBy(sale => sale.IsHq))
@@ -268,7 +294,11 @@ internal sealed class SniperMonitor : IDisposable
                     foreach (var (key, baseline) in batchBaselines)
                         runState.Baselines[key] = baseline;
                     foreach (var itemId in batchItemIds)
-                        runState.CompletedHistoryItemIds.Add(itemId);
+                    {
+                        if (batchSucceeded) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); }
+                        else runState.FailedItemIds.Add(itemId);
+                    }
+                    failedHistoryItemCount = runState.FailedItemIds.Count;
                     foreach (var pending in runState.PendingLiveListings
                                  .Where(pair => batchItemIds.Contains(pair.Value.ItemId)).ToArray())
                     {
@@ -283,12 +313,13 @@ internal sealed class SniperMonitor : IDisposable
             }).ConfigureAwait(false);
 
             var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
-            var summary = new HistoryScanSummary(eligible, failed.ToArray());
+            var summary = new HistoryScanSummary(eligible, failed.ToArray(), FailedItems: runState.FailedItemIds.Count);
             lock (gate)
             {
+                runState.Summary = summary;
                 initialScanRunning = false;
                 status = isListening
-                    ? BuildListeningStatus(scope, scope.WorldIds.Count, watchedItems.Count, historyDays, minimumSales, summary)
+                    ? BuildListeningStatus(scope, scope.WorldIds.Count, runState.WatchedItemIds.Count, historyDays, minimumSales, summary)
                     : $"Initial history scan complete · {liveFeedStatus}. {BuildHistorySummary(summary, watchedItems.Count, minimumSales, historyDays)}";
             }
             return summary;
@@ -303,9 +334,10 @@ internal sealed class SniperMonitor : IDisposable
             var summary = new HistoryScanSummary(runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count(), failed.ToArray(), ex.Message);
             lock (gate)
             {
+                runState.Summary = summary;
                 initialScanRunning = false;
                 status = isListening
-                    ? BuildListeningStatus(scope, scope.WorldIds.Count, watchedItems.Count, historyDays, minimumSales, summary)
+                    ? BuildListeningStatus(scope, scope.WorldIds.Count, runState.WatchedItemIds.Count, historyDays, minimumSales, summary)
                     : $"Initial history scan stopped: {ex.Message}. {liveFeedStatus}.";
             }
             return summary;
@@ -425,7 +457,7 @@ internal sealed class SniperMonitor : IDisposable
     private string BuildListeningStatus(SniperMarketScope scope, int watchedWorldCount, int watchedItemCount,
         int historyDays, int minimumSales, HistoryScanSummary summary)
     {
-        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · all {watchedItemCount:N0} marketable items scanned, {summary.EligibleItems:N0} with usable {historyDays}-day history · 1-gil alerts cover all marketable items. Purchases are manual.";
+        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · {watchedItemCount:N0} watched items · {(summary.FailedItems > 0 || summary.FatalError is not null ? "Scan incomplete" : "History scan complete")}, {summary.EligibleItems:N0} with usable {historyDays}-day history · 1-gil alerts cover the watched items. Purchases are manual.";
         status += " " + BuildHistorySummary(summary, watchedItemCount, minimumSales, historyDays);
         return status;
     }
@@ -434,6 +466,7 @@ internal sealed class SniperMonitor : IDisposable
         int minimumSales, int historyDays)
     {
         var details = new List<string>();
+        if (summary.FailedItems > 0) details.Add($"{summary.FailedItems:N0} item(s) missing history because their requests failed. Use Retry failed items; ordinary deals for these items cannot be evaluated.");
         if (summary.EligibleItems == 0 && watchedItemCount > 0)
             details.Add($"No item reached the minimum of {minimumSales} sales in {historyDays} days; ordinary deals need a usable baseline.");
         if (summary.FailedBatches.Count > 0)
