@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.53.0
+- Clarified the listing progress and help text for pricing from recent sales when no competitors exist.
+
 ## 0.4.52.0
 - New-item listing and batch selling use the same-quality 30-day sales median when no competing listings exist. The selected pricing rule and minimum price still apply. Items without usable sales or listings are skipped.
 

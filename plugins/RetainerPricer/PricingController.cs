@@ -386,7 +386,7 @@ internal sealed class PricingController : IDisposable
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
         var scope = batchOnly ? "configured Batch selling item stack(s) only" : "eligible stack(s)";
-        Status = $"Automatically listing {batchCandidates.Count} {scope} using Universalis. Each item needs a current competing listing. Sales from the last 30 days are reference only.";
+        Status = $"Automatically listing {batchCandidates.Count} {scope} using Universalis. Current competing listings take priority; new listings can use matching-quality sales from the last 30 days when no competitors exist.";
     }
 
     public void SnapshotExceptionInventory()
