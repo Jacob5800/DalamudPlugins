@@ -67,3 +67,5 @@ Sniper watching in World scope automatically runs Undercut notifier checks. Stop
 Start listing items and Start batch selling only save the active retainer's full listing snapshot after each confirmed listing, reusing the existing confirmation read without additional market requests. Undercut notifier uses this saved stock; listing runs do not start watching. Other retainers still require their own snapshot refresh.
 
 A yellow Start venture cycle shortcut sits beside Start batch selling only at the top. The existing button in Ventures remains available. Both use the same venture settings and require Run ventures to be enabled.
+
+Percentage undercut accepts up to two decimal places within 1–100%, for example 5.2%. Existing whole-number settings are preserved. The resulting asking price rounds down to whole gil.

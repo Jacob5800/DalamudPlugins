@@ -19,7 +19,7 @@ public static class PriceCalculator
         TimeSpan? maxAge,
         string? dataCenterName = null,
         PriceStrategy strategy = PriceStrategy.UndercutByOne,
-        int undercutGilAmount = 1, int undercutPercentage = 1)
+        int undercutGilAmount = 1, double undercutPercentage = 1)
     {
         static PriceProposal Fail(string message, uint lowest = 0, int count = 0) => new(lowest, 0, count, message);
 
@@ -83,7 +83,8 @@ public static class PriceCalculator
         {
             PriceStrategy.MatchLowest => lowest,
             PriceStrategy.UndercutByAmount => (uint)Math.Max(1L, (long)lowest - Math.Clamp(undercutGilAmount, 1, 10_000)),
-            PriceStrategy.UndercutByPercentage => (uint)Math.Max(1L, (long)lowest * (100 - Math.Clamp(undercutPercentage, 1, 100)) / 100),
+            PriceStrategy.UndercutByPercentage => (uint)Math.Max(1m, decimal.Floor((decimal)lowest *
+                (100m - (decimal)(double.IsFinite(undercutPercentage) ? Math.Clamp(undercutPercentage, 1, 100) : 1)) / 100m)),
             _ => lowest - 1
         };
         var floor = Math.Max(1u, minimumPrice);

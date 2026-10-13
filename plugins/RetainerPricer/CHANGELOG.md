@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.50.0
+- Percentage undercut pricing now accepts up to two decimal places, such as 5.2%.
+
 ## 0.4.49.0
 - Added a yellow Start venture cycle button beside Start batch selling only at the top of the window. The existing Ventures-tab button remains available.
 
