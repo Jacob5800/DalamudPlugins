@@ -4,6 +4,8 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
 using Item = Lumina.Excel.Sheets.Item;
 using World = Lumina.Excel.Sheets.World;
 
@@ -26,15 +28,20 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AutoVendorController vendor;
     private readonly VentureController ventures;
     private readonly MainWindow window;
+    private readonly InventoryListMenu inventoryMenus;
+    private readonly UndercutNotifier undercuts;
+    private readonly ICondition condition;
+    private readonly IChatGui chat;
     private bool wasOpen;
     private bool disposed;
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
         ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
-        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log)
+        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
+        (this.condition, this.chat) = (condition, chat);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
         var migrateConfig = config.Version < 14;
         if (config.Version < 8)
@@ -70,10 +77,13 @@ public sealed class Plugin : IDalamudPlugin
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);
+        undercuts = new UndercutNotifier(universalis, config);
+        inventoryMenus = new InventoryListMenu(contextMenu, config, Save, itemChoices.Select(item => item.ItemId));
         controller.AutoUpdateCompleted += StartVenturesAfterAutoUpdate;
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
-            shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting);
+            shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting, undercuts,
+            UndercutsPaused);
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
             log.Warning("Retainer Pricer local pricing: {Error}", localCompatibilityError);
@@ -115,6 +125,12 @@ public sealed class Plugin : IDalamudPlugin
             controller.Update();
             vendor.Update();
             ventures.Update();
+            undercuts.Update(bridge.GetHomeWorld(), UndercutsPaused(), row =>
+            {
+                var name = window.ItemName(row.Listing.ItemId);
+                chat.Print(new XivChatEntry { Type = XivChatType.Echo,
+                    Message = new SeStringBuilder().AddText($"[Retainer Pricer] Undercut: {name} ({(row.Listing.IsHq ? "HQ" : "NQ")}) on {row.Retainer}: your saved price {row.Listing.Price:N0} gil, competitor {row.LowestPrice:N0} gil.").Build() });
+            });
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;
             wasOpen = open;
@@ -135,11 +151,15 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     private void Toggle() => window.Toggle();
+    private bool UndercutsPaused() => config.HideUndercutInDuties &&
+        (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
     private void Save() => pluginInterface.SavePluginConfig(config);
 
     public void Dispose()
     {
         disposed = true;
+        inventoryMenus.Dispose();
+        undercuts.Dispose();
         controller.AutoUpdateCompleted -= StartVenturesAfterAutoUpdate;
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;

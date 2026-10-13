@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.43.0
+- Added separate inventory right-click Add/Remove options for Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Enable or disable them in Settings; enabled by default.
+- Added Undercut notifier with saved-price comparisons, optional Echo alerts, and an option to pause and hide in duties.
+
 ## 0.4.42.0
 - Updated compatibility for FFXIV patch 7.57.
 

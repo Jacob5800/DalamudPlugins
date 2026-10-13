@@ -8,6 +8,9 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
+    public bool ShowInventoryContextMenu { get; set; } = true;
+    public bool UndercutEchoMessages { get; set; } = true;
+    public bool HideUndercutInDuties { get; set; } = true;
     public PriceSource Source { get; set; } = PriceSource.Universalis;
     public int MaximumAgeMinutes { get; set; } = 15;
     public bool UseMaximumPriceAge { get; set; }
@@ -77,6 +80,7 @@ public sealed class PluginConfig : IPluginConfiguration
             {
                 RetainerId = pair.Key,
                 RetainerName = pair.Value.RetainerName ?? string.Empty,
+                WorldId = pair.Value.WorldId,
                 RefreshedAt = pair.Value.RefreshedAt,
                 VentureId = pair.Value.VentureId,
                 VentureCompletesAt = pair.Value.VentureCompletesAt,

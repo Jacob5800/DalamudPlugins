@@ -25,6 +25,8 @@ internal sealed class MainWindow : Window
     private readonly Action<bool> setServerInfoBarShown;
     private readonly VentureController ventures;
     private readonly bool isTesting;
+    private readonly UndercutNotifier undercuts;
+    private readonly Func<bool> undercutsPaused;
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string lookupSearch = "";
     private string lookupSearchCache = "";
@@ -63,7 +65,8 @@ internal sealed class MainWindow : Window
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
-        Action<bool> setServerInfoBarShown, VentureController ventures, bool isTesting) : base("Retainer Pricer")
+        Action<bool> setServerInfoBarShown, VentureController ventures, bool isTesting,
+        UndercutNotifier undercuts, Func<bool> undercutsPaused) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
@@ -73,6 +76,7 @@ internal sealed class MainWindow : Window
         this.setServerInfoBarShown = setServerInfoBarShown;
         this.ventures = ventures;
         this.isTesting = isTesting;
+        (this.undercuts, this.undercutsPaused) = (undercuts, undercutsPaused);
         if (config.Source != PriceSource.Universalis)
         {
             config.Source = PriceSource.Universalis;
@@ -227,6 +231,7 @@ internal sealed class MainWindow : Window
         {
             if (ImGui.BeginTabItem("Price lookup")) { DrawManualLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
@@ -474,6 +479,12 @@ internal sealed class MainWindow : Window
 
     private void DrawSettings()
     {
+        var showInventoryMenu = config.ShowInventoryContextMenu;
+        if (ImGui.Checkbox("Show inventory right-click list options", ref showInventoryMenu))
+        {
+            config.ShowInventoryContextMenu = showInventoryMenu;
+            save();
+        }
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning);
         var strategy = (int)config.PriceStrategy;
         ImGui.SetNextItemWidth(260);
@@ -724,6 +735,44 @@ internal sealed class MainWindow : Window
         return $"{option.Name} · Lv {option.RetainerLevel} · {duration}";
     }
 
+    internal string ItemName(uint id) => itemChoices.FirstOrDefault(item => item.ItemId == id)?.Name ?? $"Item #{id}";
+
+    private void DrawUndercutNotifier()
+    {
+        ImGui.TextWrapped("Refresh all retainer listings at a summoning bell first. Start watching checks your saved prices against matching HQ/NQ listings on your home world every 60 seconds. Saved own-retainer IDs and listings with unknown owners are ignored. Universalis data and saved prices may be outdated; refresh snapshots after sales or repricing. This never changes a price.");
+        var echo = config.UndercutEchoMessages;
+        if (ImGui.Checkbox("Send Echo messages for new undercuts", ref echo)) { config.UndercutEchoMessages = echo; save(); }
+        var hide = config.HideUndercutInDuties;
+        if (ImGui.Checkbox("Pause and hide notifier in duties / instances", ref hide)) { config.HideUndercutInDuties = hide; save(); }
+        if (undercutsPaused()) { ImGui.TextDisabled("Notifier paused and results hidden while in a duty or instance."); return; }
+        ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
+        if (ImGui.Button("Refresh all retainer listings##undercut")) dispatch(controller.SnapshotAllRetainerListings);
+        ImGui.EndDisabled();
+        if (ImGui.Button(undercuts.Running ? "Stop watching##undercut" : "Start watching##undercut"))
+        { if (undercuts.Running) undercuts.Stop(); else undercuts.Start(); }
+        ImGui.SameLine();
+        ImGui.BeginDisabled(undercuts.Checking);
+        if (ImGui.Button("Check now##undercut")) undercuts.CheckNow();
+        ImGui.EndDisabled();
+        ImGui.TextWrapped(undercuts.Status);
+        if (ImGui.BeginTable("##undercuts", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        {
+            foreach (var title in new[] { "Item", "Retainer", "Your saved price", "Lowest competitor", "Snapshot", "Market data" }) ImGui.TableSetupColumn(title);
+            ImGui.TableHeadersRow();
+            foreach (var row in undercuts.Rows)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.TextUnformatted($"{ItemName(row.Listing.ItemId)} ({(row.Listing.IsHq ? "HQ" : "NQ")})");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Retainer);
+                ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.Listing.Price:N0}");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.LowestPrice:N0}");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.SnapshotAt.ToLocalTime().ToString("g"));
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.MarketAt.ToLocalTime().ToString("g"));
+            }
+            ImGui.EndTable();
+        }
+    }
+
     private void DrawHelp()
     {
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
@@ -733,6 +782,8 @@ internal sealed class MainWindow : Window
         }
         ImGui.TextWrapped("Quick guide: set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer or /retainer.");
+        ImGui.BulletText("Inventory right-click: five separate Add/Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
+        ImGui.BulletText("Undercut notifier: refresh your retainer listings, then Start watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped.");
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");

@@ -63,6 +63,7 @@ public sealed record MarketSale(bool IsHq, uint PricePerUnit, uint WorldId, stri
 
 public sealed class RetainerListingCache
 {
+    public uint WorldId { get; set; }
     public ulong RetainerId { get; set; }
     public string RetainerName { get; set; } = string.Empty;
     public DateTimeOffset RefreshedAt { get; set; }

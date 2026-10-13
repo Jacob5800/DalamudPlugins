@@ -746,6 +746,7 @@ internal sealed class PricingController : IDisposable
         bridge.TryGetActiveRetainerVentureSnapshot(retainer, out var ventureId, out var ventureCompletesAt);
         config.UniversalisRetainerListings[retainer.RetainerId] = new RetainerListingCache
         {
+            WorldId = bridge.GetHomeWorld()?.WorldId ?? 0,
             RetainerId = retainer.RetainerId,
             RetainerName = retainer.Name,
             RefreshedAt = DateTimeOffset.UtcNow,

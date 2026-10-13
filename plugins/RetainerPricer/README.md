@@ -49,3 +49,9 @@ Saved retainer snapshots include **Time left in venture**; refresh snapshots to 
 
 The Ventures table expands with the window and has resizable columns, with extra width for Which Venture.
 
+
+## Inventory list shortcuts and undercut notifications
+
+Inventory right-click menus provide separate Add/Remove entries for Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Disable all five using Settings → Show inventory right-click list options (enabled by default). Entries apply to both HQ and NQ. Batch entries start at 10 per listing with no total limit; edit their quantities in Batch selling. Existing Exceptions and saved gear-set protections still take priority.
+
+Undercut notifier compares saved retainer listing prices with home-world Universalis listings of the same quality every 60 seconds while watching. Refresh all retainer listings first and after sales or repricing. Snapshot and market-data timestamps are shown; this is cached market information, not a guarantee that an undercut remains available. Unknown owners and saved own-retainer IDs are ignored. Echo alerts can be turned off and repeat alerts for the same retainer/item/quality/saved-price are suppressed for the plugin session. Pause and hide in duties / instances is enabled by default. It never changes prices.
