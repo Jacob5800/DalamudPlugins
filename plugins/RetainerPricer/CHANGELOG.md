@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.5.0.3 (testing)
+
+- Added a specific-item search and picker in Sniper. All marketable items remains the default. Select an item before Start watching to scan only its history and watch new HQ/NQ listings for that item in the selected market scope. Choose All marketable items to return to the full scan.
+
 ## 0.5.0.2
 
 - Sniper scans history in 100-item batches with up to six batches running concurrently. Removed the fixed one-second pause between batches. All plugin requests still share limits of 25 requests per second and eight active connections; scan speed depends on Universalis response times.

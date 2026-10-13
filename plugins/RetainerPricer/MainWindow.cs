@@ -28,6 +28,8 @@ internal sealed class MainWindow : Window
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
     private readonly Dictionary<ulong, string> ventureSearches = [];
+    private string sniperItemSearch = "";
+    private ItemChoice? sniperItemSelection;
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
@@ -939,7 +941,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Bound items can be sold only when whitelisted; Exceptions and saved gear-set items stay protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
-        ImGui.BulletText("Sniper: choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries with up to 6 concurrent batches within shared request limits, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows separate Data Center, Server and Quantity, then show price, median, discount, sales/day, latest-sale age, estimated profit/item and savings/item. Stack purchase cost is on Quantity and Listing hover. Hover values for explanations; whole-stack profit and savings are included in the per-item tooltips. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately; 1-gil alerts bypass them. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
+        ImGui.BulletText("Sniper: all marketable items is the default; search and select a specific item to scan its history and watch only its new listings. Choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries with up to 6 concurrent batches within shared request limits, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows separate Data Center, Server and Quantity, then show price, median, discount, sales/day, latest-sale age, estimated profit/item and savings/item. Stack purchase cost is on Quantity and Listing hover. Hover values for explanations; whole-stack profit and savings are included in the per-item tooltips. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately; 1-gil alerts bypass them. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
         ImGui.BulletText("Ventures: opt in with Run ventures. Each retainer defaults to Quick Exploration; available item tasks are generated from its job and level, and gathering jobs are filtered by your Gathering Log. Open the retainer picker at a summoning bell to load your roster, then select a task in Which Venture? Refresh available ventures after unlocking new gathering items. You can choose whether to assign the selected venture to idle retainers and whether to repeat completed ventures. Jobs are auto-detected and can be overridden per retainer. The cycle does not use or require AutoRetainer.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
@@ -1018,6 +1020,18 @@ internal sealed class MainWindow : Window
 
         var isRunning = sniper.IsRunning;
         ImGui.BeginDisabled(isRunning);
+        ImGui.SetNextItemWidth(300);
+        if (ImGui.InputText("Search specific item##sniper", ref sniperItemSearch, 128)) sniperItemSelection = null;
+        if (ImGui.BeginCombo("Item to watch##sniper", sniperItemSelection?.Name ?? "All marketable items"))
+        {
+            if (ImGui.Selectable("All marketable items", sniperItemSelection is null))
+            { sniperItemSelection = null; sniperItemSearch = ""; }
+            if (!string.IsNullOrWhiteSpace(sniperItemSearch))
+                foreach (var item in itemChoices.Where(item => item.Name.Contains(sniperItemSearch.Trim(), StringComparison.CurrentCultureIgnoreCase)).Take(100))
+                    if (ImGui.Selectable($"{item.Name}##sniperItem{item.ItemId}", sniperItemSelection?.ItemId == item.ItemId)) sniperItemSelection = item;
+            ImGui.EndCombo();
+        }
+        ImGui.TextDisabled(sniperItemSelection is null ? "Watching all marketable items. Search and select an item to limit the scan." : "Only the selected item is scanned and watched for new listings, in both HQ and NQ.");
         ImGui.TextUnformatted("Market scope");
         var worldScope = !config.SniperUseDataCenterPrices && !config.SniperUseRegionPrices;
         if (ImGui.RadioButton("World", worldScope))
@@ -1076,7 +1090,7 @@ internal sealed class MainWindow : Window
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
-        if (ImGui.Button("Start watching")) sniper.Start(world, config.SniperUseDataCenterPrices, config.SniperUseRegionPrices);
+        if (ImGui.Button("Start watching")) sniper.Start(world, config.SniperUseDataCenterPrices, config.SniperUseRegionPrices, sniperItemSelection?.ItemId);
         ImGui.PopStyleColor(3);
         ImGui.EndDisabled();
         if (sniper.IsRunning)

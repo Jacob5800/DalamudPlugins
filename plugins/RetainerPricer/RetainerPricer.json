@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.2",
+  "AssemblyVersion": "0.5.0.3",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "### 0.5.0.2\n\n- Sniper scans history in 100-item batches with up to six batches running concurrently. Removed the fixed one-second pause between batches. All plugin requests still share limits of 25 requests per second and eight active connections; scan speed depends on Universalis response times.\n- Renamed Sniper's Listing column to Listing price.\n- Sniper hides the Data Center column in World and Data Center scope, and shows it in Region scope.",
+  "Changelog": "### 0.5.0.3 (testing)\n\n- Added a specific-item search and picker in Sniper. All marketable items remains the default. Select an item before Start watching to scan only its history and watch new HQ/NQ listings for that item in the selected market scope. Choose All marketable items to return to the full scan.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

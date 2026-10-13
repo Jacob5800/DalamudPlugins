@@ -12,6 +12,7 @@ internal sealed class SniperMonitor : IDisposable
         public Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline> Baselines { get; } = [];
         public HashSet<uint> CompletedHistoryItemIds { get; } = [];
         public Dictionary<string, UniversalisListing> PendingLiveListings { get; } = new(StringComparer.Ordinal);
+        public HashSet<uint> WatchedItemIds { get; init; } = [];
         public int DroppedPendingListings { get; set; }
     }
 
@@ -51,14 +52,16 @@ internal sealed class SniperMonitor : IDisposable
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
 
-    public void Start(MarketWorld? world, bool useDataCenter, bool useRegion)
+    public void Start(MarketWorld? world, bool useDataCenter, bool useRegion, uint? selectedItemId = null)
     {
         if (world is null)
         {
             SetStatus("Log in to start Sniper.");
             return;
         }
-        var watchedItems = marketableItems;
+        IReadOnlyList<ItemChoice> watchedItems = selectedItemId is { } id
+            ? marketableItems.Where(item => item.ItemId == id).ToArray() : marketableItems;
+        if (watchedItems.Count == 0) { SetStatus("Select a marketable item before starting Sniper."); return; }
         CancellationTokenSource run;
         lock (gate)
         {
@@ -97,7 +100,7 @@ internal sealed class SniperMonitor : IDisposable
             if (watchedWorlds.Count == 0)
                 throw new InvalidOperationException("The selected Sniper scope did not contain any supported worlds.");
 
-            var runState = new RunState();
+            var runState = new RunState { WatchedItemIds = watchedItems.Select(item => item.ItemId).ToHashSet() };
             lock (gate)
             {
                 initialScanRunning = true;
@@ -322,6 +325,7 @@ internal sealed class SniperMonitor : IDisposable
     private void ProcessLiveListingLocked(UniversalisListing listing, MarketWorld world, SniperMarketScope scope,
         IReadOnlySet<uint> watchedWorlds, RunState runState, double threshold, int minimumItemPrice)
     {
+        if (!runState.WatchedItemIds.Contains(listing.ItemId)) return;
         var eventKey = ListingEventKey(listing);
         if (listing.IsRemoved)
         {
