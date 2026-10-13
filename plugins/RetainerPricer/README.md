@@ -69,3 +69,5 @@ Start listing items and Start batch selling only save the active retainer's full
 A yellow Start venture cycle shortcut sits beside Start batch selling only at the top. The existing button in Ventures remains available. Both use the same venture settings and require Run ventures to be enabled.
 
 Percentage undercut accepts up to two decimal places within 1–100%, for example 5.2%. Existing whole-number settings are preserved. The resulting asking price rounds down to whole gil.
+
+Undercut notifier shows Last recorded sale beside Lowest competitor, using the latest matching-quality sale returned within the last 30 days. Hover for the sale timestamp. Missing sales do not suppress undercut alerts.

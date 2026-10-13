@@ -1,7 +1,7 @@
 namespace RetainerPricer;
 
 internal sealed record UndercutRow(ulong RetainerId, string Retainer, RetainerListingCacheEntry Listing,
-    uint LowestPrice, DateTimeOffset SnapshotAt, DateTimeOffset MarketAt);
+    uint LowestPrice, DateTimeOffset SnapshotAt, DateTimeOffset MarketAt, MarketSale? LastRecordedSale);
 
 internal sealed class UndercutNotifier : IDisposable
 {
@@ -109,7 +109,10 @@ internal sealed class UndercutNotifier : IDisposable
                         if (lowest < listing.Price)
                         {
                             var row = new UndercutRow(retainer.RetainerId, retainer.RetainerName, listing, lowest,
-                                retainer.RefreshedAt, prices.ObservedAt);
+                                retainer.RefreshedAt, prices.ObservedAt, (prices.Sales ?? [])
+                                    .Where(sale => sale.IsHq == listing.IsHq && sale.PricePerUnit > 0 &&
+                                        sale.SoldAt <= DateTimeOffset.UtcNow && DateTimeOffset.UtcNow - sale.SoldAt <= PriceCalculator.RequiredSaleHistoryWindow)
+                                    .OrderByDescending(sale => sale.SoldAt).FirstOrDefault());
                             if (!rows.Any(existing => Key(existing) == Key(row))) rows.Add(row);
                         }
                     }

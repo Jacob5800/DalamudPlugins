@@ -812,9 +812,9 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Check now##undercut")) undercuts.CheckNow();
         ImGui.EndDisabled();
         ImGui.TextWrapped(undercuts.Status);
-        if (ImGui.BeginTable("##undercuts", 6, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable("##undercuts", 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
-            foreach (var title in new[] { "Item", "Retainer", "Your saved price", "Lowest competitor", "Snapshot", "Market data" }) ImGui.TableSetupColumn(title);
+            foreach (var title in new[] { "Item", "Retainer", "Your saved price", "Lowest competitor", "Last recorded sale", "Snapshot", "Market data" }) ImGui.TableSetupColumn(title);
             ImGui.TableHeadersRow();
             foreach (var row in undercuts.Rows)
             {
@@ -823,6 +823,10 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Retainer);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.Listing.Price:N0}");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted($"{row.LowestPrice:N0}");
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? $"{sale.PricePerUnit:N0}" : "No sale in 30 days");
+                if (ImGui.IsItemHovered() && row.LastRecordedSale is { } lastSale)
+                    ImGui.SetTooltip($"Last matching-quality sale: {lastSale.SoldAt.ToLocalTime():g} · {lastSale.PricePerUnit:N0} gil each");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.SnapshotAt.ToLocalTime().ToString("g"));
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.MarketAt.ToLocalTime().ToString("g"));
             }
@@ -840,7 +844,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage with up to two decimal places), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
-        ImGui.BulletText("Undercut notifier: World-scope Sniper watching also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped.");
+        ImGui.BulletText("Undercut notifier: World-scope Sniper watching also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 30 days; hover for its date.");
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");

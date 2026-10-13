@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.54.0
+- Added Last recorded sale beside Lowest competitor in Undercut notifier. Shows the latest same-quality sale price, with its date on hover, or no sale in the last 30 days.
+
 ## 0.4.53.0
 - Clarified the listing progress and help text for pricing from recent sales when no competitors exist.
 
