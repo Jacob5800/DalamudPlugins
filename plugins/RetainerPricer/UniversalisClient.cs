@@ -212,9 +212,9 @@ public sealed class UniversalisClient : IDisposable
         if (string.IsNullOrWhiteSpace(scope.Name) || itemIds.Count is 0 or > SniperHistoryBatchSize ||
             itemIds.Any(itemId => itemId == 0) || homeWorldId == 0)
             throw new ArgumentException($"Select a valid market scope, 1 to {SniperHistoryBatchSize} items, and a home world before fetching sales history.");
-        historyDays = Math.Clamp(historyDays, 3, 14);
+        historyDays = Math.Clamp(historyDays, 0, 14);
         var itemIdsPath = string.Join(',', itemIds.Distinct());
-        var historyWindowSeconds = historyDays * 24 * 60 * 60;
+        var historyWindowSeconds = historyDays == 0 ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : historyDays * 24L * 60 * 60;
         var escapedScope = Uri.EscapeDataString(scope.Name);
         var path = $"history/{escapedScope}/{itemIdsPath}?entriesToReturn={SniperHistoryEntryLimit}&entriesWithin={historyWindowSeconds}";
         Exception? lastRetryFailure = null;
@@ -361,7 +361,7 @@ public sealed class UniversalisClient : IDisposable
     private static SniperSalesSnapshot ParseSniperItem(uint itemId, uint homeWorldId, JsonElement entries,
         DateTimeOffset retrievedAt, int historyDays)
     {
-        var minimumTimestamp = retrievedAt.AddDays(-historyDays).ToUnixTimeSeconds();
+        var minimumTimestamp = historyDays == 0 ? 1 : retrievedAt.AddDays(-historyDays).ToUnixTimeSeconds();
         var sales = new List<SniperSale>();
         foreach (var entry in entries.EnumerateArray())
         {

@@ -1022,6 +1022,7 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(isRunning);
         ImGui.SetNextItemWidth(300);
         if (ImGui.InputText("Search specific item##sniper", ref sniperItemSearch, 128)) sniperItemSelection = null;
+        if (sniperItemSelection is not null) ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.6f, 0.15f, 1f));
         if (ImGui.BeginCombo("Item to watch##sniper", sniperItemSelection?.Name ?? "All marketable items"))
         {
             if (ImGui.Selectable("All marketable items", sniperItemSelection is null))
@@ -1031,7 +1032,9 @@ internal sealed class MainWindow : Window
                     if (ImGui.Selectable($"{item.Name}##sniperItem{item.ItemId}", sniperItemSelection?.ItemId == item.ItemId)) sniperItemSelection = item;
             ImGui.EndCombo();
         }
-        ImGui.TextDisabled(sniperItemSelection is null ? "Watching all marketable items. Search and select an item to limit the scan." : "Only the selected item is scanned and watched for new listings, in both HQ and NQ.");
+        if (sniperItemSelection is not null) ImGui.PopStyleColor();
+        if (sniperItemSelection is not null) ImGui.TextColored(new Vector4(1f, 0.6f, 0.15f, 1f), $"Specific item only: {sniperItemSelection.Name} (HQ and NQ)");
+        else ImGui.TextDisabled("Watching all marketable items. Search and select an item to limit the scan.");
         ImGui.TextUnformatted("Market scope");
         var worldScope = !config.SniperUseDataCenterPrices && !config.SniperUseRegionPrices;
         if (ImGui.RadioButton("World", worldScope))
@@ -1054,7 +1057,7 @@ internal sealed class MainWindow : Window
         ImGui.SameLine();
         var historyDays = config.SniperHistoryDays;
         ImGui.SetNextItemWidth(130);
-        if (ImGui.InputInt("History days (3–14)", ref historyDays))
+        if (ImGui.InputInt("History days (0–14; 0 = any age)", ref historyDays))
         {
             config.SniperHistoryDays = historyDays;
             config.Normalize();
@@ -1109,7 +1112,7 @@ internal sealed class MainWindow : Window
             ImGui.EndDisabled();
         }
         ImGui.TextWrapped(sniper.Status);
-        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {config.SniperHistoryDays}-day HQ/NQ median, with at least {config.SniperMinimumSales14Days} sales in that window. Up to 1,800 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
+        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to 1,800 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
         var showProfit = config.SniperShowProfitEstimates;
         if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
@@ -1164,7 +1167,7 @@ internal sealed class MainWindow : Window
             ImGui.TableSetupColumn("Quality", ImGuiTableColumnFlags.WidthFixed, 58);
             ImGui.TableSetupColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 70);
             ImGui.TableSetupColumn("Listing price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 100);
-            ImGui.TableSetupColumn($"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
+            ImGui.TableSetupColumn(config.SniperHistoryDays == 0 ? "Any-age median" : $"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
             ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
             ImGui.TableSetupColumn("Sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
             ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
@@ -1225,11 +1228,11 @@ internal sealed class MainWindow : Window
                 Cell(deal.PricePerUnit.ToString("N0"),
                     $"Listed price per item: {deal.PricePerUnit:N0} gil.\nStack before fees: {(ulong)deal.Quantity * deal.PricePerUnit:N0} gil.\nEstimated stack purchase: {deal.Quantity:N0} × {deal.PricePerUnit:N0} × (1 + {config.SniperPurchaseFeePercent:0.##}% fee) = {purchase:N0} gil, rounded up. Actual fees vary.", deal.IsOneGilAlert);
                 Cell(hasMedian ? deal.MedianSalePrice.ToString("N0") : "—", hasMedian
-                    ? $"Middle same-quality sale price from {deal.SalesInHistoryWindow:N0} recorded transactions in {deal.HistoryDays} days. History checked: {deal.HistoryFetchedAt?.ToLocalTime().ToString("g") ?? "unknown"}. Restart watching to refresh the baseline."
+                    ? $"Middle same-quality sale price from {deal.SalesInHistoryWindow:N0} recorded transactions {(deal.HistoryDays == 0 ? "of any age (returned sample only)" : $"in {deal.HistoryDays} days")}. History checked: {deal.HistoryFetchedAt?.ToLocalTime().ToString("g") ?? "unknown"}. Restart watching to refresh the baseline."
                     : missing);
                 Cell(hasMedian ? $"{deal.DiscountPercent:0.0}% cheaper" : "—", hasMedian
                     ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : missing);
-                Cell(deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—", hasMedian
+                Cell(deal.HistoryDays > 0 && deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—", deal.HistoryDays == 0 ? "Sales/day is unavailable with any-age history because there is no fixed time window." : hasMedian
                     ? $"{deal.SalesInHistoryWindow:N0} recorded transactions ÷ {deal.HistoryDays} days across the selected scope. History limits can underestimate busy markets. Demand on this server can differ." : missing);
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
                     ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing);

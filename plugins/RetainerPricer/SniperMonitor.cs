@@ -93,7 +93,7 @@ internal sealed class SniperMonitor : IDisposable
             status = $"Preparing to scan {watchedItems.Count:N0} marketable items using the selected market scope…";
         }
         _ = Task.Run(() => RunAsync(world, useDataCenter, useRegion, watchedItems, Math.Clamp(config.SniperMinimumSales14Days, 1, 1_800),
-            Math.Clamp(config.SniperThresholdFraction, 0.01, 1.0), Math.Clamp(config.SniperHistoryDays, 3, 14),
+            Math.Clamp(config.SniperThresholdFraction, 0.01, 1.0), Math.Clamp(config.SniperHistoryDays, 0, 14),
             Math.Clamp(config.SniperMinimumItemPrice, 1, 999_999_999), run.Token));
     }
 
@@ -307,7 +307,7 @@ internal sealed class SniperMonitor : IDisposable
                     }
                     processedItems += batch.Length;
                     completedBatches++;
-                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history · {completedBatches}/{batchCount} batches complete · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
+                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · {completedBatches}/{batchCount} batches complete · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
                     RefreshInitialScanStatusAndGetLocked(runState);
                 }
             }).ConfigureAwait(false);
@@ -457,7 +457,7 @@ internal sealed class SniperMonitor : IDisposable
     private string BuildListeningStatus(SniperMarketScope scope, int watchedWorldCount, int watchedItemCount,
         int historyDays, int minimumSales, HistoryScanSummary summary)
     {
-        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · {watchedItemCount:N0} watched items · {(summary.FailedItems > 0 || summary.FatalError is not null ? "Scan incomplete" : "History scan complete")}, {summary.EligibleItems:N0} with usable {historyDays}-day history · 1-gil alerts cover the watched items. Purchases are manual.";
+        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · {watchedItemCount:N0} watched items · {(summary.FailedItems > 0 || summary.FatalError is not null ? "Scan incomplete" : "History scan complete")}, {summary.EligibleItems:N0} with usable {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · 1-gil alerts cover the watched items. Purchases are manual.";
         status += " " + BuildHistorySummary(summary, watchedItemCount, minimumSales, historyDays);
         return status;
     }
@@ -468,7 +468,7 @@ internal sealed class SniperMonitor : IDisposable
         var details = new List<string>();
         if (summary.FailedItems > 0) details.Add($"{summary.FailedItems:N0} item(s) missing history because their requests failed. Use Retry failed items; ordinary deals for these items cannot be evaluated.");
         if (summary.EligibleItems == 0 && watchedItemCount > 0)
-            details.Add($"No item reached the minimum of {minimumSales} sales in {historyDays} days; ordinary deals need a usable baseline.");
+            details.Add($"No item reached the minimum of {minimumSales} sales {(historyDays == 0 ? "of any age" : $"in {historyDays} days")}; ordinary deals need a usable baseline.");
         if (summary.FailedBatches.Count > 0)
             details.Add($"{summary.FailedBatches.Count} history batch(es) failed; first error: {summary.FailedBatches[0]}.");
         if (summary.FatalError is { Length: > 0 })
