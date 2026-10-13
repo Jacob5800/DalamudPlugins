@@ -261,7 +261,7 @@ internal sealed class MainWindow : Window
         }
 
         var version = typeof(MainWindow).Assembly.GetName().Version;
-        var versionLabel = version is null ? "Version unavailable" : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+        var versionLabel = version is null ? "Version unavailable" : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
         if (isTesting) versionLabel += " (testing)";
         ImGui.SetCursorPos(new Vector2(ImGui.GetStyle().WindowPadding.X,
             ImGui.GetWindowHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetTextLineHeight()));
@@ -1505,7 +1505,7 @@ internal sealed class MainWindow : Window
         if (feedbackSending || string.IsNullOrWhiteSpace(feedbackMessage)) return;
         var submittedMessage = feedbackMessage.Trim();
         var version = typeof(MainWindow).Assembly.GetName().Version;
-        var versionLabel = version is null ? "unknown" : $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+        var versionLabel = version is null ? "unknown" : $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
         if (isTesting) versionLabel += " (testing)";
         feedbackSending = true;
         feedbackStatus = "Sending your note…";
