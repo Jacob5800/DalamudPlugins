@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.44.0
+- Added custom 1–10,000 gil and 1–100% undercut rules. Their amount inputs appear only when selected.
+- Inventory right-click Add options are green; Remove options are red.
+
 ## 0.4.43.0
 - Added separate inventory right-click Add/Remove options for Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Enable or disable them in Settings; enabled by default.
 - Added Undercut notifier with saved-price comparisons, optional Echo alerts, and an option to pause and hide in duties.

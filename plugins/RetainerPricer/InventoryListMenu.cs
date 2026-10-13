@@ -1,5 +1,6 @@
 using Dalamud.Game.Gui.ContextMenu;
 using Dalamud.Plugin.Services;
+using Dalamud.Game.Text.SeStringHandling;
 
 namespace RetainerPricer;
 
@@ -28,7 +29,7 @@ internal sealed class InventoryListMenu : IDisposable
         var removeBatch = config.BatchSaleQuantities.ContainsKey(id);
         args.AddMenuItem(new MenuItem
         {
-            Name = $"{(removeBatch ? "Remove from" : "Add to")} batch selling",
+            Name = ColoredName(removeBatch, "batch selling"),
             OnClicked = _ =>
             {
                 if (removeBatch)
@@ -49,7 +50,7 @@ internal sealed class InventoryListMenu : IDisposable
         var remove = list.Contains(id);
         args.AddMenuItem(new MenuItem
         {
-            Name = $"{(remove ? "Remove from" : "Add to")} {name}",
+            Name = ColoredName(remove, name),
             OnClicked = _ =>
             {
                 if (remove) list.RemoveAll(value => value == id);
@@ -58,6 +59,11 @@ internal sealed class InventoryListMenu : IDisposable
             }
         });
     }
+
+    private static SeString ColoredName(bool remove, string list) => new SeStringBuilder()
+        .AddUiForeground((ushort)(remove ? 17 : 45))
+        .AddText($"{(remove ? "Remove from" : "Add to")} {list}")
+        .AddUiForegroundOff().Build();
 
     public void Dispose() => menus.OnMenuOpened -= OnMenuOpened;
 }

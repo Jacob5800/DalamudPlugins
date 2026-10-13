@@ -19,6 +19,8 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool UseRegionPrices { get; set; }
     public int MinimumPrice { get; set; } = 1;
     public PriceStrategy PriceStrategy { get; set; } = PriceStrategy.UndercutByOne;
+    public int UndercutGilAmount { get; set; } = 1;
+    public int UndercutPercentage { get; set; } = 1;
     public bool RunVentures { get; set; }
     public bool AssignQuickExplorationWhenIdle { get; set; } = true;
     public bool RepeatCompletedVentures { get; set; } = true;
@@ -51,6 +53,8 @@ public sealed class PluginConfig : IPluginConfiguration
     {
         if (!Enum.IsDefined(Source)) Source = PriceSource.Universalis;
         if (!Enum.IsDefined(PriceStrategy)) PriceStrategy = PriceStrategy.UndercutByOne;
+        UndercutGilAmount = Math.Clamp(UndercutGilAmount, 1, 10_000);
+        UndercutPercentage = Math.Clamp(UndercutPercentage, 1, 100);
         RetainerVentureJobOverrides = (RetainerVentureJobOverrides ?? [])
             .Where(pair => pair.Key != 0 && Enum.IsDefined(pair.Value) && pair.Value != RetainerVentureJob.Auto)
             .ToDictionary(pair => pair.Key, pair => pair.Value);

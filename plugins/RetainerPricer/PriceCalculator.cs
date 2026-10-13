@@ -18,7 +18,8 @@ public static class PriceCalculator
         DateTimeOffset now,
         TimeSpan? maxAge,
         string? dataCenterName = null,
-        PriceStrategy strategy = PriceStrategy.UndercutByOne)
+        PriceStrategy strategy = PriceStrategy.UndercutByOne,
+        int undercutGilAmount = 1, int undercutPercentage = 1)
     {
         static PriceProposal Fail(string message, uint lowest = 0, int count = 0) => new(lowest, 0, count, message);
 
@@ -75,10 +76,16 @@ public static class PriceCalculator
         }
         if (snapshot.Source == PriceSource.Universalis && !hasRecentSale)
             return Fail("Universalis has no sale history for this item in the last 20 days. No price will be applied.", lowest, matches);
-        if (strategy == PriceStrategy.UndercutByOne && lowest == 1)
+        if (strategy != PriceStrategy.MatchLowest && lowest == 1)
             return Fail("The lowest competing price is already 1 gil and cannot be undercut.", lowest, matches);
 
-        var suggested = strategy == PriceStrategy.MatchLowest ? lowest : lowest - 1;
+        var suggested = strategy switch
+        {
+            PriceStrategy.MatchLowest => lowest,
+            PriceStrategy.UndercutByAmount => (uint)Math.Max(1L, (long)lowest - Math.Clamp(undercutGilAmount, 1, 10_000)),
+            PriceStrategy.UndercutByPercentage => (uint)Math.Max(1L, (long)lowest * (100 - Math.Clamp(undercutPercentage, 1, 100)) / 100),
+            _ => lowest - 1
+        };
         var floor = Math.Max(1u, minimumPrice);
         if (suggested < floor)
             return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches);

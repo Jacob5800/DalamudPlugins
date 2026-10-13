@@ -488,14 +488,25 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning);
         var strategy = (int)config.PriceStrategy;
         ImGui.SetNextItemWidth(260);
-        if (ImGui.Combo("Pricing rule", ref strategy, "Match lowest listing\0Undercut by 1 gil\0"))
+        if (ImGui.Combo("Pricing rule", ref strategy, "Match lowest listing\0Undercut by 1 gil\0Custom gil amount\0Percentage\0"))
         {
             config.PriceStrategy = (PriceStrategy)strategy;
             save();
         }
-        ImGui.TextDisabled(config.PriceStrategy == PriceStrategy.MatchLowest
-            ? "Match the lowest eligible competing listing of the same quality."
-            : "Set prices 1 gil below the lowest eligible competing listing of the same quality.");
+        if (config.PriceStrategy is PriceStrategy.UndercutByAmount or PriceStrategy.UndercutByPercentage)
+        {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(110);
+            var amount = config.PriceStrategy == PriceStrategy.UndercutByAmount ? config.UndercutGilAmount : config.UndercutPercentage;
+            if (ImGui.InputInt(config.PriceStrategy == PriceStrategy.UndercutByAmount ? "gil##undercutAmount" : "%##undercutAmount", ref amount))
+            {
+                if (config.PriceStrategy == PriceStrategy.UndercutByAmount) config.UndercutGilAmount = amount;
+                else config.UndercutPercentage = amount;
+                config.Normalize(); save();
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Gil: 1–10,000. Percentage: 1–100%, rounded down to whole gil. Prices never go below 1 gil; your minimum and price-drop review still apply.");
+        }
+        ImGui.TextDisabled($"Pricing rule: {PricingRuleName} · same-quality competing listings.");
         ImGui.Separator();
         var minimum = config.MinimumPrice;
         ImGui.SetNextItemWidth(160);
@@ -780,9 +791,9 @@ internal sealed class MainWindow : Window
             ImGui.EndChild();
             return;
         }
-        ImGui.TextWrapped("Quick guide: set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
+        ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer or /retainer.");
-        ImGui.BulletText("Inventory right-click: five separate Add/Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
+        ImGui.BulletText("Inventory right-click: green Add / red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
         ImGui.BulletText("Undercut notifier: refresh your retainer listings, then Start watching to check home-world Universalis prices every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped.");
         ImGui.Separator();
 
@@ -2002,8 +2013,13 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted($"{snapshot.Source}: {Age(snapshot.ObservedAt)} old · {snapshot.ObservedAt.ToLocalTime():HH:mm:ss}{history}{cached}");
     }
 
-    private string PricingRuleName => config.PriceStrategy == PriceStrategy.MatchLowest
-        ? "match lowest" : "undercut by 1 gil";
+    private string PricingRuleName => config.PriceStrategy switch
+    {
+        PriceStrategy.MatchLowest => "match lowest",
+        PriceStrategy.UndercutByAmount => $"undercut by {config.UndercutGilAmount:N0} gil",
+        PriceStrategy.UndercutByPercentage => $"undercut by {config.UndercutPercentage}%",
+        _ => "undercut by 1 gil"
+    };
 
     private static string PriceAge(DateTimeOffset time)
     {

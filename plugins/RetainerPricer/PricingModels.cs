@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace RetainerPricer;
 
 public enum PriceSource { Universalis, Local }
-public enum PriceStrategy { MatchLowest, UndercutByOne }
+public enum PriceStrategy { MatchLowest, UndercutByOne, UndercutByAmount, UndercutByPercentage }
 public enum RetainerVentureJob { Auto = 0, Combat = 1, Miner = 2, Botanist = 3, Fisher = 4 }
 internal static class RetainerVentureIds
 {

@@ -1788,7 +1788,7 @@ internal sealed class PricingController : IDisposable
         IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null)
         => PriceCalculator.Calculate(snapshot, itemId, worldId, isHq, ownRetainerIds, (uint)config.MinimumPrice,
             DateTimeOffset.UtcNow, config.UseMaximumPriceAge ? TimeSpan.FromMinutes(config.MaximumAgeMinutes) : null,
-            dataCenterName, config.PriceStrategy);
+            dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage);
 
     private bool IsNoReprice(uint itemId) => config.NoRepriceItemIds.Contains(itemId);
 
