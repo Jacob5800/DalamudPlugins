@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.49.0
+- Added a yellow Start venture cycle button beside Start batch selling only at the top of the window. The existing Ventures-tab button remains available.
+
 ## 0.4.48.0
 - Start listing items and Start batch selling only now refresh the current retainer's saved listings after each confirmed new listing. Undercut notifier can use these snapshots without starting watching automatically.
 

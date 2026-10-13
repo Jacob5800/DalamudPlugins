@@ -170,6 +170,18 @@ internal sealed class MainWindow : Window
             if (config.BatchSaleQuantities.Count == 0) ImGui.OpenPopup(EmptyBatchListPopup);
             else RequestListingStart(controller.StartBatchSellingOnly);
         }
+        ImGui.SameLine();
+        ImGui.BeginDisabled(sniper.IsRunning || !config.RunVentures);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.84f, 0.70f, 0.12f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.96f, 0.82f, 0.22f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.70f, 0.57f, 0.08f, 1));
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.08f, 0.07f, 0.02f, 1));
+        if (ImGui.Button(ventures.IsRunning ? "Venture cycle running...##topVentures" : "Start venture cycle##topVentures"))
+            dispatch(ventures.Start);
+        ImGui.PopStyleColor(4);
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(config.RunVentures ? "Start the configured venture cycle. Also available in Ventures." : "Enable Run ventures in the Ventures tab first.");
         ImGui.EndDisabled();
         if (ImGui.BeginPopupModal(EmptyBatchListPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -203,7 +215,7 @@ internal sealed class MainWindow : Window
             });
             ImGui.PopStyleColor(3);
         }
-        ImGui.TextDisabled("Auto update reprices retainers independently. Venture cycle is a separate action in the Ventures tab and uses Retainer Pricer's own controls.");
+        ImGui.TextDisabled("Auto update reprices retainers independently. Venture cycle is a separate action available here and in Ventures, using Retainer Pricer's own controls.");
         if (controller.Busy)
             ImGui.TextDisabled("The active listing task is highlighted. Stop cancels it; changes already submitted remain applied.");
         if (controller.StartListingAvailabilityError is { } pricingError) ImGui.TextWrapped(pricingError);
@@ -800,7 +812,7 @@ internal sealed class MainWindow : Window
 
         ImGui.TextUnformatted("Top buttons");
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
-        ImGui.BulletText("Venture cycle: at a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
+        ImGui.BulletText("Venture cycle: use the yellow top button or the existing Ventures-tab button. At a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
         ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers and does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
