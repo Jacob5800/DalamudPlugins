@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.57.0
+- Reorganized Sniper deals into Item, Data Center, Server, Quality, Quantity, Listing, sales median, Discount, Sales/day, Last sale age, estimated profit/item, and Savings/item.
+- Whole-stack purchase cost, profit and savings remain in hover explanations instead of separate columns.
+
 ## 0.4.56.0
 - Existing listings now supports retainer and item-name filters, clickable column sorting, and Last sold price with sale-date tooltips.
 - Added plain-language hover explanations to Sniper deal values. Whole-stack profit and savings are shown on hover over per-item values instead of separate columns.

@@ -18,7 +18,8 @@ public sealed record SniperSalesSnapshot(uint ItemId, uint WorldId, DateTimeOffs
 public sealed record SniperDeal(string Key, uint ItemId, string ItemName, uint WorldId, string WorldName,
     bool IsHq, uint PricePerUnit, uint Quantity, uint MedianSalePrice, int SalesInHistoryWindow,
     DateTimeOffset DetectedAt, string? ListingId, bool IsOneGilAlert = false,
-    int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null)
+    int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null,
+    string? DataCenterName = null)
 {
     public decimal DiscountPercent => MedianSalePrice > 0 ? (1m - (decimal)PricePerUnit / MedianSalePrice) * 100m : 0;
     public decimal SalesPerDay => (decimal)SalesInHistoryWindow / Math.Max(1, HistoryDays);

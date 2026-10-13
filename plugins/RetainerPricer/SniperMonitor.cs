@@ -379,15 +379,15 @@ internal sealed class SniperMonitor : IDisposable
 
         var listingWorldName = worldNames.TryGetValue(listing.WorldId, out var resolvedWorldName)
             ? resolvedWorldName : listing.WorldId == world.WorldId ? world.Name : $"World {listing.WorldId}";
-        if (scope.WorldDataCenterNames.TryGetValue(listing.WorldId, out var dataCenterName))
-            listingWorldName += $" ({dataCenterName})";
+        var dataCenterName = scope.WorldDataCenterNames.GetValueOrDefault(listing.WorldId)
+            ?? (listing.WorldId == world.WorldId ? world.DataCenterName : null);
         var dealKey = isOneGilAlert
             ? $"alert:{listing.WorldId}:{listing.ItemId}:{listing.IsHq}"
             : eventKey;
         var deal = new SniperDeal(dealKey, listing.ItemId, name, listing.WorldId, listingWorldName,
             listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
             baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert,
-            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt);
+            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt, dataCenterName);
         if (isOneGilAlert)
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
                 previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);

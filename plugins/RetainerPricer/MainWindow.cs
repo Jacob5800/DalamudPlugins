@@ -937,7 +937,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Bound items can be sold only when whitelisted; Exceptions and saved gear-set items stay protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
-        ImGui.BulletText("Sniper: choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows show discount, sales/day, purchase cost, savings, resale-profit estimates and latest-sale age. Hover values for explanations; whole-stack profit and savings are included in the per-item tooltips. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately; 1-gil alerts bypass them. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
+        ImGui.BulletText("Sniper: choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows separate Data Center, Server and Quantity, then show price, median, discount, sales/day, latest-sale age, estimated profit/item and savings/item. Stack purchase cost is on Quantity and Listing hover. Hover values for explanations; whole-stack profit and savings are included in the per-item tooltips. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately; 1-gil alerts bypass them. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
         ImGui.BulletText("Ventures: opt in with Run ventures. Each retainer defaults to Quick Exploration; available item tasks are generated from its job and level, and gathering jobs are filtered by your Gathering Log. Open the retainer picker at a summoning bell to load your roster, then select a task in Which Venture? Refresh available ventures after unlocking new gathering items. You can choose whether to assign the selected venture to idle retainers and whether to repeat completed ventures. Jobs are auto-detected and can be overridden per retainer. The cycle does not use or require AutoRetainer.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
@@ -1130,104 +1130,86 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDeals", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-                ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX | ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
+        if (ImGui.BeginTable("##sniperDealsLayoutV2", 12, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
+                ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
         {
-            ImGui.TableSetupColumn("Item");
-            ImGui.TableSetupColumn("Server");
+            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 220);
+            ImGui.TableSetupColumn("Data Center", ImGuiTableColumnFlags.WidthFixed, 100);
+            ImGui.TableSetupColumn("Server", ImGuiTableColumnFlags.WidthFixed, 110);
             ImGui.TableSetupColumn("Quality", ImGuiTableColumnFlags.WidthFixed, 58);
+            ImGui.TableSetupColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 70);
             ImGui.TableSetupColumn("Listing", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 82);
             ImGui.TableSetupColumn($"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
-            ImGui.TableSetupColumn("Sales", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 52);
-            ImGui.TableSetupColumn("Seen", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 68);
-            ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 78);
-            ImGui.TableSetupColumn("Sales/day", ImGuiTableColumnFlags.WidthFixed, 78);
-            ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("History checked", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 105);
+            ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
+            ImGui.TableSetupColumn("Sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
             ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Est. purchase/stack", ImGuiTableColumnFlags.WidthFixed, 125);
+            ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
-            ImGui.TableSetColumnEnabled(9, config.SniperShowProfitEstimates);
+            ImGui.TableSetColumnEnabled(10, config.SniperShowProfitEstimates);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             var sortedDeals = deals.ToList();
-            var sortSpecs = ImGui.TableGetSortSpecs();
-            if (sortSpecs.SpecsCount > 0)
+            var sorting = ImGui.TableGetSortSpecs();
+            if (sorting.SpecsCount > 0)
             {
-                var sortSpec = sortSpecs.Specs[0];
-                var ascending = sortSpec.SortDirection == ImGuiSortDirection.Ascending;
-                sortedDeals = sortSpec.ColumnIndex switch
+                var spec = sorting.Specs[0];
+                Func<SniperDeal, IComparable> key = spec.ColumnIndex switch
                 {
-                    0 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    1 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.WorldName, StringComparer.OrdinalIgnoreCase).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.WorldName, StringComparer.OrdinalIgnoreCase).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    2 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.IsHq).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.IsHq).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    3 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.PricePerUnit).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.PricePerUnit).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    4 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.MedianSalePrice).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.MedianSalePrice).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    5 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.SalesInHistoryWindow).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.SalesInHistoryWindow).ThenBy(deal => deal.ItemName, StringComparer.OrdinalIgnoreCase).ToList(),
-                    6 => ascending
-                        ? sortedDeals.OrderBy(deal => deal.DetectedAt).ToList()
-                        : sortedDeals.OrderByDescending(deal => deal.DetectedAt).ToList(),
-                    7 => ascending ? sortedDeals.OrderBy(deal => deal.DiscountPercent).ToList() : sortedDeals.OrderByDescending(deal => deal.DiscountPercent).ToList(),
-                    8 => ascending ? sortedDeals.OrderBy(deal => deal.SalesPerDay).ToList() : sortedDeals.OrderByDescending(deal => deal.SalesPerDay).ToList(),
-                    9 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent)).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent)).ToList(),
-                    10 => ascending ? sortedDeals.OrderBy(deal => deal.HistoryFetchedAt).ToList() : sortedDeals.OrderByDescending(deal => deal.HistoryFetchedAt).ToList(),
-                    11 => ascending ? sortedDeals.OrderBy(deal => deal.LastSaleAt).ToList() : sortedDeals.OrderByDescending(deal => deal.LastSaleAt).ToList(),
-                    12 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToList(),
-                    13 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToList(),
-                    _ => sortedDeals
+                    0 => deal => deal.ItemName,
+                    1 => deal => deal.DataCenterName ?? "",
+                    2 => deal => deal.WorldName,
+                    3 => deal => deal.IsHq,
+                    4 => deal => deal.Quantity,
+                    5 => deal => deal.PricePerUnit,
+                    6 => deal => deal.MedianSalePrice,
+                    7 => deal => deal.DiscountPercent,
+                    8 => deal => deal.SalesPerDay,
+                    9 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
+                    10 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
+                    _ => deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)
                 };
+                sortedDeals = spec.SortDirection == ImGuiSortDirection.Ascending
+                    ? sortedDeals.OrderBy(key).ThenBy(deal => deal.ItemName).ToList()
+                    : sortedDeals.OrderByDescending(key).ThenBy(deal => deal.ItemName).ToList();
+            }
+            void Cell(string text, string help, bool alert = false)
+            {
+                ImGui.TableNextColumn();
+                if (alert) ImGui.TextColored(new Vector4(1f, 0.35f, 0.25f, 1f), text);
+                else ImGui.TextWrapped(text);
+                SniperMetricHelp(help);
             }
             foreach (var deal in sortedDeals)
             {
                 ImGui.TableNextRow();
-                ImGui.TableNextColumn();
-                if (deal.IsOneGilAlert)
-                    ImGui.TextColored(new Vector4(1f, 0.35f, 0.25f, 1f), $"1 GIL ALERT · {deal.ItemName} · qty {deal.Quantity}");
-                else
-                    ImGui.TextWrapped($"{deal.ItemName} · qty {deal.Quantity}");
-                SniperMetricHelp($"{deal.ItemName}\nStack contains {deal.Quantity:N0} item(s). Purchases are manual; this listing may change or sell before you buy it.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.WorldName);
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.IsHq ? "HQ" : "NQ");
-                ImGui.TableNextColumn();
-                if (deal.IsOneGilAlert) ImGui.TextColored(new Vector4(1f, 0.35f, 0.25f, 1f), $"{deal.PricePerUnit:N0}");
-                else ImGui.TextUnformatted(deal.PricePerUnit.ToString("N0"));
-                SniperMetricHelp($"Listed asking price: {deal.PricePerUnit:N0} gil per item.\nWhole stack before fees: {(ulong)deal.PricePerUnit * deal.Quantity:N0} gil.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? deal.MedianSalePrice.ToString("N0") : "—");
-                SniperMetricHelp(deal.MedianSalePrice > 0
-                    ? $"Middle recorded same-quality sale price: {deal.MedianSalePrice:N0} gil each. Based on {deal.SalesInHistoryWindow:N0} recorded sales in the captured {deal.HistoryDays}-day window. Resale at this price is an estimate."
-                    : "This row has no qualifying sales baseline. 1-gil alerts appear without requiring sales history; value and profit are unknown.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.SalesInHistoryWindow > 0 ? deal.SalesInHistoryWindow.ToString("N0") : "—");
-                SniperMetricHelp($"Recorded sale transactions in the {deal.HistoryDays}-day history sample. History limits can omit older sales on busy markets.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.DetectedAt.ToLocalTime().ToString("HH:mm:ss"));
-                SniperMetricHelp($"Live listing received at {deal.DetectedAt.ToLocalTime():g}. This is when Sniper saw it, not a guarantee that it is still available.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? $"{deal.DiscountPercent:0.0}% cheaper" : "—");
-                SniperMetricHelp(deal.MedianSalePrice > 0 ? $"{deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0} gil: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : "Discount needs a qualifying sales median. A 1-gil alert can still appear without one.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—");
-                SniperMetricHelp($"{deal.SalesInHistoryWindow:N0} recorded transactions ÷ {deal.HistoryDays} days. Measures recorded sales activity across the selected scope, not guaranteed demand on this server. History limits can underestimate activity.");
-                var estimatedProfit = deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(estimatedProfit).ToString("N0") : "—");
-                SniperMetricHelp(deal.MedianSalePrice > 0 ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax)\n− {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(estimatedProfit * deal.Quantity):N0} gil estimated profit.\nDisplayed profit rounds down. Real sale prices and fees vary." : "Profit cannot be estimated without a qualifying sales median.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.HistoryFetchedAt is { } checkedAt ? Age(checkedAt) : "—");
-                SniperMetricHelp(deal.HistoryFetchedAt is { } fetched ? $"History fetched at {fetched.ToLocalTime():g}. Restart watching to refresh the initial sales baseline." : "No qualifying history baseline is attached to this alert.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.LastSaleAt is { } lastSaleAt ? Age(lastSaleAt) : "—");
-                SniperMetricHelp(deal.LastSaleAt is { } sold ? $"Most recent same-quality sale in this history sample: {sold.ToLocalTime():g}. Older sales mean the value estimate may be less current." : "No latest-sale timestamp is available for this alert.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToString("N0"));
-                SniperMetricHelp($"Estimated whole-stack purchase cost:\n{deal.Quantity:N0} items × {deal.PricePerUnit:N0} gil × (1 + {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee).\nRounded up to whole gil. Actual fees can vary.");
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToString("N0") : "—");
-                SniperMetricHelp(deal.MedianSalePrice > 0 ? $"Savings per item versus the sales median: {deal.MedianSalePrice:N0} gil − asking price including the {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee.\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) * deal.Quantity):N0} gil estimated savings.\nThis measures purchase savings, before any resale." : "Savings need a qualifying sales median.");
+                var hasMedian = deal.MedianSalePrice > 0;
+                var missing = "No qualifying same-quality sales baseline is attached to this row. 1-gil alerts do not require sales history, so value and profit can be unknown.";
+                var unitProfit = deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
+                var unitSaving = deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent);
+                var purchase = decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity);
+                Cell((deal.IsOneGilAlert ? "1 GIL ALERT · " : "") + deal.ItemName,
+                    $"{deal.ItemName}\nLive listing received: {deal.DetectedAt.ToLocalTime():g}. Purchases are manual; availability can change.", deal.IsOneGilAlert);
+                Cell(deal.DataCenterName ?? "—", "Data Center containing the listing's server. A dash means its Data Center could not be resolved.");
+                Cell(deal.WorldName, "Server where this listing was received. Visit this server to check and purchase it manually.");
+                Cell(deal.IsHq ? "HQ" : "NQ", "HQ and NQ sales are compared separately.");
+                Cell(deal.Quantity.ToString("N0"), $"{deal.Quantity:N0} items in this stack. Estimated purchase cost including the {config.SniperPurchaseFeePercent:0.##}% assumed fee: {purchase:N0} gil.");
+                Cell(deal.PricePerUnit.ToString("N0"),
+                    $"Listed price per item: {deal.PricePerUnit:N0} gil.\nStack before fees: {(ulong)deal.Quantity * deal.PricePerUnit:N0} gil.\nEstimated stack purchase: {deal.Quantity:N0} × {deal.PricePerUnit:N0} × (1 + {config.SniperPurchaseFeePercent:0.##}% fee) = {purchase:N0} gil, rounded up. Actual fees vary.", deal.IsOneGilAlert);
+                Cell(hasMedian ? deal.MedianSalePrice.ToString("N0") : "—", hasMedian
+                    ? $"Middle same-quality sale price from {deal.SalesInHistoryWindow:N0} recorded transactions in {deal.HistoryDays} days. History checked: {deal.HistoryFetchedAt?.ToLocalTime().ToString("g") ?? "unknown"}. Restart watching to refresh the baseline."
+                    : missing);
+                Cell(hasMedian ? $"{deal.DiscountPercent:0.0}% cheaper" : "—", hasMedian
+                    ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : missing);
+                Cell(deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—", hasMedian
+                    ? $"{deal.SalesInHistoryWindow:N0} recorded transactions ÷ {deal.HistoryDays} days across the selected scope. History limits can underestimate busy markets. Demand on this server can differ." : missing);
+                Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
+                    ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing);
+                Cell(hasMedian ? decimal.Floor(unitProfit).ToString("N0") : "—", hasMedian
+                    ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax) − {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitProfit * deal.Quantity):N0} gil estimated profit. Rounded down; real prices and fees vary." : missing);
+                Cell(hasMedian ? decimal.Floor(unitSaving).ToString("N0") : "—", hasMedian
+                    ? $"Purchase savings versus median: {deal.MedianSalePrice:N0} minus asking price including {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee.\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitSaving * deal.Quantity):N0} gil estimated savings. This is purchase savings before resale." : missing);
             }
             ImGui.EndTable();
         }
