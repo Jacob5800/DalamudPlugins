@@ -227,8 +227,8 @@ internal sealed class MainWindow : Window
         ImGui.SetNextItemWidth(250);
         ImGui.Combo("On-screen price check source", ref source, "Universalis\0");
         ImGui.TextWrapped(config.UseMaximumPriceAge
-            ? $"Check price again uses Universalis. Upload data older than {config.MaximumAgeMinutes} minutes is skipped. Automatic listing actions also require a sale in the last 20 days."
-            : "Check price again uses Universalis. Upload age is not filtered; automatic listing actions also require sales in the last 20 days.");
+            ? $"Check price again uses Universalis. Upload data older than {config.MaximumAgeMinutes} minutes is skipped. Automatic pricing uses current competing listings; 30-day sales are reference only."
+            : "Check price again uses Universalis. Upload age is not filtered; automatic pricing uses current competing listings; 30-day sales are reference only.");
         ImGui.EndDisabled();
         ImGui.Separator();
 
@@ -417,27 +417,32 @@ internal sealed class MainWindow : Window
         { config.PriceDrop10MPlusPercent = from10M; config.Normalize(); save(); }
         ImGui.EndDisabled();
         ImGui.Separator();
-        if (controller.Rows.Count != 0 && ImGui.BeginTable("##existingPrices", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY
+        var listingResults = controller.ExistingListingResults;
+        if (listingResults.Count != 0 && ImGui.BeginTable("##existingPrices", 10, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY
             | ImGuiTableFlags.Resizable, new Vector2(0, Math.Max(150, ImGui.GetContentRegionAvail().Y - 95))))
         {
             ImGui.TableSetupColumn("Item");
+            ImGui.TableSetupColumn("Retainer");
             ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.WidthFixed, 45);
             ImGui.TableSetupColumn("Current", ImGuiTableColumnFlags.WidthFixed, 74);
             ImGui.TableSetupColumn("Target", ImGuiTableColumnFlags.WidthFixed, 74);
+            ImGui.TableSetupColumn("30d sales median", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthFixed, 90);
             ImGui.TableSetupColumn("Age", ImGuiTableColumnFlags.WidthFixed, 55);
             ImGui.TableSetupColumn("Result");
             ImGui.TableSetupColumn("Action", ImGuiTableColumnFlags.WidthFixed, 132);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
-            foreach (var row in controller.Rows)
+            foreach (var row in listingResults)
             {
-                ImGui.PushID(row.Item.Slot);
+                ImGui.PushID($"{row.Item.Session.RetainerId}:{row.Item.Slot}");
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn(); ImGui.TextWrapped(row.Item.Name + (row.Item.IsHq ? " (HQ)" : ""));
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.RetainerName);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Item.Quantity.ToString("N0"));
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Item.CurrentPrice.ToString("N0"));
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Proposal is { CanApply: true } p ? p.SuggestedPrice.ToString("N0") : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Proposal?.SaleHistoryMedian is { } median ? median.ToString("N0") : "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Snapshot?.Source.ToString() ?? "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Snapshot is { } data ? Age(data.ObservedAt) : "—");
                 ImGui.TableNextColumn(); ImGui.TextWrapped(row.Status);
@@ -450,6 +455,29 @@ internal sealed class MainWindow : Window
                 ImGui.PopID();
             }
             ImGui.EndTable();
+        }
+        if (listingResults.Count == 0)
+        {
+            ImGui.TextDisabled("Saved listings · refresh at a summoning bell to update these snapshots.");
+            if (ImGui.BeginTable("##savedExistingListings", 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+            {
+                foreach (var title in new[] { "Item", "Retainer", "Qty", "Saved price", "Snapshot" }) ImGui.TableSetupColumn(title);
+                ImGui.TableHeadersRow();
+                foreach (var snapshot in controller.UniversalisRetainerSnapshots)
+                    foreach (var listing in snapshot.Listings)
+                    {
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn(); ImGui.TextUnformatted($"{ItemName(listing.ItemId)} ({(listing.IsHq ? "HQ" : "NQ")})");
+                        ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RetainerName);
+                        ImGui.TableNextColumn(); ImGui.TextUnformatted(listing.Quantity.ToString("N0"));
+                        ImGui.TableNextColumn(); ImGui.TextUnformatted(listing.Price.ToString("N0"));
+                        ImGui.TableNextColumn(); ImGui.TextUnformatted(snapshot.RefreshedAt.ToLocalTime().ToString("g"));
+                    }
+                ImGui.EndTable();
+            }
+            ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || vendor.IsRunning);
+            if (ImGui.Button("Refresh all retainer listings##existing")) dispatch(controller.SnapshotAllRetainerListings);
+            ImGui.EndDisabled();
         }
         ImGui.Separator();
         ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || sniper.IsRunning || vendor.IsRunning || !controller.HasRetainer);
@@ -843,7 +871,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
         ImGui.BulletText("Prices come from Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
-        ImGui.BulletText("Automatic listing and repricing require a current competing listing and a sale within the last 20 days. With the optional age filter off, old price uploads are still allowed; the recent-sale rule remains.");
+        ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, existing prices stay unchanged and new listings are skipped; the same-quality 30-day sales median is shown as reference only. The optional upload-age filter still applies.");
         ImGui.BulletText("Prices shown are per item and before tax. If there is no safe price, the plugin leaves that item unchanged.");
         ImGui.BulletText("Use this on your home world with a retainer's selling list open. Switching character, world, or active retainer, disconnecting, or entering a loading state stops the active run.");
 
@@ -2025,7 +2053,7 @@ internal sealed class MainWindow : Window
     {
         var history = snapshot.Source != PriceSource.Universalis ? ""
             : snapshot.MostRecentSaleAt is { } saleAt ? $" · last sale {Age(saleAt)} ago"
-            : " · no sale in the last 20 days";
+            : " · no sale in the last 30 days";
         var cached = snapshot.WasCached && snapshot.RetrievedAt is { } retrievedAt
             ? $" · cached {Age(retrievedAt)} ago" : "";
         ImGui.TextUnformatted($"{snapshot.Source}: {Age(snapshot.ObservedAt)} old · {snapshot.ObservedAt.ToLocalTime():HH:mm:ss}{history}{cached}");

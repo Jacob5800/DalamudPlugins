@@ -1,8 +1,9 @@
 namespace RetainerPricer;
 
-internal sealed class PriceRow(SellItem item)
+internal sealed class PriceRow(SellItem item, string retainerName = "")
 {
     public SellItem Item { get; } = item;
+    public string RetainerName { get; } = retainerName;
     public PriceSnapshot? Snapshot { get; set; }
     public PriceProposal? Proposal { get; set; }
     public string Status { get; set; } = "Waiting";
@@ -119,6 +120,9 @@ internal sealed class PricingController : IDisposable
     public string? ExceptionSaddlebagSnapshotError { get; private set; }
     public string? ListedSnapshotError { get; private set; }
     public List<PriceRow> Rows { get; } = [];
+    private readonly List<PriceRow> completedRetainerRows = [];
+    public IReadOnlyList<PriceRow> ExistingListingResults => work == Work.AutoUpdateAllRetainers
+        ? completedRetainerRows.Concat(Rows).Distinct().ToArray() : Rows;
     public PriceRow? PriceDropReviewItem => index >= Rows.Count && (work is Work.Scan or Work.AutoUpdateAllRetainers)
         ? Rows.FirstOrDefault(row => row.AwaitingPriceDropDecision)
         : null;
@@ -382,7 +386,7 @@ internal sealed class PricingController : IDisposable
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
         var scope = batchOnly ? "configured Batch selling item stack(s) only" : "eligible stack(s)";
-        Status = $"Automatically listing {batchCandidates.Count} {scope} using Universalis. Each item needs a current competing listing and a sale from the last 20 days.";
+        Status = $"Automatically listing {batchCandidates.Count} {scope} using Universalis. Each item needs a current competing listing. Sales from the last 30 days are reference only.";
     }
 
     public void SnapshotExceptionInventory()
@@ -494,7 +498,7 @@ internal sealed class PricingController : IDisposable
         if (total == 0) { Status = "This retainer has no listings."; return; }
         if (Rows.Count == 0) { Status = "All current listings are excluded, protected from repricing, or not marketable."; return; }
         work = Work.Scan;
-        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with Universalis ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). Items without a competing listing or a sale in the last 20 days will be left unchanged.";
+        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with Universalis ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). Items without a competing listing will be left unchanged; the 30-day sales median is reference only.";
     }
 
     public void ApprovePriceDrop()
@@ -593,6 +597,7 @@ internal sealed class PricingController : IDisposable
 
         autoRetainerIndex = 0;
         priceDropDecisionsThisRun.Clear();
+        completedRetainerRows.Clear();
         autoRetainerDialogueClicks = 0;
         autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
         autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
@@ -856,7 +861,8 @@ internal sealed class PricingController : IDisposable
         protectedCount = listings.Count(item => !excludedItemIds.Contains(item.ItemId) && IsNoReprice(item.ItemId));
         unmarketable = listings.Count(item => !excludedItemIds.Contains(item.ItemId) && !IsNoReprice(item.ItemId) && !marketableItemIds.Contains(item.ItemId));
         Rows.AddRange(listings.Where(item => marketableItemIds.Contains(item.ItemId) && !excludedItemIds.Contains(item.ItemId) && !IsNoReprice(item.ItemId))
-            .Select(item => new PriceRow(item)));
+            .Select(item => new PriceRow(item, autoRetainers.FirstOrDefault(retainer => retainer.RetainerId == active.RetainerId)?.Name
+                ?? config.UniversalisRetainerListings.GetValueOrDefault(active.RetainerId)?.RetainerName ?? $"#{active.RetainerId}")));
         session = active;
         step = Step.Start;
         workSource = PriceSource.Universalis;
@@ -1078,6 +1084,9 @@ internal sealed class PricingController : IDisposable
 
     private void FinishAutoUpdate()
     {
+        Rows.Clear();
+        Rows.AddRange(completedRetainerRows);
+        completedRetainerRows.Clear();
         var message = $"Auto update complete: {autoRetainersCompleted} retainer(s), {autoUpdated} listing(s) repriced, " +
             $"{autoAlreadyPriced} already at target, {autoSkipped} left unchanged, {autoUnavailableRetainers} unavailable, {autoEmptyRetainers} with no eligible listings.";
         autoRetainers.Clear();
@@ -1267,6 +1276,7 @@ internal sealed class PricingController : IDisposable
             var skipped = Rows.Count - updated - unchanged;
             if (work == Work.AutoUpdateAllRetainers)
             {
+                completedRetainerRows.AddRange(Rows);
                 autoUpdated += updated;
                 autoAlreadyPriced += unchanged;
                 autoSkipped += skipped;
@@ -1793,7 +1803,7 @@ internal sealed class PricingController : IDisposable
         IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null)
         => PriceCalculator.Calculate(snapshot, itemId, worldId, isHq, ownRetainerIds, (uint)config.MinimumPrice,
             DateTimeOffset.UtcNow, config.UseMaximumPriceAge ? TimeSpan.FromMinutes(config.MaximumAgeMinutes) : null,
-            dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage);
+            dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage, requireRecentSale: false);
 
     private bool IsNoReprice(uint itemId) => config.NoRepriceItemIds.Contains(itemId);
 
@@ -1817,6 +1827,11 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        if (work == Work.AutoUpdateAllRetainers)
+        {
+            Rows.InsertRange(0, completedRetainerRows.Where(row => !Rows.Contains(row)).ToArray());
+            completedRetainerRows.Clear();
+        }
         runVenturesAfterPriceUpdate = false;
         var wasBatchListing = work == Work.BatchListing;
         var wasSingleListing = work == Work.Single && autoApply;

@@ -1,5 +1,9 @@
 # Retainer Pricer changelog
 
+## 0.4.51.0
+- Current competing listings now drive all pricing actions without requiring recent sales. With no competitors, existing prices remain unchanged and new listings are skipped; same-quality 30-day sales medians are reference only.
+- Existing listings now retains item results across the whole retainer run, including skip reasons, and shows saved listings when no live results are available.
+
 ## 0.4.50.0
 - Percentage undercut pricing now accepts up to two decimal places, such as 5.2%.
 
