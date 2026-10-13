@@ -46,6 +46,12 @@ public sealed class PluginConfig : IPluginConfiguration
     public int SniperMinimumSales14Days { get; set; } = 5;
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
+    public double SniperMinimumDiscountPercent { get; set; }
+    public int SniperMinimumUnitProfit { get; set; }
+    public int SniperMinimumUnitSaving { get; set; }
+    public bool SniperShowProfitEstimates { get; set; } = true;
+    public double SniperResaleTaxPercent { get; set; } = 5;
+    public double SniperPurchaseFeePercent { get; set; } = 5;
     public bool SniperUseDataCenterPrices { get; set; }
     public bool SniperUseRegionPrices { get; set; }
 
@@ -99,6 +105,11 @@ public sealed class PluginConfig : IPluginConfiguration
         SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 1_800);
         SniperHistoryDays = Math.Clamp(SniperHistoryDays, 3, 14);
         SniperMinimumItemPrice = Math.Clamp(SniperMinimumItemPrice, 1, 999_999_999);
+        SniperMinimumDiscountPercent = double.IsFinite(SniperMinimumDiscountPercent) ? Math.Clamp(SniperMinimumDiscountPercent, 0, 100) : 0;
+        SniperMinimumUnitProfit = Math.Clamp(SniperMinimumUnitProfit, 0, 999_999_999);
+        SniperMinimumUnitSaving = Math.Clamp(SniperMinimumUnitSaving, 0, 999_999_999);
+        SniperResaleTaxPercent = double.IsFinite(SniperResaleTaxPercent) ? Math.Clamp(SniperResaleTaxPercent, 0, 100) : 5;
+        SniperPurchaseFeePercent = double.IsFinite(SniperPurchaseFeePercent) ? Math.Clamp(SniperPurchaseFeePercent, 0, 100) : 5;
         if (SniperUseRegionPrices) SniperUseDataCenterPrices = false;
     }
 

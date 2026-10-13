@@ -251,7 +251,8 @@ internal sealed class SniperMonitor : IDisposable
                             var median = orderedPrices.Length % 2 == 0
                                 ? (uint)(((ulong)orderedPrices[middle - 1] + orderedPrices[middle]) / 2)
                                 : orderedPrices[middle];
-                            batchBaselines[(itemId, qualitySales.Key)] = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median);
+                            batchBaselines[(itemId, qualitySales.Key)] = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median,
+                                historyDays, DateTimeOffset.UtcNow, qualitySales.Max(sale => sale.SoldAt));
                         }
                     }
                 }
@@ -380,7 +381,8 @@ internal sealed class SniperMonitor : IDisposable
             : eventKey;
         var deal = new SniperDeal(dealKey, listing.ItemId, name, listing.WorldId, listingWorldName,
             listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
-            baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert);
+            baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert,
+            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt);
         if (isOneGilAlert)
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
                 previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);

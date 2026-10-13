@@ -868,7 +868,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Don't reprice: block price changes to existing listings through Update existing listings, Auto update, or the current-item price controls. Refresh carried inventory to add a held item from the picker, or search the full item list. Read-only lookups still work. These items can still be listed from your carried inventory; use Exceptions to skip both listing and repricing.");
         ImGui.BulletText("Batch selling: choose items and set the maximum quantity in each listing. The optional total limit caps how much of that item is listed in one batch-only run; 0 means no total cap. Add current inventory adds marketable carried items using the current size and limit.");
         ImGui.BulletText("Retainer sell: summon a retainer, open “Sell items in your inventory,” set the price threshold, and start. Refresh carried inventory to select items for the Retainer sale whitelist; the picker also supports item-name search. Normal eligible stacks need a complete matching Universalis listing at or below the threshold and skip your own retainer listings. Items on the Retainer sale whitelist bypass marketability, price checks, and the threshold. All sales use “Have Retainer Sell Items” at NPC base price. Bound items can be sold only when whitelisted; Exceptions and saved gear-set items stay protected. The game decides whether a whitelisted item can be sold, and the plugin verifies each inventory change before continuing.");
-        ImGui.BulletText("Sniper: choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Click the Server header to group by server and the Listing header to sort prices high-to-low or low-to-high. Purchases are manual.");
+        ImGui.BulletText("Sniper: choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching scans all marketable items in batches of up to 100, spacing history queries at least one second apart, while the live feed runs. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows show discount, sales/day, purchase cost, savings, resale-profit estimates and latest-sale age. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately; 1-gil alerts bypass them. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
         ImGui.BulletText("Ventures: opt in with Run ventures. Each retainer defaults to Quick Exploration; available item tasks are generated from its job and level, and gathering jobs are filtered by your Gathering Log. Open the retainer picker at a summoning bell to load your roster, then select a task in Which Venture? Refresh available ventures after unlocking new gathering items. You can choose whether to assign the selected venture to idle retainers and whether to repeat completed ventures. Jobs are auto-detected and can be overridden per retainer. The cycle does not use or require AutoRetainer.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
@@ -1020,18 +1020,49 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped(sniper.Status);
         ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {config.SniperHistoryDays}-day HQ/NQ median, with at least {config.SniperMinimumSales14Days} sales in that window. Up to 1,800 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
-        var deals = sniper.Deals;
+        var showProfit = config.SniperShowProfitEstimates;
+        if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
+        { config.SniperShowProfitEstimates = showProfit; save(); }
+        if (ImGui.CollapsingHeader("Deal filters and fee assumptions"))
+        {
+            var discount = config.SniperMinimumDiscountPercent;
+            ImGui.SetNextItemWidth(130);
+            if (ImGui.InputDouble("Minimum discount % (0 = off)", ref discount, 1, 5, "%.1f"))
+            { config.SniperMinimumDiscountPercent = discount; config.Normalize(); save(); }
+            var profit = config.SniperMinimumUnitProfit;
+            ImGui.SetNextItemWidth(130);
+            if (ImGui.InputInt("Minimum estimated profit per item (0 = off)", ref profit))
+            { config.SniperMinimumUnitProfit = profit; config.Normalize(); save(); }
+            var saving = config.SniperMinimumUnitSaving;
+            ImGui.SetNextItemWidth(130);
+            if (ImGui.InputInt("Minimum savings per item (0 = off)", ref saving))
+            { config.SniperMinimumUnitSaving = saving; config.Normalize(); save(); }
+            var resaleTax = config.SniperResaleTaxPercent;
+            ImGui.SetNextItemWidth(130);
+            if (ImGui.InputDouble("Assumed resale tax %", ref resaleTax, 1, 5, "%.1f"))
+            { config.SniperResaleTaxPercent = resaleTax; config.Normalize(); save(); }
+            var purchaseFee = config.SniperPurchaseFeePercent;
+            ImGui.SetNextItemWidth(130);
+            if (ImGui.InputDouble("Assumed purchase fee %", ref purchaseFee, 1, 5, "%.1f"))
+            { config.SniperPurchaseFeePercent = purchaseFee; config.Normalize(); save(); }
+            ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts always show. Filters apply immediately to received deals.");
+        }
+        var allDeals = sniper.Deals;
+        var deals = allDeals.Where(deal => deal.IsOneGilAlert ||
+            (deal.DiscountPercent >= (decimal)config.SniperMinimumDiscountPercent &&
+             (config.SniperMinimumUnitSaving == 0 || deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitSaving) &&
+             (config.SniperMinimumUnitProfit == 0 || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit))).ToArray();
         ImGui.Separator();
-        ImGui.TextUnformatted($"Deals · {deals.Count}");
-        if (deals.Count == 0)
+        ImGui.TextUnformatted($"Deals · {deals.Length} shown · {allDeals.Count - deals.Length} hidden by filters");
+        if (deals.Length == 0)
         {
             ImGui.TextDisabled(sniper.IsInitialScanRunning
                 ? "No qualifying new listings received yet; deals will appear as their history batches finish."
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDeals", 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-                ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable,
+        if (ImGui.BeginTable("##sniperDeals", 16, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX | ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
         {
             ImGui.TableSetupColumn("Item");
@@ -1039,8 +1070,19 @@ internal sealed class MainWindow : Window
             ImGui.TableSetupColumn("Quality", ImGuiTableColumnFlags.WidthFixed, 58);
             ImGui.TableSetupColumn("Listing", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 82);
             ImGui.TableSetupColumn($"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
-            ImGui.TableSetupColumn("Sales", ImGuiTableColumnFlags.WidthFixed, 52);
-            ImGui.TableSetupColumn("Seen", ImGuiTableColumnFlags.WidthFixed, 68);
+            ImGui.TableSetupColumn("Sales", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 52);
+            ImGui.TableSetupColumn("Seen", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 68);
+            ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 78);
+            ImGui.TableSetupColumn("Sales/day", ImGuiTableColumnFlags.WidthFixed, 78);
+            ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 100);
+            ImGui.TableSetupColumn("Est. profit/stack", ImGuiTableColumnFlags.WidthFixed, 105);
+            ImGui.TableSetupColumn("History checked", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.DefaultHide, 105);
+            ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
+            ImGui.TableSetupColumn("Est. purchase/stack", ImGuiTableColumnFlags.WidthFixed, 125);
+            ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
+            ImGui.TableSetupColumn("Savings/stack", ImGuiTableColumnFlags.WidthFixed, 105);
+            ImGui.TableSetColumnEnabled(9, config.SniperShowProfitEstimates);
+            ImGui.TableSetColumnEnabled(10, config.SniperShowProfitEstimates);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             var sortedDeals = deals.ToList();
@@ -1072,6 +1114,15 @@ internal sealed class MainWindow : Window
                     6 => ascending
                         ? sortedDeals.OrderBy(deal => deal.DetectedAt).ToList()
                         : sortedDeals.OrderByDescending(deal => deal.DetectedAt).ToList(),
+                    7 => ascending ? sortedDeals.OrderBy(deal => deal.DiscountPercent).ToList() : sortedDeals.OrderByDescending(deal => deal.DiscountPercent).ToList(),
+                    8 => ascending ? sortedDeals.OrderBy(deal => deal.SalesPerDay).ToList() : sortedDeals.OrderByDescending(deal => deal.SalesPerDay).ToList(),
+                    9 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent)).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent)).ToList(),
+                    10 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) * deal.Quantity).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) * deal.Quantity).ToList(),
+                    11 => ascending ? sortedDeals.OrderBy(deal => deal.HistoryFetchedAt).ToList() : sortedDeals.OrderByDescending(deal => deal.HistoryFetchedAt).ToList(),
+                    12 => ascending ? sortedDeals.OrderBy(deal => deal.LastSaleAt).ToList() : sortedDeals.OrderByDescending(deal => deal.LastSaleAt).ToList(),
+                    13 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToList(),
+                    14 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToList(),
+                    15 => ascending ? sortedDeals.OrderBy(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) * deal.Quantity).ToList() : sortedDeals.OrderByDescending(deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) * deal.Quantity).ToList(),
                     _ => sortedDeals
                 };
             }
@@ -1091,6 +1142,16 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? deal.MedianSalePrice.ToString("N0") : "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.SalesInHistoryWindow > 0 ? deal.SalesInHistoryWindow.ToString("N0") : "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.DetectedAt.ToLocalTime().ToString("HH:mm:ss"));
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? $"{deal.DiscountPercent:0.0}% cheaper" : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—");
+                var estimatedProfit = deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(estimatedProfit).ToString("N0") : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(estimatedProfit * deal.Quantity).ToString("N0") : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.HistoryFetchedAt is { } checkedAt ? Age(checkedAt) : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.LastSaleAt is { } lastSaleAt ? Age(lastSaleAt) : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity).ToString("N0"));
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)).ToString("N0") : "—");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(deal.MedianSalePrice > 0 ? decimal.Floor(deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) * deal.Quantity).ToString("N0") : "—");
             }
             ImGui.EndTable();
         }

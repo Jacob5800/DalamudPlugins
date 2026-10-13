@@ -351,7 +351,7 @@ public sealed class UniversalisClient : IDisposable
                 !entry.TryGetProperty("pricePerUnit", out var price) || !price.TryGetUInt32(out var gil) || gil == 0 ||
                 !entry.TryGetProperty("hq", out var hq) || hq.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 continue;
-            sales.Add(new SniperSale(gil, hq.GetBoolean()));
+            sales.Add(new SniperSale(gil, hq.GetBoolean(), DateTimeOffset.FromUnixTimeSeconds(seconds)));
         }
 
         var qualities = new List<SniperQualityBaseline>(2);

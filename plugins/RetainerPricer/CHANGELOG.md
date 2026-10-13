@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.4.55.0
+- Sniper now shows discount, recorded sales per day, estimated purchase cost, savings, and estimated resale profit per item and stack. Profit columns are on by default and can be hidden.
+- Added optional minimum discount, savings and profit filters with configurable fee assumptions. 1-gil alerts bypass these filters.
+- Added latest-sale age and history-check age; deal columns can be sorted and hidden.
+
 ## 0.4.54.0
 - Added Last recorded sale beside Lowest competitor in Undercut notifier. Shows the latest same-quality sale price, with its date on hover, or no sale in the last 30 days.
 
