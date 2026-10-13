@@ -20,7 +20,7 @@ public static class PriceCalculator
         string? dataCenterName = null,
         PriceStrategy strategy = PriceStrategy.UndercutByOne,
         int undercutGilAmount = 1, double undercutPercentage = 1,
-        bool requireRecentSale = true)
+        bool requireRecentSale = true, bool allowSalesFallback = false)
     {
         static PriceProposal Fail(string message, uint lowest = 0, int count = 0, uint? salesMedian = null)
             => new(lowest, 0, count, message, salesMedian);
@@ -80,7 +80,9 @@ public static class PriceCalculator
                     : (uint)(((ulong)sales[sales.Length / 2 - 1] + sales[sales.Length / 2]) / 2);
             }
         }
-        if (matches == 0)
+        var usedSalesFallback = matches == 0 && allowSalesFallback && salesMedian.HasValue;
+        if (usedSalesFallback) lowest = salesMedian!.Value;
+        if (matches == 0 && !usedSalesFallback)
         {
             if (snapshot.Source == PriceSource.Universalis)
                 return Fail(salesMedian is { } median
@@ -105,6 +107,6 @@ public static class PriceCalculator
         if (suggested < floor)
             return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches);
 
-        return new(lowest, suggested, matches, null, salesMedian);
+        return new(lowest, suggested, matches, null, salesMedian, usedSalesFallback);
     }
 }

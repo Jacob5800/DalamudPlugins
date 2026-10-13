@@ -1797,13 +1797,14 @@ internal sealed class PricingController : IDisposable
     private PriceProposal Calculate(PriceSnapshot snapshot, SellItem item)
         => Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, bridge.OwnRetainerIds(),
             snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
-                ? item.Session.DataCenterName : null);
+                ? item.Session.DataCenterName : null, allowSalesFallback: !item.IsExisting);
 
     private PriceProposal Calculate(PriceSnapshot snapshot, uint itemId, uint worldId, bool isHq,
-        IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null)
+        IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null, bool allowSalesFallback = false)
         => PriceCalculator.Calculate(snapshot, itemId, worldId, isHq, ownRetainerIds, (uint)config.MinimumPrice,
             DateTimeOffset.UtcNow, config.UseMaximumPriceAge ? TimeSpan.FromMinutes(config.MaximumAgeMinutes) : null,
-            dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage, requireRecentSale: false);
+            dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage,
+            requireRecentSale: false, allowSalesFallback: allowSalesFallback);
 
     private bool IsNoReprice(uint itemId) => config.NoRepriceItemIds.Contains(itemId);
 

@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.52.0
+- New-item listing and batch selling use the same-quality 30-day sales median when no competing listings exist. The selected pricing rule and minimum price still apply. Items without usable sales or listings are skipped.
+
 ## 0.4.51.0
 - Current competing listings now drive all pricing actions without requiring recent sales. With no competitors, existing prices remain unchanged and new listings are skipped; same-quality 30-day sales medians are reference only.
 - Existing listings now retains item results across the whole retainer run, including skip reasons, and shows saved listings when no live results are available.

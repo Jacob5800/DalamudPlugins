@@ -89,7 +89,7 @@ public sealed record PriceSnapshot(
     IReadOnlyList<MarketSale>? Sales = null);
 
 public sealed record PriceProposal(uint LowestPrice, uint SuggestedPrice, int MatchingListings, string? Error,
-    uint? SaleHistoryMedian = null)
+    uint? SaleHistoryMedian = null, bool UsedSalesFallback = false)
 {
     public bool CanApply => Error is null;
 }

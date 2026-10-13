@@ -871,7 +871,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
         ImGui.BulletText("Prices come from Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
-        ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, existing prices stay unchanged and new listings are skipped; the same-quality 30-day sales median is shown as reference only. The optional upload-age filter still applies.");
+        ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, existing prices stay unchanged; new listings use the same-quality 30-day sales median with your pricing rule and minimum, or skip when recent sales are unavailable. The optional upload-age filter still applies.");
         ImGui.BulletText("Prices shown are per item and before tax. If there is no safe price, the plugin leaves that item unchanged.");
         ImGui.BulletText("Use this on your home world with a retainer's selling list open. Switching character, world, or active retainer, disconnecting, or entering a loading state stops the active run.");
 
