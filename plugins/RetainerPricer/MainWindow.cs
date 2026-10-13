@@ -1149,13 +1149,16 @@ internal sealed class MainWindow : Window
             ImGui.SetNextItemWidth(130);
             if (ImGui.InputDouble("Assumed purchase fee %", ref purchaseFee, 1, 5, "%.1f"))
             { config.SniperPurchaseFeePercent = purchaseFee; config.Normalize(); save(); }
-            ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts always show. Filters apply immediately to received deals.");
+            ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts bypass minimum filters. With Show estimated resale profit enabled, 1-gil alerts with a known estimated profit of zero or less are hidden; unknown-history alerts remain visible. Filters apply immediately to received deals.");
         }
         var allDeals = sniper.Deals;
-        var deals = allDeals.Where(deal => deal.IsOneGilAlert ||
+        var deals = allDeals.Where(deal =>
+            (deal.IsOneGilAlert && (!config.SniperShowProfitEstimates || deal.MedianSalePrice == 0 ||
+                deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) > 0)) ||
+            (!deal.IsOneGilAlert &&
             (deal.DiscountPercent >= (decimal)config.SniperMinimumDiscountPercent &&
              (config.SniperMinimumUnitSaving == 0 || deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitSaving) &&
-             (config.SniperMinimumUnitProfit == 0 || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit))).ToArray();
+             (config.SniperMinimumUnitProfit == 0 || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)))).ToArray();
         ImGui.Separator();
         ImGui.TextUnformatted($"Deals · {deals.Length} shown · {allDeals.Count - deals.Length} hidden by filters");
         if (deals.Length == 0)

@@ -1,4 +1,4 @@
-### 0.5.0.10
+### 0.5.0.11
 
-- History days 0 (any age) now uses one history batch at a time, with at least one second between request starts, including retries and smaller fallback requests.
-- Fixed-window scans keep two concurrent batches. Both modes retain 100-item starting batches, 50/25-item fallback and the 500-sale cap. This change reduces request pressure; persistent Universalis timeouts may still occur.
+- When Show estimated resale profit is enabled, 1-gil alerts with a known estimated profit of zero or less are hidden. This updates immediately as sales history arrives or fee assumptions change.
+- 1-gil alerts with unknown sales history remain visible in yellow. Turning Show estimated resale profit off shows the hidden alerts again. Estimates use the returned same-quality sales median and configured fee assumptions; actual resale results can differ.
