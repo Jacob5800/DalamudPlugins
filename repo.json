@@ -99,5 +99,29 @@
     "TestingAssemblyVersion": null,
     "DownloadLinkUpdate": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.3/HousingTimeoutReminder.zip",
     "DownloadLinkTesting": null
+  },
+  {
+    "Author": "Jacob5800",
+    "Name": "Workshoppa",
+    "InternalName": "Workshoppa",
+    "AssemblyVersion": "9.3.12.0",
+    "Description": "API 15 continuation of Workshoppa. Automates workshop material turn-ins, offers retainer deposits with item exclusions, and can skip cutscenes between production phases.",
+    "Punchline": "Better Company Workshop Turn-In",
+    "RepoUrl": "https://github.com/Jacob5800/Workshoppa-API15",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 15,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "Tags": [
+      "Free Company",
+      "Workshop",
+      "Crafting",
+      "Utility"
+    ],
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/Jacob5800/Workshoppa-API15/main/Workshoppa-9.3.12.0-API15.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/Jacob5800/Workshoppa-API15/main/Workshoppa-9.3.12.0-API15.zip",
+    "DownloadLinkTesting": null,
+    "LastUpdate": 1791912392,
+    "Changelog": "### 9.3.12.0\n- Updated compatibility for FFXIV patch 7.57.\n- Added a Discord shortcut to the main window."
   }
 ]

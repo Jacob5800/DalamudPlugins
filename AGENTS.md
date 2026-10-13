@@ -1,10 +1,10 @@
 # Consolidated Dalamud plugins
 
 ## Canonical source and scope
-- This repository is the canonical source and release location for Portrait Atelier, Strategy Board Library, and Retainer Pricer.
+- This repository is the canonical source and release location for Portrait Atelier, Strategy Board Library, Retainer Pricer, and Workshoppa.
 - Make plugin code, version, metadata, changelog, and release changes only in the matching `plugins/<PluginName>/` folder here.
 - Do not update the old standalone repositories for these plugins. They are historical copies; keep their source, workflows, and releases unchanged except for their migration notices and repository-level `AGENTS.md` instructions.
-- Workshoppa-API15 stays in its separate repository and is not part of this repo.
+- Workshoppa source and releases belong in plugins/Workshoppa; Workshoppa-API15 is a historical copy.
 - Preserve every plugin's own license and rights notice. There is no combined license.
 
 ## Changelog requirements
@@ -18,8 +18,8 @@
 
 ## Version and release alignment
 - Keep each plugin's project version, JSON manifest `AssemblyVersion`, and its tag version aligned.
-- Release tags use `PortraitAtelier-v<version>`, `StrategyBoardLibrary-v<version>`, and `RetainerPricer-v<version>`.
+- Release tags use `PortraitAtelier-v<version>`, `StrategyBoardLibrary-v<version>`, `RetainerPricer-v<version>`, and `Workshoppa-v<version>`.
 - Run the relevant build/validation workflow and inspect its result. Do not publish a version whose build failed.
 
-- Plugins from separate repositories (including Housing Timeout Reminder) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The three consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
+- Plugins from separate repositories (including Housing Timeout Reminder) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
 

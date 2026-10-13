@@ -1,0 +1,25 @@
+# Workshoppa API 15
+
+Workshoppa version 9.3.13.0, built for Dalamud API 15 and FFXIV patch 7.57. This continuation includes a retainer depositor with item exclusions and automatically skips the short cutscenes between workshop production phases when the game exposes its skip prompt. The plugin listing is credited to Jacob5800, and the main window includes a direct Workshoppa Discord link.
+
+## Credit and permission
+
+Original plugin by Liza Carvelli.
+
+## Install
+
+1. Open Dalamud Settings and go to Experimental.
+2. Add this custom repository URL: https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/repo.json
+3. Open the Plugin Installer, find Workshoppa, and install it.
+
+## Commands
+
+- /ws opens the plugin UI.
+- /buy-tanks buys a requested number of ceruleum tank stacks.
+- /fill-tanks fills inventory with a requested number of ceruleum tank stacks.
+
+## Build from source
+
+Open `Workshoppa.sln` with the Dalamud API 15 development SDK installed, or build `Workshoppa/Workshoppa.csproj` in Release configuration. Releases are published from the shared collection with Workshoppa-v<version> tags.
+
+The workshop transition cutscene skip is armed only after choosing an advance or completion option. It opens and confirms the game's own skip dialog while that transition is pending.
