@@ -746,7 +746,7 @@ internal sealed class PricingController : IDisposable
         bridge.TryGetActiveRetainerVentureSnapshot(retainer, out var ventureId, out var ventureCompletesAt);
         config.UniversalisRetainerListings[retainer.RetainerId] = new RetainerListingCache
         {
-            WorldId = bridge.GetHomeWorld()?.WorldId ?? 0,
+            WorldId = session.WorldId,
             RetainerId = retainer.RetainerId,
             RetainerName = retainer.Name,
             RefreshedAt = DateTimeOffset.UtcNow,
@@ -1596,6 +1596,11 @@ internal sealed class PricingController : IDisposable
                     && row.ItemId == expected.ItemId && row.IsHq == expected.IsHq
                     && row.Quantity == submitted.Quantity && row.CurrentPrice == listingSubmittedPrice))
             {
+                if (bridge.TryGetOwnRetainers(out var ownRetainers))
+                {
+                    var owner = ownRetainers.FirstOrDefault(retainer => retainer.RetainerId == submitted.Session.RetainerId);
+                    if (owner is not null) RefreshRetainerListingCache(owner, submitted.Session, listed);
+                }
                 if (batchSellingOnly && config.BatchSaleMaxQuantities.TryGetValue(expected.ItemId, out var itemMaximum) && itemMaximum > 0)
                     batchSoldQuantitiesByItemId[expected.ItemId] = batchSoldQuantitiesByItemId.GetValueOrDefault(expected.ItemId) + submitted.Quantity;
                 var remaining = expected.Quantity - submitted.Quantity;

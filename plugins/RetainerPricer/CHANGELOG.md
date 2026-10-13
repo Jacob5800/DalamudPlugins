@@ -1,5 +1,8 @@
 # Retainer Pricer changelog
 
+## 0.4.48.0
+- Start listing items and Start batch selling only now refresh the current retainer's saved listings after each confirmed new listing. Undercut notifier can use these snapshots without starting watching automatically.
+
 ## 0.4.47.0
 - Sniper watching in World scope also runs Undercut notifier checks. Independent notifier watching never starts Sniper and can continue after Sniper stops.
 

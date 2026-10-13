@@ -63,3 +63,5 @@ Inventory Add options are filtered per action: market options require a tradable
 Open the plugin with /retainerpricer, /retainer, or /rp. If another plugin already owns /rp, the original commands remain available.
 
 Sniper watching in World scope automatically runs Undercut notifier checks. Stopping Sniper stops linked checks, unless independent notifier watching is enabled. Starting the notifier independently never starts Sniper. Data Center and Region Sniper runs are not linked; the notifier always compares home-world listings.
+
+Start listing items and Start batch selling only save the active retainer's full listing snapshot after each confirmed listing, reusing the existing confirmation read without additional market requests. Undercut notifier uses this saved stock; listing runs do not start watching. Other retainers still require their own snapshot refresh.
