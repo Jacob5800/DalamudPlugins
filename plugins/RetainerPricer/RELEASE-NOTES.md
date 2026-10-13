@@ -1,5 +1,5 @@
-### 0.5.0.7
+### 0.5.0.8
 
-- Fixed selecting or clearing a specific Sniper item corrupting UI text colors and making other labels disappear. Orange highlighting now resets correctly. Reload the plugin after updating if your UI is already affected.
-- Added an independent World (default), Data Center, or Region (home region only) selector to Undercut notifier. The Server column identifies the lowest matching competitor in that scope.
-- Starting Sniper with the same market scope also runs notifier checks every 60 seconds. Stopping Sniper ends linked checks unless independent notifier watching is active. Starting the notifier alone never starts Sniper. Notifier checks use separate current-listing requests, not Sniper sales-history estimates.
+- Reduced Sniper history requests from up to 1,800 to 500 sales per item (HQ and NQ combined) to reduce request size. The minimum-sales setting is now capped at 500.
+- Renamed Sales/day to Est. sales/day. Fixed-window scans use the chosen window when fewer than 500 sales are returned. When the cap is reached, or history days is 0, the estimate uses the time from the oldest returned sale to the history check.
+- Hover the estimate to see the same-quality sample count, actual time coverage and calculation basis. Sample-based rates show a dash when there are fewer than two matching-quality sales or no usable time span. Medians continue using the returned matching-quality sales; estimates can differ from actual demand.

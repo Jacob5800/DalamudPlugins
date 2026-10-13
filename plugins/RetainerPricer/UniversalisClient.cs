@@ -22,7 +22,7 @@ public sealed class UniversalisClient : IDisposable
     private const int MaximumHistoryResponseBytes = 32 * 1_048_576;
     private const int HistoryEntryLimit = 100;
     private const int HistoryWindowSeconds = 30 * 24 * 60 * 60;
-    private const int SniperHistoryEntryLimit = 1_800;
+    private const int SniperHistoryEntryLimit = 500;
     private const int MaximumSniperHistoryAttempts = 2;
     private const int UniversalisRequestsPerSecond = 25;
     private static readonly TimeSpan HistoryRequestTimeout = TimeSpan.FromSeconds(60);

@@ -1119,7 +1119,7 @@ internal sealed class MainWindow : Window
             ImGui.EndDisabled();
         }
         ImGui.TextWrapped(sniper.Status);
-        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to 1,800 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
+        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to 500 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
         var showProfit = config.SniperShowProfitEstimates;
         if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
@@ -1176,7 +1176,7 @@ internal sealed class MainWindow : Window
             ImGui.TableSetupColumn("Listing price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 100);
             ImGui.TableSetupColumn(config.SniperHistoryDays == 0 ? "Any-age median" : $"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
             ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
-            ImGui.TableSetupColumn("Sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
+            ImGui.TableSetupColumn("Est. sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
             ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
@@ -1240,8 +1240,14 @@ internal sealed class MainWindow : Window
                     : missing);
                 Cell(hasMedian ? $"{deal.DiscountPercent:0.0}% cheaper" : "—", hasMedian
                     ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : missing);
-                Cell(deal.HistoryDays > 0 && deal.SalesInHistoryWindow > 0 ? deal.SalesPerDay.ToString("0.00") : "—", deal.HistoryDays == 0 ? "Sales/day is unavailable with any-age history because there is no fixed time window." : hasMedian
-                    ? $"{deal.SalesInHistoryWindow:N0} recorded transactions ÷ {deal.HistoryDays} days across the selected scope. History limits can underestimate busy markets. Demand on this server can differ." : missing);
+                var coverageText = deal.SampleCoverageDays is { } days
+                    ? days < 1 ? $"{days * 24:0.##} hours" : $"{days:0.##} days" : "unknown";
+                var sampleHelp = $"{deal.SalesInHistoryWindow:N0} same-quality sales in the returned sample (up to 500 HQ/NQ sales combined). Oldest returned sale to history check: {coverageText}.";
+                Cell(deal.HasSalesPerDayEstimate && hasMedian ? deal.SalesPerDay.ToString("0.00") : "—", hasMedian
+                    ? sampleHelp + (deal.HistoryDays == 0 || deal.HistoryWasCapped
+                        ? " Estimated sales/day uses that sampled time coverage, not the configured maximum age. Capped samples may not represent the full history; demand on this server can differ."
+                        : $" Sales/day uses the full configured {deal.HistoryDays}-day window because the returned sample did not reach the cap.")
+                        + (!deal.HasSalesPerDayEstimate ? " Not enough dated sales to estimate a daily rate." : "") : missing);
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
                     ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing,
                     deal.HistoryDays == 0 && deal.LastSaleAt is { } recordedSaleAt && DateTimeOffset.UtcNow - recordedSaleAt > TimeSpan.FromDays(30));

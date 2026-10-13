@@ -96,7 +96,7 @@ internal sealed class SniperMonitor : IDisposable
             liveFeedStatus = "not connected";
             status = $"Preparing to scan {watchedItems.Count:N0} marketable items using the selected market scope…";
         }
-        _ = Task.Run(() => RunAsync(world, useDataCenter, useRegion, watchedItems, Math.Clamp(config.SniperMinimumSales14Days, 1, 1_800),
+        _ = Task.Run(() => RunAsync(world, useDataCenter, useRegion, watchedItems, Math.Clamp(config.SniperMinimumSales14Days, 1, 500),
             Math.Clamp(config.SniperThresholdFraction, 0.01, 1.0), Math.Clamp(config.SniperHistoryDays, 0, 14),
             Math.Clamp(config.SniperMinimumItemPrice, 1, 999_999_999), run.Token));
     }
@@ -273,6 +273,11 @@ internal sealed class SniperMonitor : IDisposable
                     batchSucceeded = true;
                     foreach (var (itemId, sales) in batchSales)
                     {
+                        var fetchedAt = DateTimeOffset.UtcNow;
+                        var oldestSale = sales.Where(sale => sale.SoldAt.HasValue).Min(sale => sale.SoldAt);
+                        double? coverageDays = oldestSale is { } oldest && oldest < fetchedAt
+                            ? (fetchedAt - oldest).TotalDays : null;
+                        var capped = sales.Count >= 500;
                         foreach (var qualitySales in sales.GroupBy(sale => sale.IsHq))
                         {
                             var orderedPrices = qualitySales.Select(sale => sale.PricePerUnit).OrderBy(price => price).ToArray();
@@ -282,7 +287,7 @@ internal sealed class SniperMonitor : IDisposable
                                 ? (uint)(((ulong)orderedPrices[middle - 1] + orderedPrices[middle]) / 2)
                                 : orderedPrices[middle];
                             var history = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median,
-                                historyDays, DateTimeOffset.UtcNow, qualitySales.Max(sale => sale.SoldAt));
+                                historyDays, fetchedAt, qualitySales.Max(sale => sale.SoldAt), coverageDays, capped);
                             availableHistory[(itemId, qualitySales.Key)] = history;
                             if (orderedPrices.Length >= minimumSales) batchBaselines[(itemId, qualitySales.Key)] = history;
                         }
@@ -307,7 +312,8 @@ internal sealed class SniperMonitor : IDisposable
                         if (alert.IsOneGilAlert && availableHistory.TryGetValue((alert.ItemId, alert.IsHq), out var history))
                             deals[dealIndex] = alert with { MedianSalePrice = history.MedianSalePrice,
                                 SalesInHistoryWindow = history.SaleCount, HistoryDays = history.HistoryDays,
-                                HistoryFetchedAt = history.HistoryFetchedAt, LastSaleAt = history.LastSaleAt };
+                                HistoryFetchedAt = history.HistoryFetchedAt, LastSaleAt = history.LastSaleAt,
+                                SampleCoverageDays = history.SampleCoverageDays, HistoryWasCapped = history.HistoryWasCapped };
                     }
                     foreach (var itemId in batchItemIds)
                     {
@@ -437,7 +443,7 @@ internal sealed class SniperMonitor : IDisposable
         var deal = new SniperDeal(dealKey, listing.ItemId, name, listing.WorldId, listingWorldName,
             listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
             baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert,
-            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt, dataCenterName);
+            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt, dataCenterName, baseline?.SampleCoverageDays, baseline?.HistoryWasCapped ?? false);
         if (isOneGilAlert)
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
                 previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);

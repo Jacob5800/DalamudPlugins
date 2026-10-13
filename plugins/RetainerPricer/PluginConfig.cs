@@ -103,7 +103,7 @@ public sealed class PluginConfig : IPluginConfiguration
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         SniperThresholdFraction = double.IsFinite(SniperThresholdFraction)
             ? Math.Clamp(SniperThresholdFraction, 0.01, 1.0) : 0.910;
-        SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 1_800);
+        SniperMinimumSales14Days = Math.Clamp(SniperMinimumSales14Days, 1, 500);
         UndercutMarketScope = Math.Clamp(UndercutMarketScope, 0, 2);
         SniperHistoryDays = Math.Clamp(SniperHistoryDays, 0, 14);
         SniperMinimumItemPrice = Math.Clamp(SniperMinimumItemPrice, 1, 999_999_999);
