@@ -208,23 +208,19 @@ internal sealed class SniperMonitor : IDisposable
         int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
         CancellationToken cancellationToken)
     {
-        var failed = new List<string>();
+        var failed = new System.Collections.Concurrent.ConcurrentBag<string>();
         var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
                          UniversalisClient.SniperHistoryBatchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
+        var completedBatches = 0;
+        var processedItems = 0;
         try
         {
-            for (var index = 0; index < watchedItems.Count; index += UniversalisClient.SniperHistoryBatchSize)
+            await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
+                new ParallelOptions { MaxDegreeOfParallelism = 6, CancellationToken = cancellationToken },
+                async (batch, batchCancellation) =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var batch = watchedItems.Skip(index).Take(UniversalisClient.SniperHistoryBatchSize).ToArray();
-                var currentBatch = index / UniversalisClient.SniperHistoryBatchSize + 1;
-                var completedBatches = currentBatch - 1;
-                var eta = completedBatches > 0
-                    ? FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)
-                    : "Estimating ETA from the first batch";
-                SetInitialScanProgress($"Initial scan · {index:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} ({batch.Length} items) · {eta}…", runState);
-
+                batchCancellation.ThrowIfCancellationRequested();
                 var batchBaselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 try
                 {
@@ -276,11 +272,12 @@ internal sealed class SniperMonitor : IDisposable
                         runState.PendingLiveListings.Remove(pending.Key);
                         ProcessLiveListingLocked(pending.Value, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
-                    var processedItems = Math.Min(index + batch.Length, watchedItems.Count);
-                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history batch {currentBatch} of {batchCount} complete";
+                    processedItems += batch.Length;
+                    completedBatches++;
+                    initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items processed · {historyDays}-day history · {completedBatches}/{batchCount} batches complete · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
                     RefreshInitialScanStatusAndGetLocked(runState);
                 }
-            }
+            }).ConfigureAwait(false);
 
             var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
             var summary = new HistoryScanSummary(eligible, failed.ToArray());

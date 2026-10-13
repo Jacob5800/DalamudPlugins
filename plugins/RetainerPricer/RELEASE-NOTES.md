@@ -1,4 +1,5 @@
-### 0.5.0.1
+### 0.5.0.2
 
-- Undercut notifier now shows a Server column beside Lowest competitor. It identifies the home-world server checked for that price; notifier checks remain home-world only.
-- Sniper now has a sortable Type of alert column before Item, showing 1 gil or Deal. Item names no longer include the 1 GIL ALERT prefix. 1-gil alerts retain red text.
+- Sniper scans history in 100-item batches with up to six batches running concurrently. Removed the fixed one-second pause between batches. All plugin requests still share limits of 25 requests per second and eight active connections; scan speed depends on Universalis response times.
+- Renamed Sniper's Listing column to Listing price.
+- Sniper hides the Data Center column in World and Data Center scope, and shows it in Region scope.

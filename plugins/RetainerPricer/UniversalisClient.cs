@@ -28,9 +28,7 @@ public sealed class UniversalisClient : IDisposable
     private static readonly TimeSpan HistoryRequestTimeout = TimeSpan.FromSeconds(60);
     private static readonly SemaphoreSlim RequestRateGate = new(1, 1);
     private static readonly SemaphoreSlim RequestConcurrencyGate = new(8, 8);
-    private static readonly SemaphoreSlim SniperHistoryBatchRateGate = new(1, 1);
     private static long nextRequestTimestamp;
-    private static long nextSniperHistoryBatchTimestamp;
     public const int SniperHistoryBatchSize = 100;
     private const int MaximumCachedItems = 512;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -255,7 +253,6 @@ public sealed class UniversalisClient : IDisposable
         try
         {
             await WaitForRequestSlotAsync(ct).ConfigureAwait(false);
-            await WaitForSniperHistoryBatchSlotAsync(ct).ConfigureAwait(false);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.TooManyRequests ||
                 response.StatusCode == HttpStatusCode.RequestTimeout || (int)response.StatusCode >= 500)
@@ -484,22 +481,6 @@ public sealed class UniversalisClient : IDisposable
             nextRequestTimestamp = Stopwatch.GetTimestamp() + Math.Max(1, Stopwatch.Frequency / UniversalisRequestsPerSecond);
         }
         finally { RequestRateGate.Release(); }
-    }
-
-    private static async Task WaitForSniperHistoryBatchSlotAsync(CancellationToken ct)
-    {
-        await SniperHistoryBatchRateGate.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            var now = Stopwatch.GetTimestamp();
-            var next = Interlocked.Read(ref nextSniperHistoryBatchTimestamp);
-            var remainingTicks = next - now;
-            if (remainingTicks > 0)
-                await Task.Delay(TimeSpan.FromSeconds((double)remainingTicks / Stopwatch.Frequency), ct).ConfigureAwait(false);
-            Interlocked.Exchange(ref nextSniperHistoryBatchTimestamp,
-                Stopwatch.GetTimestamp() + Stopwatch.Frequency + Stopwatch.Frequency / 100);
-        }
-        finally { SniperHistoryBatchRateGate.Release(); }
     }
 
     private static PriceSnapshot CombineRegions(uint worldId, uint itemId, string homeDataCenter,
