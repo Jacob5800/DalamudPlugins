@@ -1,3 +1,3 @@
-## 0.5.1.11
+## 0.5.1.12
 
-- Settings now has separate visibility toggles for all four retainer and Markets menu shortcut buttons, enabled by default.
+- Shortened the marketboard ROI hover explanation to two lines. Sniper tooltips are unchanged.

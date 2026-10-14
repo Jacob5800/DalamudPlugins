@@ -85,7 +85,7 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
             if (ImGui.Begin($"ROI##RPMarketRow{index}", flags))
             {
                 ImGui.TextColored(color, label);
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip(home is null ? (matching ? "No matching HQ/NQ home listing." : status) : $"Estimated resale on {world.Name}: {Math.Max(1m, home.PricePerUnit - 1m):N0} gil each. Same HQ/NQ, cheapest home listing minus 1 gil; {config.SniperPurchaseFeePercent:0.##}% purchase fee and {config.SniperResaleTaxPercent:0.##}% resale tax. Materia is not matched. This is an estimate, not guaranteed profit.");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip(home is null ? (matching ? "No matching HQ/NQ home listing." : status) : $"Resale on {world.Name}: {Math.Max(1m, home.PricePerUnit - 1m):N0} gil · same HQ/NQ, lowest home price − 1 gil.\nFees: {config.SniperPurchaseFeePercent:0.##}% purchase + {config.SniperResaleTaxPercent:0.##}% resale. Estimate only; materia ignored.");
             }
             ImGui.End();
             ImGui.PopStyleVar();
