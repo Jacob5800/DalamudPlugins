@@ -21,6 +21,7 @@ public sealed record SniperDeal(string Key, uint ItemId, string ItemName, uint W
     int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null,
     string? DataCenterName = null, double? SampleCoverageDays = null, bool HistoryWasCapped = false, uint? LastSalePrice = null)
 {
+    public decimal RoiPercent(double resaleTax, double purchaseFee) => EstimatedUnitCost(purchaseFee) > 0 ? EstimatedUnitProfit(resaleTax, purchaseFee) / EstimatedUnitCost(purchaseFee) * 100m : 0;
     public decimal DiscountPercent => MedianSalePrice > 0 ? (1m - (decimal)PricePerUnit / MedianSalePrice) * 100m : 0;
     public bool HasSalesPerDayEstimate => HistoryDays > 0 && !HistoryWasCapped ||
         SalesInHistoryWindow >= 2 && SampleCoverageDays is > 0;

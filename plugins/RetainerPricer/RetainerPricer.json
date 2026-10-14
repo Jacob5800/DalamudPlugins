@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.32",
+  "AssemblyVersion": "0.5.0.33",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.32\n\n- When Skip 1 gil lookup is off, confirmed 1-gil candidates now take priority over ordinary candidates for detailed-history verification, in addition to the existing startup listing-lookup priority.\n- Fresh candidates still run ahead of previously failed candidates, preserving deferred retry behavior. All candidates still use the same sequential history checks, selected history window and minimum sales.\n- Updated the Skip 1 gil lookup tooltip to explain both priorities. Changes apply when watching starts.\n- Includes the preceding release's RP venture indicator fix: remembered current-character timers and newer saved lookup snapshots can turn the bar green after the picker closes, while unavailable retainers remain excluded.\n",
+  "Changelog": "## 0.5.0.33\n\n- When Skip 1 gil lookup is enabled, live 1-gil alerts now require verified matching-quality history meeting your minimum sales before appearing. Failed verification remains pending for retry. With the option off, confirmed startup and live 1-gil alerts remain immediate.\n- Added a sortable ROI column: estimated resale profit divided by purchase cost including assumed fees, expressed as a percentage. Unknown history shows a dash. Added Minimum ROI % under Scan options (0 = off), a display filter applying to all alert types without changing scanning.\n- Increased retained Sniper results from 250 to 5,000 rows and added 100-row pages with Previous/Next controls. Filtering and sorting apply before pagination.\n- Added Buy list immediately after Sniper. Right-click an item name in Sniper to move all currently captured rows with that name to Buy list, preserving their data. Items on Buy list are suppressed from Sniper until removed or cleared. Buy list is saved across restarts and uses the same data columns and pagination.\n- Right-click a Buy list item to copy its name or remove that item. Clear list has a confirmation prompt. Buy list entries are captured snapshots, not purchases or guarantees that listings remain available.\n- Last sale age now turns yellow at 3 through 7 days instead of over 1 day. Orange above 7 days, recent-sale green at 1\u2013120 minutes, and red above 30 days in any-age mode remain.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

@@ -29,6 +29,8 @@ internal sealed class MainWindow : Window
     private readonly Func<bool> undercutsPaused;
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string sniperItemSearch = "";
+    private int sniperDealsPage;
+    private int buyListPage;
     private string sniperDealSearch = "";
     private readonly List<ItemChoice> sniperItemSelections = [];
     private string backupPath = "";
@@ -251,6 +253,7 @@ internal sealed class MainWindow : Window
         {
             if (ImGui.BeginTabItem("Price lookup")) { DrawManualLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Buy list")) { DrawBuyList(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
@@ -1135,6 +1138,10 @@ internal sealed class MainWindow : Window
             ImGui.TextDisabled("Add items above only to limit the scan, for example when testing.");
         }
         ImGui.EndDisabled();
+        var minimumRoi = config.SniperMinimumRoiPercent;
+        ImGui.SetNextItemWidth(150);
+        if (ImGui.InputDouble("Minimum ROI % (0 = off)", ref minimumRoi)) { config.SniperMinimumRoiPercent = Math.Clamp(minimumRoi, 0, 100000); save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Display only rows with known estimated ROI at or above this value, including 1-gil alerts. Does not change scanning.");
         var hideOneGilDeals = config.SniperHideOneGilDeals;
         if (ImGui.Checkbox("Hide 1gil deals", ref hideOneGilDeals))
         { config.SniperHideOneGilDeals = hideOneGilDeals; save(); }
@@ -1275,11 +1282,31 @@ internal sealed class MainWindow : Window
             { config.SniperPurchaseFeePercent = purchaseFee; config.Normalize(); save(); }
             ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts bypass minimum filters. With Show estimated resale profit enabled, 1-gil alerts with a known estimated profit of zero or less are hidden; unknown-history alerts remain visible. Filters apply immediately to received deals.");
         }
+        DrawSniperDeals(false);
+    }
+
+    private void DrawBuyList()
+    {
+        config.SniperBuyList ??= [];
+        ImGui.TextWrapped("Saved purchase candidates. These are captured snapshots, not confirmed purchases or guaranteed current offers. Right-click an item to copy its name or remove it.");
+        if (ImGui.Button("Clear list")) ImGui.OpenPopup("Clear buy list?");
+        if (ImGui.BeginPopupModal("Clear buy list?", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted("Remove all saved purchase candidates?");
+            if (ImGui.Button("Clear all")) { config.SniperBuyList.Clear(); save(); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine(); if (ImGui.Button("Cancel")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+        DrawSniperDeals(true);
+    }
+
+    private void DrawSniperDeals(bool buyList)
+    {
         ImGui.SetNextItemWidth(300);
         ImGui.InputTextWithHint("##SniperDealSearch", "Search deals: item name, 1 gil, deals", ref sniperDealSearch, 128);
         ImGui.SameLine();
         if (ImGui.SmallButton("Clear##SniperDealSearch")) sniperDealSearch = "";
-        var allDeals = sniper.Deals;
+        IReadOnlyList<SniperDeal> allDeals = buyList ? config.SniperBuyList : sniper.Deals;
         var deals = allDeals.Where(deal => !config.SniperHideOneGilDeals || !deal.IsOneGilAlert).Where(deal => deal.IsOneGilAlert || !config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates ||
             (deal.MedianSalePrice > 0 && deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)).Where(deal =>
             (deal.IsOneGilAlert && (!config.SniperShowProfitEstimates || deal.MedianSalePrice == 0 ||
@@ -1288,6 +1315,9 @@ internal sealed class MainWindow : Window
             (deal.DiscountPercent >= (decimal)config.SniperMinimumDiscountPercent &&
              (config.SniperMinimumUnitSaving == 0 || deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitSaving) &&
              (!config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)))).ToArray();
+        if (buyList) deals = allDeals.ToArray();
+        else if (config.SniperMinimumRoiPercent > 0)
+            deals = deals.Where(deal => deal.MedianSalePrice > 0 && deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= (decimal)config.SniperMinimumRoiPercent).ToArray();
         var hiddenByRules = allDeals.Count - deals.Length;
         var search = sniperDealSearch.Trim();
         var compactSearch = search.Replace(" ", "").Replace("-", "");
@@ -1305,10 +1335,10 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDealsLayoutV5", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+        if (ImGui.BeginTable(buyList ? "##buyListDealsV1" : "##sniperDealsLayoutV6", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
-                new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
+                new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 65))))
         {
             void SetupDealColumn(string heading, ImGuiTableColumnFlags flags, float width)
             {
@@ -1329,6 +1359,7 @@ internal sealed class MainWindow : Window
             SetupDealColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             SetupDealColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
             SetupDealColumn("Last sale price", ImGuiTableColumnFlags.WidthFixed, 105);
+            SetupDealColumn("ROI", ImGuiTableColumnFlags.WidthFixed, 90);
             ImGui.TableSetColumnEnabled(13, config.SniperHistoryDays == 0);
             ImGui.TableSetColumnEnabled(2, config.SniperUseRegionPrices);
             ImGui.TableSetColumnEnabled(11, config.SniperShowProfitEstimates);
@@ -1352,6 +1383,7 @@ internal sealed class MainWindow : Window
                     8 => deal => deal.DiscountPercent,
                     9 => deal => deal.SalesPerDay,
                     10 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
+                    14 => deal => deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
                     13 => deal => deal.LastSalePrice ?? 0,
                     11 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
                     _ => deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)
@@ -1372,7 +1404,10 @@ internal sealed class MainWindow : Window
                 else ImGui.TextWrapped(text);
                 SniperMetricHelp(help);
             }
-            foreach (var deal in sortedDeals)
+            var pageCount = Math.Max(1, (sortedDeals.Count + 99) / 100);
+            var page = Math.Clamp(buyList ? buyListPage : sniperDealsPage, 0, pageCount - 1);
+            if (buyList) buyListPage = page; else sniperDealsPage = page;
+            foreach (var deal in sortedDeals.Skip(page * 100).Take(100))
             {
                 ImGui.TableNextRow();
                 var hasMedian = deal.MedianSalePrice > 0;
@@ -1381,9 +1416,22 @@ internal sealed class MainWindow : Window
                 var unitSaving = deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent);
                 var purchase = decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity);
                 Cell(deal.IsOneGilAlert ? "1 gil" : "Deal",
-                    deal.IsOneGilAlert ? "Listing priced at 1 gil per item. These alerts bypass deal filters and do not require sales history." : "Listing qualifies against your configured sales-median threshold.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
+                    deal.IsOneGilAlert ? "Listing priced at 1 gil per item. These alerts bypass ordinary deal filters. When Skip 1 gil lookup is enabled, matching-quality history must meet your minimum sales before the alert appears." : "Listing qualifies against your configured sales-median threshold.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
                 Cell(deal.ItemName,
                     $"{deal.ItemName}\nLive listing received: {deal.DetectedAt.ToLocalTime():g}. Purchases are manual; availability can change.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
+                if (ImGui.BeginPopupContextItem($"dealMenu-{deal.Key}"))
+                {
+                    if (!buyList && ImGui.MenuItem("Add to buy list"))
+                    {
+                        config.SniperBuyList ??= [];
+                        foreach (var row in sniper.TakeItemForBuyList(deal.ItemName))
+                            if (!config.SniperBuyList.Any(saved => saved.Key == row.Key)) config.SniperBuyList.Add(row);
+                        save();
+                    }
+                    if (ImGui.MenuItem("Copy item name")) ImGui.SetClipboardText(deal.ItemName);
+                    if (buyList && ImGui.MenuItem("Remove item from buy list")) { config.SniperBuyList.RemoveAll(row => row.ItemName == deal.ItemName); save(); }
+                    ImGui.EndPopup();
+                }
                 Cell(deal.DataCenterName ?? "—", "Data Center containing the listing's server. A dash means its Data Center could not be resolved.");
                 Cell(deal.WorldName, "Server where this listing was received. Visit this server to check and purchase it manually.");
                 Cell(deal.IsHq ? "HQ" : "NQ", "HQ and NQ sales are compared separately. HQ is highlighted cyan.", hqQuality: deal.IsHq);
@@ -1417,9 +1465,9 @@ internal sealed class MainWindow : Window
                 var veryOldSale = deal.HistoryDays == 0 && saleAgeDays > 30;
                 var recentSale = deal.LastSaleAt is not null && saleAgeDays * 1440 >= 1 && saleAgeDays * 1440 <= 120;
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
-                    ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate. " + (recentSale ? "Green: the most recent recorded sale was 1–120 minutes ago, indicating recent activity. One recent sale does not guarantee fast resale." : veryOldSale ? "Red: last sale is over 30 days old in any-age mode." : saleAgeDays > 7 ? "Orange: last sale is over 7 days old." : saleAgeDays > 1 ? "Yellow: last sale is over 1 day old." : "Normal color: last sale is no more than 1 day old.") : missing,
+                    ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate. " + (recentSale ? "Green: the most recent recorded sale was 1–120 minutes ago, indicating recent activity. One recent sale does not guarantee fast resale." : veryOldSale ? "Red: last sale is over 30 days old in any-age mode." : saleAgeDays > 7 ? "Orange: last sale is over 7 days old." : saleAgeDays >= 3 ? "Yellow: last sale is 3 to 7 days old." : "Normal color: last sale is less than 3 days old and outside the recent-sale green range.") : missing,
                     alert: veryOldSale,
-                    unknownHistory: !veryOldSale && saleAgeDays > 1 && saleAgeDays <= 7,
+                    unknownHistory: !veryOldSale && saleAgeDays >= 3 && saleAgeDays <= 7,
                     slowSales: !veryOldSale && saleAgeDays > 7,
                     strongSales: recentSale);
                 Cell(hasMedian ? decimal.Floor(unitProfit).ToString("N0") : "—", hasMedian
@@ -1430,8 +1478,13 @@ internal sealed class MainWindow : Window
                     deal.LastSaleAt is { } soldAt && deal.LastSalePrice is not null
                         ? $"Most recent recorded same-quality sale in the selected market scope: {deal.LastSalePrice:N0} gil per item at {soldAt.ToLocalTime():g}. This is one sale, not the median; it may be old in any-age mode."
                         : "No dated same-quality sale is available yet.");
+                var roi = deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
+                Cell(hasMedian ? $"{roi:0.0}%" : "—", "Estimated ROI = estimated resale profit divided by purchase cost including assumed fees, times 100. Uses recorded median; actual returns may differ.", alert: hasMedian && roi < 0);
             }
             ImGui.EndTable();
+            if (ImGui.Button("Previous page")) { if (buyList) buyListPage = Math.Max(0, buyListPage - 1); else sniperDealsPage = Math.Max(0, sniperDealsPage - 1); }
+            ImGui.SameLine(); ImGui.TextUnformatted($"Page {(buyList ? buyListPage : sniperDealsPage) + 1} / {Math.Max(1, (deals.Length + 99) / 100)} · 100 rows per page");
+            ImGui.SameLine(); if (ImGui.Button("Next page")) { if (buyList) buyListPage = Math.Min((deals.Length - 1) / 100, buyListPage + 1); else sniperDealsPage = Math.Min((deals.Length - 1) / 100, sniperDealsPage + 1); }
         }
     }
 

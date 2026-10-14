@@ -4,6 +4,8 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
+    public List<SniperDeal> SniperBuyList { get; set; } = [];
+    public double SniperMinimumRoiPercent { get; set; } = 0;
     public int Version { get; set; } = 14;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;

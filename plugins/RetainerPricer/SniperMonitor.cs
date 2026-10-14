@@ -4,7 +4,7 @@ namespace RetainerPricer;
 
 internal sealed class SniperMonitor : IDisposable
 {
-    private const int MaximumDeals = 250;
+    private const int MaximumDeals = 5000;
     private const int MaximumPendingLiveListings = 50_000;
 
     private sealed class RunState
@@ -112,6 +112,15 @@ internal sealed class SniperMonitor : IDisposable
         }
     }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
+    public IReadOnlyList<SniperDeal> TakeItemForBuyList(string name)
+    {
+        lock (gate)
+        {
+            var rows = deals.Where(deal => StringComparer.OrdinalIgnoreCase.Equals(deal.ItemName, name)).ToArray();
+            deals.RemoveAll(deal => StringComparer.OrdinalIgnoreCase.Equals(deal.ItemName, name));
+            return rows;
+        }
+    }
     public int MarketableItemCount => marketableItems.Count;
     public string DiscoveryHelp => "Cached four-day averages screen live candidates; detailed history verifies your selected window. Candidates within threshold + 25 percentage points (capped at 125% of average) are checked. Unknown cache values are checked too. Cache refresh age is not provided; source upload timestamps do not prove aggregate refresh time. This screen can miss deals versus a full history scan.";
     public IReadOnlyList<ItemChoice> MarketableItems => marketableItems;
@@ -602,12 +611,18 @@ internal sealed class SniperMonitor : IDisposable
         if (!watchedWorlds.Contains(listing.WorldId) || !itemNames.TryGetValue(listing.ItemId, out var name))
             return;
 
+        if ((config.SniperBuyList ?? []).Any(row => StringComparer.OrdinalIgnoreCase.Equals(row.ItemName, name))) return;
         var isOneGilAlert = listing.PricePerUnit == 1;
+        if (isOneGilAlert && config.SniperSkipOneGilLookup && !runState.Baselines.ContainsKey((listing.ItemId, listing.IsHq)))
+        {
+            if (!runState.CompletedHistoryItemIds.Contains(listing.ItemId)) runState.PendingLiveListings[eventKey] = listing;
+            return;
+        }
         if (!isOneGilAlert && listing.ListingId is { Length: > 0 } updatedId)
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ListingId == updatedId &&
                 previous.WorldId == listing.WorldId && previous.ItemId == listing.ItemId);
         SniperQualityBaseline? baseline = null;
-        if (isOneGilAlert) runState.AvailableHistory.TryGetValue((listing.ItemId, listing.IsHq), out baseline);
+        if (isOneGilAlert) (config.SniperSkipOneGilLookup ? runState.Baselines : runState.AvailableHistory).TryGetValue((listing.ItemId, listing.IsHq), out baseline);
         if (!isOneGilAlert)
         {
             if (!runState.Baselines.TryGetValue((listing.ItemId, listing.IsHq), out baseline))
