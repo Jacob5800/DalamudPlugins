@@ -74,10 +74,10 @@
     "TestingDalamudApiLevel": null
   },
   {
-    "Author": "Neko Boi Nick",
+    "Author": "Jacob5800",
     "Name": "Housing Timeout Reminder",
     "InternalName": "HousingTimeoutReminder",
-    "AssemblyVersion": "1.0.5.6",
+    "AssemblyVersion": "1.0.5.7",
     "Description": "A plugin to remind you about your house on FFXIV just in case you forgot to visit it.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/HousingTimeoutReminder",
@@ -91,14 +91,14 @@
     "LoadPriority": 0,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/HousingTimeoutReminder/main/HousingTimeoutReminder/images/icon.png",
     "Punchline": "Remind you to visit your house just in case you forgot.",
-    "Changelog": "## 1.0.5.6\n\n- Added a housing import preview showing saved characters, addresses and visit dates before applying any changes. Import previewed houses and Cancel are separate actions.\n- Import automatically saves a timestamped safety backup of current housing data in the user's plugin configuration folder before merging. Newer matching-address visits and existing conflicting addresses are preserved.\n",
+    "Changelog": "## 1.0.5.7\n\n- Improved settings layout with compact hour inputs and labels above them, a resizable window, and content that uses available space.\n- Cleaned up reminder-window controls.\n- Dalamud author display now shows Jacob5800. Original author credits and license are preserved.\n",
     "AcceptsFeedback": true,
-    "LastUpdate": 1791943185,
+    "LastUpdate": 1791943695,
     "IsHide": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.6/HousingTimeoutReminder.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.7/HousingTimeoutReminder.zip",
     "IsTestingExclusive": false,
     "TestingAssemblyVersion": null,
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.6/HousingTimeoutReminder.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.7/HousingTimeoutReminder.zip",
     "DownloadLinkTesting": null
   },
   {
