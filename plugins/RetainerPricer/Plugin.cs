@@ -73,7 +73,7 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.RowId != 0 && !item.IsUntradable && item.ItemSearchCategory.RowId != 0)
             .Select(item => item.RowId)
             .ToHashSet();
-        itemPriceTooltip = new ItemPriceTooltip(gameGui, bridge, universalis, config, addons, marketableItemIds);
+        itemPriceTooltip = new ItemPriceTooltip(gameGui, bridge, universalis, config, addons, marketableItemIds, data);
         var marketableItemChoices = itemChoices.Where(item => marketableItemIds.Contains(item.ItemId)).ToArray();
         var worldNames = data.GetExcelSheet<World>()
             .Where(world => world.RowId != 0)
@@ -105,6 +105,7 @@ public sealed class Plugin : IDalamudPlugin
         window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
+        pluginInterface.UiBuilder.Draw += DrawRetainerVentureButton;
         pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
         pluginInterface.UiBuilder.Draw += marketboardRoi.Draw;
         pluginInterface.UiBuilder.OpenMainUi += Toggle;
@@ -214,6 +215,31 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.End();
     }
 
+    private void DrawRetainerVentureButton()
+    {
+        if (disposed || !bridge.TryGetRetainerVentureButtonPosition(out var position)) return;
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
+        var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoBackground | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoFocusOnAppearing;
+        Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
+        if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer venture shortcut##RetainerPricer", flags))
+        {
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!config.RunVentures || controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.Button, new System.Numerics.Vector4(0.84f, 0.70f, 0.12f, 1));
+            Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.96f, 0.82f, 0.22f, 1));
+            Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonActive, new System.Numerics.Vector4(0.70f, 0.57f, 0.08f, 1));
+            Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.Text, new System.Numerics.Vector4(0.08f, 0.07f, 0.02f, 1));
+            if (Dalamud.Bindings.ImGui.ImGui.Button(ventures.IsRunning ? "Venture cycle running..." : "Start venture cycle")) Dispatch(ventures.Start);
+            Dalamud.Bindings.ImGui.ImGui.PopStyleColor(4);
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                Dalamud.Bindings.ImGui.ImGui.SetTooltip(config.RunVentures ? "Start your configured Retainer Pricer venture cycle. Finish active operations first." : "Enable Run ventures in Retainer Pricer's Ventures tab first.");
+        }
+        Dalamud.Bindings.ImGui.ImGui.End();
+        Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
+    }
+
     private void Toggle() => window.Toggle();
     private bool UndercutsPaused() => config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
@@ -228,6 +254,7 @@ public sealed class Plugin : IDalamudPlugin
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;
         pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
+        pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton;
         pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw;
         itemPriceTooltip.Dispose();
         pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw;
