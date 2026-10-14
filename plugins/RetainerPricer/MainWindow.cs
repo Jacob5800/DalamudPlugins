@@ -675,6 +675,17 @@ internal sealed class MainWindow : Window
     private void DrawSettings()
     {
         DrawSettingsBackup();
+        if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
+        {
+            var showUpdate = config.ShowRetainerUpdateButton;
+            if (ImGui.Checkbox("Show Update existing listings on retainer menu", ref showUpdate)) { config.ShowRetainerUpdateButton = showUpdate; save(); }
+            var showVenture = config.ShowRetainerVentureButton;
+            if (ImGui.Checkbox("Show Start venture cycle on retainer menu", ref showVenture)) { config.ShowRetainerVentureButton = showVenture; save(); }
+            var showListing = config.ShowRetainerListingButton;
+            if (ImGui.Checkbox("Show Start listing items on Markets menu", ref showListing)) { config.ShowRetainerListingButton = showListing; save(); }
+            var showVendor = config.ShowRetainerVendorButton;
+            if (ImGui.Checkbox("Show Retainer vendor items on Markets menu", ref showVendor)) { config.ShowRetainerVendorButton = showVendor; save(); }
+        }
         var marketRoi = config.ShowMarketboardRoi;
         if (ImGui.Checkbox("Show ROI beside marketboard search results", ref marketRoi)) { config.ShowMarketboardRoi = marketRoi; save(); }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show estimated per-offer ROI using matching home-world HQ/NQ listings minus 1 gil and your Sniper fee assumptions.");

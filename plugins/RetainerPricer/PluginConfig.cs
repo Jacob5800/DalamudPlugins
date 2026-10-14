@@ -10,6 +10,10 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
+    public bool ShowRetainerUpdateButton { get; set; } = true;
+    public bool ShowRetainerVentureButton { get; set; } = true;
+    public bool ShowRetainerListingButton { get; set; } = true;
+    public bool ShowRetainerVendorButton { get; set; } = true;
     public bool ShowMarketboardRoi { get; set; } = false;
     public bool ShowItemTooltipPrices { get; set; } = false;
     public bool ShowInventoryContextMenu { get; set; } = true;

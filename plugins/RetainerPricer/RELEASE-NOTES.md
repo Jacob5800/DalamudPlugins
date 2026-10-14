@@ -1,6 +1,3 @@
-## 0.5.1.10
+## 0.5.1.11
 
-- Shifted retainer and Markets header shortcuts right while preserving space for close controls.
-- Removed the redundant On-screen price check source selector.
-
-- Marketboard ROI labels now sit inside Search Results, to the right of retainer names and before the scrollbar.
+- Settings now has separate visibility toggles for all four retainer and Markets menu shortcut buttons, enabled by default.

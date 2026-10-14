@@ -218,7 +218,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawRetainerListingButton()
     {
-        if (disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
+        if ((!config.ShowRetainerListingButton && !config.ShowRetainerVendorButton) || disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
         var vendorWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Retainer vendor items").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
         position.X -= vendorWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
@@ -228,12 +228,17 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
         if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer listing shortcut##RetainerPricer", flags))
         {
+            if (config.ShowRetainerListingButton)
+            {
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanStartListingItems || controller.Busy || vendor.IsRunning || ventures.IsRunning);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Start listing items")) window.RequestListingFromMarketMenu();
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip("List eligible carried inventory using your current pricing rules and exclusions. Existing confirmation prompts still apply.");
-            Dalamud.Bindings.ImGui.ImGui.SameLine();
+            }
+            if (config.ShowRetainerVendorButton)
+            {
+                if (config.ShowRetainerListingButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning || bridge.RetainerSaleAvailabilityError is not null);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Retainer vendor items", new System.Numerics.Vector2(vendorWidth, 0)))
             {
@@ -243,6 +248,7 @@ public sealed class Plugin : IDalamudPlugin
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip("Same as Start retainer sales: uses your price threshold, retainer-sale whitelist, Don't vendor list, exclusions and saved-gearset protections. Unsellable items are skipped.");
+            }
         }
         Dalamud.Bindings.ImGui.ImGui.End();
         Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
@@ -250,7 +256,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawRetainerVentureButton()
     {
-        if (disposed || !bridge.TryGetRetainerVentureButtonPosition(out var position)) return;
+        if ((!config.ShowRetainerUpdateButton && !config.ShowRetainerVentureButton) || disposed || !bridge.TryGetRetainerVentureButtonPosition(out var position)) return;
         var updateWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Update existing listings").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
         position.X -= updateWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
@@ -260,12 +266,17 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
         if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer venture shortcut##RetainerPricer", flags))
         {
+            if (config.ShowRetainerUpdateButton)
+            {
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Update existing listings", new System.Numerics.Vector2(updateWidth, 0))) Dispatch(controller.UpdateExistingListings);
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip("Update existing retainer listings using your configured pricing rules, exclusions, and price-drop checks.");
-            Dalamud.Bindings.ImGui.ImGui.SameLine();
+            }
+            if (config.ShowRetainerVentureButton)
+            {
+                if (config.ShowRetainerUpdateButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!config.RunVentures || controller.Busy || vendor.IsRunning || ventures.IsRunning);
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.Button, new System.Numerics.Vector4(0.84f, 0.70f, 0.12f, 1));
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.96f, 0.82f, 0.22f, 1));
@@ -276,6 +287,7 @@ public sealed class Plugin : IDalamudPlugin
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip(config.RunVentures ? "Start your configured Retainer Pricer venture cycle. Finish active operations first." : "Enable Run ventures in Retainer Pricer's Ventures tab first.");
+            }
         }
         Dalamud.Bindings.ImGui.ImGui.End();
         Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
