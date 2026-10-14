@@ -29,6 +29,7 @@ internal sealed class MainWindow : Window
     private readonly Func<bool> undercutsPaused;
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string sniperItemSearch = "";
+    private string sniperDealSearch = "";
     private readonly List<ItemChoice> sniperItemSelections = [];
     private string backupPath = "";
     private string backupStatus = "";
@@ -1264,6 +1265,10 @@ internal sealed class MainWindow : Window
             { config.SniperPurchaseFeePercent = purchaseFee; config.Normalize(); save(); }
             ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts bypass minimum filters. With Show estimated resale profit enabled, 1-gil alerts with a known estimated profit of zero or less are hidden; unknown-history alerts remain visible. Filters apply immediately to received deals.");
         }
+        ImGui.SetNextItemWidth(300);
+        ImGui.InputTextWithHint("##SniperDealSearch", "Search deals: item name, 1 gil, deals", ref sniperDealSearch, 128);
+        ImGui.SameLine();
+        if (ImGui.SmallButton("Clear##SniperDealSearch")) sniperDealSearch = "";
         var allDeals = sniper.Deals;
         var deals = allDeals.Where(deal => deal.IsOneGilAlert || !config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates ||
             (deal.MedianSalePrice > 0 && deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)).Where(deal =>
@@ -1273,11 +1278,19 @@ internal sealed class MainWindow : Window
             (deal.DiscountPercent >= (decimal)config.SniperMinimumDiscountPercent &&
              (config.SniperMinimumUnitSaving == 0 || deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitSaving) &&
              (!config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)))).ToArray();
+        var hiddenByRules = allDeals.Count - deals.Length;
+        var search = sniperDealSearch.Trim();
+        var compactSearch = search.Replace(" ", "").Replace("-", "");
+        if (search.Length > 0)
+            deals = deals.Where(deal => compactSearch.Equals("1gil", StringComparison.OrdinalIgnoreCase)
+                ? deal.IsOneGilAlert
+                : search.Equals("deal", StringComparison.OrdinalIgnoreCase) || search.Equals("deals", StringComparison.OrdinalIgnoreCase)
+                    ? !deal.IsOneGilAlert : deal.ItemName.Contains(search, StringComparison.CurrentCultureIgnoreCase)).ToArray();
         ImGui.Separator();
-        ImGui.TextUnformatted($"Deals · {deals.Length} shown · {allDeals.Count - deals.Length} hidden by filters");
+        ImGui.TextUnformatted($"Deals · {deals.Length} shown · {hiddenByRules} hidden by filters · {allDeals.Count - hiddenByRules - deals.Length} hidden by search");
         if (deals.Length == 0)
         {
-            ImGui.TextDisabled(sniper.IsInitialScanRunning
+            ImGui.TextDisabled(search.Length > 0 ? "No visible deals match this search. Clear it to show all alert types." : sniper.IsInitialScanRunning
                 ? "No verified deals yet. Sniper is watching new live listings and verifying qualifying candidates; cached 1-gil candidates also receive a current-listing check."
                 : "No qualifying new listings received yet.");
             return;

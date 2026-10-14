@@ -95,4 +95,6 @@ Sniper reads cached four-day HQ/NQ average references in 100-item batches with u
 
 The screen allows the selected threshold plus 25 percentage points, capped at 125% of the cached average. Unknown references are verified rather than discarded. Cache refresh age is unavailable; source upload times are not cache-refresh times. Screening can miss opportunities compared with a full history scan. Purchases remain manual.
 
-Cached one-gil minima also trigger targeted startup listing lookups. Only offers still present in the current API response become alerts; failed lookups retry after 30 seconds. Candidate history requests up to 1,000 sales shared across HQ/NQ. In history-days 0 mode the Last sale price column shows the latest dated same-quality unit price, separately from the median. Scan options can be collapsed while controls, status and results remain visible.
+Cached one-gil minima also trigger targeted startup listing lookups. Only offers still present in the current API response become alerts; failed lookups retry after 30 seconds. Candidate history requests up to 750 sales shared across HQ/NQ. In history-days 0 mode the Last sale price column shows the latest dated same-quality unit price, separately from the median. Scan options can be collapsed while controls, status and results remain visible.
+
+Search the Sniper deals table by item name, 1 gil for 1-gil alerts, or deal/deals for ordinary deals. Clear restores the view; search does not change watched items.

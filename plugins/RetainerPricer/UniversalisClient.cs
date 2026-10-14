@@ -31,7 +31,7 @@ public sealed class UniversalisClient : IDisposable
     }
     private const int HistoryEntryLimit = 100;
     private const int HistoryWindowSeconds = 30 * 24 * 60 * 60;
-    public const int SniperHistoryEntryLimit = 1000;
+    public const int SniperHistoryEntryLimit = 750;
     private const int MaximumSniperHistoryAttempts = 2;
     private const int UniversalisRequestsPerSecond = 25;
     private static readonly TimeSpan HistoryRequestTimeout = TimeSpan.FromSeconds(60);

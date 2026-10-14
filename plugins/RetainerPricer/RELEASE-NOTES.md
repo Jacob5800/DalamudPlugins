@@ -1,6 +1,6 @@
-## 0.5.0.25
+## 0.5.0.26
 
-- Cached HQ/NQ minima priced at 1 gil now trigger targeted current-listing lookups at startup. Only confirmed 1-gil offers are shown, with server and quantity; stale cached offers produce no alert. Failed lookups remain pending and retry after 30 seconds. Live alerts continue alongside startup lookups.
-- Increased candidate history from 500 to up to 1,000 recent sales per item, shared across HQ/NQ. Updated capped-sample calculations, logs and tooltips. This does not guarantee fewer upstream timeouts.
-- Added a sortable Last sale price column, visible only with history days 0. It shows the most recent dated same-quality sale price per item in the selected market scope, with its date on hover. It is separate from the median; unknown values show a dash.
-- Item selection, market scope and scan settings are now under a collapsible Scan options header. Start/Stop, scope summary, live status and deals remain visible to leave more room for results.
+- Set candidate sales-history requests to up to 750 recent sales per item, shared across HQ/NQ. The sample-limit calculations and labels use the same cap.
+- Added search above the Sniper deals table: item names match without case sensitivity; 1 gil (also 1gil or 1-gil) shows only 1-gil alerts; deal or deals shows ordinary deals. Clear restores all alert types. Search does not change scanning or watching.
+- Counts distinguish rows hidden by existing filters from rows hidden by search; a no-match message makes active searches clear.
+- Includes the preceding update's existing 1-gil startup checks, sortable Last sale price column for 0-day history, and collapsible Scan options.
