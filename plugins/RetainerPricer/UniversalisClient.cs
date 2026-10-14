@@ -235,8 +235,8 @@ public sealed class UniversalisClient : IDisposable
         var ids = string.Join(',', itemIds);
         try
         {
-            var fields = itemIds.Count == 1 ? "itemID,worldID,dcName,regionName,listings" : "itemIDs,worldID,dcName,regionName,items.itemID,items.listings,unresolvedItems";
-            var json = await RequestJsonAsync($"{Uri.EscapeDataString(scope.Name)}/{ids}?entries=0&fields={fields}", scope.Name, deadline.Token).ConfigureAwait(false);
+            var fields = itemIds.Count == 1 ? "itemID,worldID,dcName,regionName,listings.pricePerUnit,listings.quantity,listings.hq,listings.worldID" : "itemIDs,worldID,dcName,regionName,items.itemID,items.listings.pricePerUnit,items.listings.quantity,items.listings.hq,items.listings.worldID,unresolvedItems";
+            var json = await RequestJsonAsync($"{Uri.EscapeDataString(scope.Name)}/{ids}?entries=0&fields={fields}", scope.Name, deadline.Token, 8 * 1024 * 1024).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var scopeProperty = scope.Kind == SniperHistoryScopeKind.World ? "worldID" : scope.Kind == SniperHistoryScopeKind.DataCenter ? "dcName" : "regionName";
@@ -558,7 +558,7 @@ public sealed class UniversalisClient : IDisposable
         return Parse(json, worldId, itemId, kind, scopeName);
     }
 
-    private async Task<byte[]> RequestJsonAsync(string path, string scopeDescription, CancellationToken ct)
+    private async Task<byte[]> RequestJsonAsync(string path, string scopeDescription, CancellationToken ct, int maximumResponseBytes = MaximumResponseBytes)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://universalis.app/api/v2/{path}");
         request.Headers.UserAgent.ParseAdd("RetainerPricer/0.1");
@@ -580,7 +580,7 @@ public sealed class UniversalisClient : IDisposable
                 throw new InvalidOperationException($"Universalis has no market data for {scopeDescription}.");
             if (!response.IsSuccessStatusCode)
                 throw new InvalidOperationException($"Universalis returned HTTP {(int)response.StatusCode} for {scopeDescription}. Try again later.");
-            if (response.Content.Headers.ContentLength > MaximumResponseBytes)
+            if (response.Content.Headers.ContentLength > maximumResponseBytes)
                 throw new InvalidOperationException($"Universalis returned too much market data for {scopeDescription}. Try again later.");
 
             await using var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -590,7 +590,7 @@ public sealed class UniversalisClient : IDisposable
             {
                 var read = await source.ReadAsync(chunk, ct).ConfigureAwait(false);
                 if (read == 0) break;
-                if (buffer.Length + read > MaximumResponseBytes)
+                if (buffer.Length + read > maximumResponseBytes)
                     throw new InvalidOperationException($"Universalis returned too much market data for {scopeDescription}. Try again later.");
                 buffer.Write(chunk, 0, read);
             }

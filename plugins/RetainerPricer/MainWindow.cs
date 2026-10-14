@@ -1360,10 +1360,11 @@ internal sealed class MainWindow : Window
                     ? sortedDeals.OrderBy(key).ThenBy(deal => deal.ItemName).ToList()
                     : sortedDeals.OrderByDescending(key).ThenBy(deal => deal.ItemName).ToList();
             }
-            void Cell(string text, string help, bool alert = false, bool unknownHistory = false, bool slowSales = false, bool healthySales = false, bool strongSales = false)
+            void Cell(string text, string help, bool alert = false, bool unknownHistory = false, bool slowSales = false, bool healthySales = false, bool strongSales = false, bool hqQuality = false)
             {
                 ImGui.TableNextColumn();
-                if (strongSales) ImGui.TextColored(new Vector4(0.15f, 0.9f, 0.25f, 1f), text);
+                if (hqQuality) ImGui.TextColored(new Vector4(0.3f, 0.85f, 1f, 1f), text);
+                else if (strongSales) ImGui.TextColored(new Vector4(0.15f, 0.9f, 0.25f, 1f), text);
                 else if (healthySales) ImGui.TextColored(new Vector4(0.6f, 1f, 0.65f, 1f), text);
                 else if (slowSales) ImGui.TextColored(new Vector4(1f, 0.55f, 0.1f, 1f), text);
                 else if (unknownHistory) ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), text);
@@ -1385,7 +1386,7 @@ internal sealed class MainWindow : Window
                     $"{deal.ItemName}\nLive listing received: {deal.DetectedAt.ToLocalTime():g}. Purchases are manual; availability can change.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
                 Cell(deal.DataCenterName ?? "—", "Data Center containing the listing's server. A dash means its Data Center could not be resolved.");
                 Cell(deal.WorldName, "Server where this listing was received. Visit this server to check and purchase it manually.");
-                Cell(deal.IsHq ? "HQ" : "NQ", "HQ and NQ sales are compared separately.");
+                Cell(deal.IsHq ? "HQ" : "NQ", "HQ and NQ sales are compared separately. HQ is highlighted cyan.", hqQuality: deal.IsHq);
                 Cell(deal.Quantity.ToString("N0"), $"{deal.Quantity:N0} items in this stack. Estimated purchase cost including the {config.SniperPurchaseFeePercent:0.##}% assumed fee: {purchase:N0} gil.");
                 Cell(deal.PricePerUnit.ToString("N0"),
                     $"Listed price per item: {deal.PricePerUnit:N0} gil.\nStack before fees: {(ulong)deal.Quantity * deal.PricePerUnit:N0} gil.\nEstimated stack purchase: {deal.Quantity:N0} × {deal.PricePerUnit:N0} × (1 + {config.SniperPurchaseFeePercent:0.##}% fee) = {purchase:N0} gil, rounded up. Actual fees vary.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
