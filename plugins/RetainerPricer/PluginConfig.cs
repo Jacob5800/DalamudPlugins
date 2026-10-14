@@ -10,6 +10,8 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
+    public bool ShowMarketboardRoi { get; set; } = false;
+    public bool ShowItemTooltipPrices { get; set; } = false;
     public bool ShowInventoryContextMenu { get; set; } = true;
     public bool UndercutEchoMessages { get; set; } = true;
     public bool HideUndercutInDuties { get; set; } = true;

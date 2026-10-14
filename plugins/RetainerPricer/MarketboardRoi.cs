@@ -1,0 +1,90 @@
+using Dalamud.Bindings.ImGui;
+using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
+using System.Numerics;
+
+namespace RetainerPricer;
+
+internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge, UniversalisClient client, PluginConfig config) : IDisposable
+{
+    private readonly CancellationTokenSource lifetime = new();
+    private Task<PriceSnapshot>? request;
+    private (uint World, uint Item) requested;
+    private PriceSnapshot? snapshot;
+    private DateTimeOffset nextRequest;
+    private string status = "Loading home prices...";
+
+    public unsafe void Draw()
+    {
+        if (request is { IsCompleted: true })
+        {
+            if (request.IsCompletedSuccessfully) { snapshot = request.Result; status = ""; }
+            else { _ = request.Exception; snapshot = null; status = "Home price unavailable"; }
+            request = null;
+        }
+        if (!config.ShowMarketboardRoi) return;
+        var world = bridge.GetHomeWorld();
+        var addon = (AddonItemSearchResult*)gameGui.GetAddonByName("ItemSearchResult").Address;
+        var agent = AgentItemSearch.Instance();
+        var proxy = InfoProxyItemSearch.Instance();
+        if (world is null || addon == null || !addon->IsVisible || addon->Results == null || agent == null || proxy == null || proxy->WaitingForListings) return;
+        var raw = agent->ResultItemId;
+        var id = raw >= 1_000_000 ? raw - 1_000_000 : raw;
+        if (id == 0 || proxy->SearchItemId != id) return;
+        var key = (world.WorldId, id);
+        var now = DateTimeOffset.UtcNow;
+        if (request is null && now >= nextRequest && (requested != key || snapshot is null || now - snapshot.RetrievedAt > TimeSpan.FromMinutes(5)))
+        {
+            requested = key;
+            snapshot = null;
+            status = "Loading home prices...";
+            request = client.FetchAsync(world.WorldId, id, lifetime.Token, cacheMinutes: 5);
+            nextRequest = now.AddSeconds(5);
+        }
+        var matching = requested == key && snapshot?.ItemId == id && snapshot.WorldId == world.WorldId;
+        var list = addon->Results;
+        if (list->ItemRendererList == null || list->AllocatedItemRendererListLength is < 1 or > 100) return;
+        for (var i = 0; i < list->AllocatedItemRendererListLength; i++)
+        {
+            var renderer = list->ItemRendererList[i].AtkComponentListItemRenderer;
+            if (renderer == null || renderer->OwnerNode == null || !renderer->OwnerNode->IsVisible()) continue;
+            var index = renderer->ListItemIndex;
+            if (index < 0 || index >= proxy->ListingCount || index >= 100) continue;
+            var offer = proxy->Listings[index];
+            if (offer.ItemId != id || offer.UnitPrice == 0 || offer.IsMannequin) continue;
+            var node = renderer->OwnerNode;
+            var top = node->ScreenY;
+            if (top < addon->Y || top >= addon->Y + addon->GetScaledHeight(true) - 25 * addon->Scale) continue;
+            var home = matching ? snapshot!.Listings.Where(x => x.WorldId == world.WorldId && x.IsHq == offer.IsHqItem && !x.OnMannequin && x.PricePerUnit > 0).OrderBy(x => x.PricePerUnit).FirstOrDefault() : null;
+            var label = "ROI: —";
+            var color = new Vector4(0.65f, 0.65f, 0.65f, 1);
+            decimal? roi = null;
+            if (home is not null)
+            {
+                var cost = offer.UnitPrice * (1m + (decimal)config.SniperPurchaseFeePercent / 100m);
+                var resale = Math.Max(1m, home.PricePerUnit - 1m);
+                roi = (resale * (1m - (decimal)config.SniperResaleTaxPercent / 100m) - cost) / cost * 100m;
+                label = $"ROI: {roi:0.0}%";
+                color = roi < 0 ? new Vector4(1, 0.35f, 0.35f, 1) : roi >= 100 ? new Vector4(0.2f, 1, 0.3f, 1) : roi >= 25 ? new Vector4(0.6f, 0.9f, 0.6f, 1) : Vector4.One;
+            }
+            // Use each live renderer's screen position so virtualized rows follow scrolling.
+            var roiX = addon->X + addon->GetScaledWidth(true) + 3;
+            var viewport = ImGui.GetMainViewport();
+            if (roiX + 125 > viewport.WorkPos.X + viewport.WorkSize.X) roiX = Math.Max(viewport.WorkPos.X, addon->X - 125);
+            ImGui.SetNextWindowPos(new Vector2(roiX, top));
+            ImGui.SetNextWindowBgAlpha(0.9f);
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(4, 1));
+            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoFocusOnAppearing;
+            if (ImGui.Begin($"ROI##RPMarketRow{index}", flags))
+            {
+                ImGui.TextColored(color, label);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip(home is null ? (matching ? "No matching HQ/NQ home listing." : status) : $"Estimated resale on {world.Name}: {Math.Max(1m, home.PricePerUnit - 1m):N0} gil each. Same HQ/NQ, cheapest home listing minus 1 gil; {config.SniperPurchaseFeePercent:0.##}% purchase fee and {config.SniperResaleTaxPercent:0.##}% resale tax. Materia is not matched. This is an estimate, not guaranteed profit.");
+            }
+            ImGui.End();
+            ImGui.PopStyleVar();
+        }
+    }
+    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+}

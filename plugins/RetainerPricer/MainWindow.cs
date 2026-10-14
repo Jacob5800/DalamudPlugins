@@ -79,6 +79,8 @@ internal sealed class MainWindow : Window
     private bool feedbackSending;
     private Action? pendingEmptyExceptionsListingStart;
 
+    public bool PriceInsightLoaded { get; set; }
+
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
@@ -136,6 +138,27 @@ internal sealed class MainWindow : Window
 
     public override void Draw()
     {
+        if (controller.MateriaWarningItem is { } melded)
+        {
+            ImGui.OpenPopup("Materia pricing warning");
+            if (ImGui.BeginPopupModal("Materia pricing warning", ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.TextUnformatted($"{melded.Name} · {(melded.IsHq ? "HQ" : "NQ")} · {melded.MateriaCount} materia");
+                ImGui.TextWrapped("Retainer Pricer does not match materia on listings, and sale history does not record melds. Proceeding may price this item against unmelded items of the same quality. Proceed with normal pricing, or skip this item?");
+                if (controller.IsMateriaListingBatch)
+                {
+                    var dontAsk = controller.DontAskMateriaAgainThisRun;
+                    if (ImGui.Checkbox("Don't ask again during current listing", ref dontAsk)) controller.DontAskMateriaAgainThisRun = dontAsk;
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Proceed without further materia warnings for this listing batch only. Resets when a new batch starts. Skip still skips only this item.");
+                }
+                if (ImGui.Button("Proceed")) { controller.ResolveMateriaWarning(true); ImGui.CloseCurrentPopup(); }
+                ImGui.SameLine();
+                if (ImGui.Button("Skip")) { controller.ResolveMateriaWarning(false); ImGui.CloseCurrentPopup(); }
+                ImGui.EndPopup();
+            }
+        }
+        if (PriceInsightLoaded && config.ShowItemTooltipPrices)
+            ImGui.TextColored(new Vector4(1f, 0.8f, 0.25f, 1f), "Price Insight is also loaded: item-tooltip prices may overlap. See Settings.");
         var world = homeWorld();
         var priceScope = config.UseRegionPrices
             ? "your home-world region and Materia (Oceania)"
@@ -651,6 +674,14 @@ internal sealed class MainWindow : Window
     private void DrawSettings()
     {
         DrawSettingsBackup();
+        var marketRoi = config.ShowMarketboardRoi;
+        if (ImGui.Checkbox("Show ROI beside marketboard search results", ref marketRoi)) { config.ShowMarketboardRoi = marketRoi; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show estimated per-offer ROI using matching home-world HQ/NQ listings minus 1 gil and your Sniper fee assumptions.");
+        if (PriceInsightLoaded)
+            ImGui.TextWrapped("Price Insight is loaded. Both plugins can show item-tooltip prices; enabling this option may display duplicate price panels. Disable one plugin's tooltip prices if desired.");
+        var tooltipPrices = config.ShowItemTooltipPrices;
+        if (ImGui.Checkbox("Show home prices in item tooltips", ref tooltipPrices)) { config.ShowItemTooltipPrices = tooltipPrices; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show home-world NQ/HQ listings, recent purchases and cached four-day sales velocity below item tooltips. Hover briefly to fetch; results are cached for five minutes.");
         var showInventoryMenu = config.ShowInventoryContextMenu;
         if (ImGui.Checkbox("Show inventory right-click list options", ref showInventoryMenu))
         {
@@ -1006,6 +1037,7 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("Saved retainer snapshots show venture time remaining after refreshing. Which venture lets you type an item name to filter the dropdown; leave the search empty to browse.");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
+        ImGui.BulletText("Settings can enable home-world item-tooltip prices and marketboard ROI labels. Lookup results provide Retry after failures and Copy price. New listings with materia require Proceed or Skip; the batch-only checkbox suppresses further warnings for that run.");
         ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages. The two Marketboard Price rows also estimate ROI against the cheapest matching home-world listing minus 1 gil, using Sniper purchase fee and resale tax assumptions.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: filter by retainer or item name and click column headers to sort. Last sold price shows loaded sales data; hover for its date. Set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
@@ -1934,6 +1966,12 @@ internal sealed class MainWindow : Window
         if (controller.ManualSnapshot is not { } snapshot)
         {
             ImGui.TextDisabled(controller.ManualResultStatus ?? "No Universalis result is available for this item.");
+            var retryWorld = homeWorld();
+            ImGui.BeginDisabled(controller.Busy || ventures.IsRunning || retryWorld is null);
+            if (ImGui.Button("Retry##manualLookup") && retryWorld is not null)
+                dispatch(() => controller.CheckManualItem(item, hq, retryWorld));
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Retry this item and HQ/NQ quality using your current Pricing settings.");
             return;
         }
 
@@ -1994,6 +2032,10 @@ internal sealed class MainWindow : Window
                     ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.6f, 1), $"Suggested price ({PricingRuleName}): {proposal.SuggestedPrice:N0} gil each");
                 else
                     ImGui.TextUnformatted($"Reference price ({PricingRuleName}): {proposal.SuggestedPrice:N0} gil each");
+                ImGui.SameLine();
+                if (ImGui.Button("Copy price##manualSuggestedPrice"))
+                    ImGui.SetClipboardText(proposal.SuggestedPrice.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy the price per item as a plain number, without separators or gil text.");
             }
             else
                 ImGui.TextWrapped(proposal.Error ?? "No usable price.");

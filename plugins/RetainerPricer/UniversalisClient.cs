@@ -193,6 +193,23 @@ public sealed class UniversalisClient : IDisposable
             worldIds, worldDataCenterNames);
     }
 
+    internal async Task<(decimal? Nq, decimal? Hq)> FetchTooltipVelocityAsync(uint worldId, uint itemId, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RequestTimeout);
+        var json = await RequestJsonAsync($"aggregated/{worldId}/{itemId}", worldId.ToString(), deadline.Token).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        decimal? Read(string quality)
+        {
+            if (!doc.RootElement.TryGetProperty("results", out var rows)) return null;
+            foreach (var row in rows.EnumerateArray())
+                if (row.TryGetProperty(quality, out var q) && q.TryGetProperty("dailySaleVelocity", out var v) &&
+                    v.TryGetProperty("world", out var world) && world.TryGetProperty("quantity", out var quantity) && quantity.TryGetDecimal(out var value)) return value;
+            return null;
+        }
+        return (Read("nq"), Read("hq"));
+    }
+
     internal async Task<IReadOnlyDictionary<(uint ItemId, bool IsHq), decimal>> FetchSniperCachedPricesAsync(
         SniperHistoryScope scope, IReadOnlyList<uint> ids, CancellationToken ct, Action<uint>? oneGilCandidate = null)
     {

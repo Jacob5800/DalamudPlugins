@@ -106,3 +106,15 @@ Hide 1gil deals is a display-only option, off by default, available while watchi
 Sniper retains up to 5,000 results in pages of 100. ROI is estimated net resale profit divided by purchase cost including fees; Minimum ROI % is a display filter (0 disables it). Right-click an item name to move its captured rows to the saved Buy list next to Sniper. Buy list suppresses that item in Sniper until removed or cleared, and offers Copy item name and confirmed Clear list. Saved rows are snapshots, not purchases. With Skip 1 gil lookup enabled, live 1-gil alerts require matching-quality history meeting minimum sales. Sale-age yellow now starts at 3 days.
 
 ROI appears before Discount: negative is red, 25–<100% light green, and 100%+ green. In Buy list, Copy item name then Paste clipboard and search uses the open current-world marketboard while pricing is idle. Purchases are manual.
+
+### Melded items
+
+New listings with materia require a Proceed or Skip decision before plugin pricing. Proceed uses normal HQ/NQ pricing, which does not match melds; Universalis sale history does not record materia. Skip leaves a manually opened sale unchanged or skips that item in an automatic listing batch.
+
+### Item tooltip prices
+
+Enable **Show home prices in item tooltips** in Settings to show a panel beneath hovered item tooltips (above if space is limited). It shows home-world NQ/HQ asking prices and latest purchases with separate ages, plus Universalis cached four-day daily sale velocity. Values are cached for five minutes; unavailable values show a dash.
+
+### Marketboard ROI
+
+Enable **Show ROI beside marketboard search results** in Settings. A column beside the result window follows visible offers and estimates resale at the cheapest matching HQ/NQ home-world listing minus 1 gil, using Sniper purchase fee and resale tax assumptions. Prices are cached for five minutes. Missing home prices show a dash; melds are not matched.

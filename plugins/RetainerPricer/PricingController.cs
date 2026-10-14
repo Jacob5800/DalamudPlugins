@@ -198,6 +198,7 @@ internal sealed class PricingController : IDisposable
     public void Update()
     {
         var now = DateTimeOffset.UtcNow;
+        if (MateriaWarningItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -387,6 +388,8 @@ internal sealed class PricingController : IDisposable
         batchMaximumReachedItemIds.Clear();
         step = Step.Start;
         workSource = PriceSource.Universalis;
+        skipMateriaWarningsThisRun = false;
+        approvedMateriaItem = null;
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
         var scope = batchOnly ? "configured Batch selling item stack(s) only" : "eligible stack(s)";
@@ -439,10 +442,46 @@ internal sealed class PricingController : IDisposable
             row.Status = "Excluded";
     }
 
+    public SellItem? MateriaWarningItem { get; private set; }
+    private Action? materiaProceed;
+    private Action? materiaSkip;
+    private SellItem? approvedMateriaItem;
+    private bool skipMateriaWarningsThisRun;
+    public bool DontAskMateriaAgainThisRun { get; set; }
+    public bool IsMateriaListingBatch => work == Work.BatchListing;
+
+    private bool AwaitMateriaDecision(SellItem item, Action proceed, Action skip)
+    {
+        if (item.IsExisting || item.MateriaCount == 0 || approvedMateriaItem == item ||
+            (work == Work.BatchListing && skipMateriaWarningsThisRun)) return false;
+        DontAskMateriaAgainThisRun = false;
+        MateriaWarningItem = item;
+        materiaProceed = proceed;
+        materiaSkip = skip;
+        Status = $"Review materia warning for {item.Name}: choose Proceed or Skip.";
+        return true;
+    }
+
+    public void ResolveMateriaWarning(bool proceed)
+    {
+        var item = MateriaWarningItem;
+        if (item is null) return;
+        var action = proceed ? materiaProceed : materiaSkip;
+        MateriaWarningItem = null;
+        materiaProceed = materiaSkip = null;
+        if (proceed) {
+            approvedMateriaItem = item;
+            if (work == Work.BatchListing && DontAskMateriaAgainThisRun) skipMateriaWarningsThisRun = true;
+        }
+        DontAskMateriaAgainThisRun = false;
+        action?.Invoke();
+    }
+
     public void CheckCurrent(bool fillAutomatically = false)
     {
         if (Busy) return;
         if (!bridge.TryReadSellItem(out var target, out var error)) { Status = error; return; }
+        if (AwaitMateriaDecision(target, () => CheckCurrent(fillAutomatically), () => Status = $"Skipped {target.Name}; no price was filled or sale submitted.")) return;
         if (!marketableItemIds.Contains(target.ItemId))
         { Status = "This item is not marketable and will be skipped."; return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var excludedItemIds, out var savedGearsetItemIds, out var protectionError))
@@ -1490,6 +1529,7 @@ internal sealed class PricingController : IDisposable
                 !bridge.TrySetNewListingQuantity(opened, requestedListingQuantity, out opened, out var quantityError))
             { Cancel($"Automatic listing stopped before pricing {opened.Name}: {quantityError}"); return; }
 
+            if (AwaitMateriaDecision(opened, () => deadline = DateTimeOffset.UtcNow.AddSeconds(8), () => SkipBatchItem($"Skipped {opened.Name}: materia warning declined."))) return;
             workingItem = opened;
             if (!StartRequest(opened, now, out var requestError))
             {
@@ -1841,6 +1881,11 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        MateriaWarningItem = null;
+        materiaProceed = materiaSkip = null;
+        approvedMateriaItem = null;
+        skipMateriaWarningsThisRun = false;
+        DontAskMateriaAgainThisRun = false;
         if (work == Work.AutoUpdateAllRetainers)
         {
             Rows.InsertRange(0, completedRetainerRows.Where(row => !Rows.Contains(row)).ToArray());

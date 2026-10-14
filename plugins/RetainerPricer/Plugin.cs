@@ -33,6 +33,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly UndercutNotifier undercuts;
     private readonly ICondition condition;
     private readonly IChatGui chat;
+    private readonly ItemPriceTooltip itemPriceTooltip;
+    private readonly MarketboardRoi marketboardRoi;
     private bool wasOpen;
     private bool disposed;
     private readonly bool rpAliasRegistered;
@@ -60,6 +62,8 @@ public sealed class Plugin : IDalamudPlugin
         serverInfoBarEntry.OnClick = _ => Toggle();
         serverInfoBarEntry.Shown = config.ShowServerInfoBarButton;
         bridge = new NativeMarketBridge(gameGui, data, player, clientState, condition, addons, interop, sigScanner, log);
+        itemPriceTooltip = new ItemPriceTooltip(gameGui, bridge, universalis, config);
+        marketboardRoi = new MarketboardRoi(gameGui, bridge, universalis, config);
         var itemSheet = data.GetExcelSheet<Item>();
         var itemChoices = itemSheet
             .Select(item => new ItemChoice(item.RowId, item.Name.ToString()))
@@ -100,6 +104,8 @@ public sealed class Plugin : IDalamudPlugin
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
+        pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
+        pluginInterface.UiBuilder.Draw += marketboardRoi.Draw;
         pluginInterface.UiBuilder.OpenMainUi += Toggle;
         pluginInterface.UiBuilder.OpenConfigUi += Toggle;
         framework.Update += Update;
@@ -134,6 +140,7 @@ public sealed class Plugin : IDalamudPlugin
         try
         {
             controller.Update();
+            if (controller.MateriaWarningItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
             undercuts.SetSniperWatching(sniper.WatchingMarketScope == config.UndercutMarketScope);
@@ -146,6 +153,9 @@ public sealed class Plugin : IDalamudPlugin
             var scanning = sniper.IsInitialScanRunning || sniper.IsVerifyingCandidate || undercuts.Checking;
             if (DateTimeOffset.UtcNow >= nextServerBarUpdate)
             {
+                window.PriceInsightLoaded = pluginInterface.InstalledPlugins.Any(plugin => plugin.IsLoaded &&
+                    (string.Equals(plugin.InternalName.Replace(" ", ""), "PriceInsight", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(plugin.Name, "Price Insight", StringComparison.OrdinalIgnoreCase)));
                 nextServerBarUpdate = DateTimeOffset.UtcNow.AddSeconds(1);
                 var completed = bridge.GetCompletedVentureNames(config.UniversalisRetainerListings);
                 var text = new SeStringBuilder();
@@ -217,6 +227,10 @@ public sealed class Plugin : IDalamudPlugin
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;
         pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
+        pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw;
+        itemPriceTooltip.Dispose();
+        pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw;
+        marketboardRoi.Dispose();
         pluginInterface.UiBuilder.OpenMainUi -= Toggle;
         pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
         commands.RemoveHandler("/retainerpricer");

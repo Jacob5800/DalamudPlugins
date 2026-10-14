@@ -28,7 +28,7 @@ public sealed record RetainerVentureMenuLabels(string Quit, string ViewReport,
 internal sealed record RetainerPickerEntry(RetainerIdentity Retainer, bool IsAvailable);
 
 public sealed record SellItem(MarketSession Session, uint ItemId, string Name, bool IsHq,
-    uint Quantity, uint CurrentPrice, int InventoryType, int Slot, long DialogGeneration = 0)
+    uint Quantity, uint CurrentPrice, int InventoryType, int Slot, long DialogGeneration = 0, int MateriaCount = 0)
 {
     public bool IsExisting => InventoryType == (int)FFXIVClientStructs.FFXIV.Client.Game.InventoryType.RetainerMarket;
 }
@@ -567,7 +567,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         var itemId = stock->GetBaseItemId();
         item = new SellItem(session, itemId, ItemName(itemId), stock->IsHighQuality(),
             (uint)quantity, (uint)price, (int)agentView->SellInventoryType,
-            agentView->SellInventorySlot, DialogGeneration);
+            agentView->SellInventorySlot, DialogGeneration, stock->GetMateriaCount());
         error = string.Empty;
         return true;
     }
