@@ -152,8 +152,8 @@ public sealed class Plugin : IDalamudPlugin
                 if (completed.Count > 0) text.AddUiForegroundOff();
                 serverInfoBarEntry.Text = text.Build();
                 serverInfoBarEntry.Tooltip = (completed.Count > 0
-                    ? $"Completed ventures ({completed.Count}): {string.Join(", ", completed)}.\n"
-                    : "No completed ventures in the current character's loaded retainer data. Open the summoning bell to refresh.\n")
+                    ? $"Completed ventures on available retainers ({completed.Count}): {string.Join(", ", completed)}.\n"
+                    : "No completed ventures on retainers confirmed available. Open the summoning bell to refresh availability.\n")
                     + (scanning ? "Fetching Sniper history or checking undercuts.\n" : "")
                     + "Click to open Retainer Pricer.";
             }

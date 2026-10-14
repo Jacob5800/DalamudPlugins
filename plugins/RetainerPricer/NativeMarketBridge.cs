@@ -755,16 +755,30 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    private ulong ventureAvailabilityCharacter;
+    private readonly HashSet<ulong> availableVentureRetainers = [];
+
     public IReadOnlyList<string> GetCompletedVentureNames()
     {
         var names = new List<string>();
+        if (!player.IsLoaded || ventureAvailabilityCharacter != player.ContentId)
+        {
+            availableVentureRetainers.Clear();
+            ventureAvailabilityCharacter = player.IsLoaded ? player.ContentId : 0;
+        }
         if (!TryGetOwnRetainers(out var roster)) return names;
+        if (TryReadRetainerPickerEntries(out var entries, out _))
+        {
+            availableVentureRetainers.Clear();
+            foreach (var entry in entries.Where(entry => entry.IsAvailable))
+                availableVentureRetainers.Add(entry.Retainer.RetainerId);
+        }
         var manager = RetainerManager.Instance();
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         for (uint index = 0; index < roster.Count; index++)
         {
             var retainer = manager->GetRetainerBySortedIndex(index);
-            if (retainer != null && retainer->VentureId != 0 && retainer->VentureComplete != 0 && retainer->VentureComplete <= now)
+            if (retainer != null && availableVentureRetainers.Contains(retainer->RetainerId) && retainer->VentureId != 0 && retainer->VentureComplete != 0 && retainer->VentureComplete <= now)
                 names.Add(retainer->NameString);
         }
         return names;
