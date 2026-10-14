@@ -5,6 +5,7 @@
     <Author>Jacob5800</Author>
     <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>
     <Name>Strategy Board Library</Name>
+    <IconUrl>https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon-512.png</IconUrl>
     <Punchline>Search, organize, and import strategy board share codes.</Punchline>
     <Description>A searchable local library for FFXIV Strategy Board share codes, with quick copy and FFXIVStrats link intake.</Description>
     <Tags>strategy;board;share-code;raid</Tags>
