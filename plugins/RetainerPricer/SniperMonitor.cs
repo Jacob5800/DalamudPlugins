@@ -140,7 +140,7 @@ internal sealed class SniperMonitor : IDisposable
             // Start listening before the catalog scan completes. Live listings for unscanned
             // items are held until their history batch supplies a usable HQ/NQ baseline.
             var historyScanTask = ScanHistoryAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
-                threshold, historyDays, minimumItemPrice, runState, cancellationToken);
+                threshold, historyDays, minimumItemPrice, runState, cancellationToken, autoRetry: true);
             HistoryScanSummary? historySummary = null;
 
             var backoffSeconds = 2;
@@ -237,7 +237,7 @@ internal sealed class SniperMonitor : IDisposable
     private async Task<HistoryScanSummary> ScanHistoryAsync(SniperMarketScope scope,
         IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
         int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool autoRetry = false)
     {
         var failed = new System.Collections.Concurrent.ConcurrentBag<string>();
         var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
@@ -339,6 +339,19 @@ internal sealed class SniperMonitor : IDisposable
                 }
             }).ConfigureAwait(false);
 
+            if (autoRetry && runState.FailedItemIds.Count > 0)
+            {
+                ItemChoice[] retryItems;
+                lock (gate)
+                {
+                    retryItems = watchedItems.Where(item => runState.FailedItemIds.Contains(item.ItemId)).ToArray();
+                    initialScanProgress = $"Full scan attempted · automatically retrying {retryItems.Length:N0} failed items after a 5-second cooldown…";
+                    RefreshInitialScanStatusAndGetLocked(runState);
+                }
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                return await ScanHistoryAsync(scope, retryItems, world, watchedWorlds, minimumSales,
+                    threshold, historyDays, minimumItemPrice, runState, cancellationToken).ConfigureAwait(false);
+            }
             var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
             var summary = new HistoryScanSummary(eligible, failed.ToArray(), FailedItems: runState.FailedItemIds.Count);
             universalis.DiagnosticLog?.Invoke($"Sniper scan finished: scope={scope.Label}; requestedItems={watchedItems.Count}; failedBatches={failed.Count}; unresolvedItems={summary.FailedItems}; usableItems={eligible}; elapsedSeconds={Stopwatch.GetElapsedTime(scanStartedAt).TotalSeconds:F2}");

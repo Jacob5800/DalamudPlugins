@@ -868,9 +868,15 @@ internal sealed class MainWindow : Window
     {
         ImGui.TextWrapped("Refresh all retainer listings at a summoning bell first. Start watching checks your saved prices against matching HQ/NQ listings in the selected World, Data Center or home-region scope every 60 seconds. Saved own-retainer IDs and listings with unknown owners are ignored. Universalis data and saved prices may be outdated; refresh snapshots after sales or repricing. This never changes a price.");
         ImGui.BeginDisabled(undercuts.Checking);
-        var notifierScope = config.UndercutMarketScope;
-        if (ImGui.Combo("Market scope##undercuts", ref notifierScope, "World\0Data Center\0Region (home region only)\0"))
-        { config.UndercutMarketScope = notifierScope; save(); }
+        ImGui.TextUnformatted("Market scope");
+        if (ImGui.RadioButton("World##undercuts", config.UndercutMarketScope == 0))
+        { config.UndercutMarketScope = 0; save(); }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Data Center##undercuts", config.UndercutMarketScope == 1))
+        { config.UndercutMarketScope = 1; save(); }
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Region (home region only)##undercuts", config.UndercutMarketScope == 2))
+        { config.UndercutMarketScope = 2; save(); }
         ImGui.EndDisabled();
         ImGui.TextDisabled("Matching Sniper scope also starts notifier checks. Notifier watching alone never starts Sniper.");
         var echo = config.UndercutEchoMessages;
@@ -1022,7 +1028,7 @@ internal sealed class MainWindow : Window
                     : "your home-world Data Center"
                 : "your home world";
         ImGui.TextWrapped($"Start watching to scan every marketable item in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. In Region scope, each server name includes its Data Center. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
-        ImGui.TextDisabled("History is requested in batches of up to 100 items, with one batch at a time and at least 1 second between request starts in every history mode (including retries). All requests share a 25-requests-per-second limit and an 8-request connection limit. New 1-gil listings show immediately; other new listings are checked as their history batch completes. Temporary request failures are retried, then split into groups of 50 and 25 if necessary. New batches start at 100 again. Scan incomplete shows unresolved failures; Retry failed items retries only those items while keeping live watching active. An ETA appears during the initial scan only; after that, Sniper keeps listening without repeating the full scan. Stop watching cancels the scan and live feed.");
+        ImGui.TextDisabled("History is requested in batches of up to 100 items, with one batch at a time and at least 1 second between request starts in every history mode (including retries). All requests share a 25-requests-per-second limit and an 8-request connection limit. New 1-gil listings show immediately; other new listings are checked as their history batch completes. Temporary request failures are retried, then split into groups of 50 and 25 if necessary. New batches start at 100 again. After the full scan, failed items are automatically retried once after a 5-second cooldown. Scan incomplete shows any remaining failures; Retry failed items retries only those items while keeping live watching active. An ETA appears during the initial scan only; after that, Sniper keeps listening without repeating the full scan. Stop watching cancels the scan and live feed.");
 
         var isRunning = sniper.IsRunning;
         ImGui.BeginDisabled(isRunning);
