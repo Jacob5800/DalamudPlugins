@@ -115,6 +115,14 @@ using (var client = new UniversalisClient(http))
     Assert(cached[(4000, false)] == 120 && cached[(4000, true)] == 240, "Keep cached HQ/NQ reference prices separate");
 }
 
+using (var http = new HttpClient(new StubHandler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+{ Content = new StringContent("{\"dcName\":\"Light\",\"items\":{},\"unresolvedItems\":[4000,4001]}") }))))
+using (var client = new UniversalisClient(http))
+{
+    var emptyHistory = await client.FetchSniperSalesBatchAsync(new SniperHistoryScope("Light", SniperHistoryScopeKind.DataCenter), new uint[] {4000,4001}, 3, 74);
+    Assert(emptyHistory.Count == 2 && emptyHistory.Values.All(item => item.Sales.Count == 0), "Explicit no-data items are not endlessly retried as failed requests");
+}
+
 var sniperItemIds = Enumerable.Range(4_000, UniversalisClient.SniperHistoryBatchSize).Select(id => (uint)id).ToArray();
 var sniperItems = new JsonObject();
 var saleTimestamp = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeSeconds();

@@ -33,6 +33,9 @@ internal sealed class SniperMonitor : IDisposable
     private readonly SemaphoreSlim historyVerificationGate = new(1, 1);
     private bool verifyingCandidate;
     private RunState? activeState;
+    public IReadOnlyList<string> RequestDebug => universalis.SniperRequestDebug;
+    public IReadOnlyList<string> CandidateDebug { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => $"{itemNames.GetValueOrDefault(id, $"Item {id}")} (#{id}) · failed passes {activeState.CandidateAttempts.GetValueOrDefault(id)} · retry {(activeState.NextCandidateCheck.TryGetValue(id, out var next) ? next.ToLocalTime().ToString("HH:mm:ss") : "ready")}").ToArray(); } }
+
     public bool IsVerifyingCandidate { get { lock (gate) return verifyingCandidate; } }
     public IReadOnlyList<string> PendingVerificationItems { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => itemNames.GetValueOrDefault(id, $"Item {id}")).ToArray(); } }
 
@@ -295,7 +298,7 @@ internal sealed class SniperMonitor : IDisposable
                     ItemChoice? item;
                     lock (gate)
                     {
-                        var id = state.CandidateIds.FirstOrDefault(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow);
+                        var id = state.CandidateIds.Where(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow).OrderBy(id => state.CandidateAttempts.GetValueOrDefault(id)).FirstOrDefault();
                         item = watchedItems.FirstOrDefault(item => item.ItemId == id);
                         if (item is not null) state.CandidateIds.Remove(item.ItemId);
                     }
@@ -305,13 +308,10 @@ internal sealed class SniperMonitor : IDisposable
                     {
                         if (state.FailedItemIds.Contains(item.ItemId))
                         {
-                            var attempts = state.CandidateAttempts.GetValueOrDefault(item.ItemId) + 1;
+                            var attempts = Math.Min(1_000_000, state.CandidateAttempts.GetValueOrDefault(item.ItemId) + 1);
                             state.CandidateAttempts[item.ItemId] = attempts;
-                            if (attempts < 3)
-                            {
-                                state.NextCandidateCheck[item.ItemId] = DateTimeOffset.UtcNow.AddSeconds(15 * attempts);
-                                state.CandidateIds.Add(item.ItemId);
-                            }
+                            state.NextCandidateCheck[item.ItemId] = DateTimeOffset.UtcNow.AddSeconds(Math.Min(60, 15 * attempts));
+                            state.CandidateIds.Add(item.ItemId);
                         }
                     }
                     await Task.Delay(5000, ct).ConfigureAwait(false);
@@ -326,7 +326,7 @@ internal sealed class SniperMonitor : IDisposable
     private static void QueueCandidateLocked(UniversalisListing listing, RunState state, double threshold, int minimumPrice)
     {
         if (listing.PricePerUnit != 1 && !state.DiscoveryComplete && !state.CachedItems.Contains(listing.ItemId)) return;
-        if (state.CompletedHistoryItemIds.Contains(listing.ItemId) || state.CandidateAttempts.GetValueOrDefault(listing.ItemId) >= 3) return;
+        if (state.CompletedHistoryItemIds.Contains(listing.ItemId)) return;
         if (listing.PricePerUnit == 1 || listing.PricePerUnit >= minimumPrice &&
             (!state.CachedPrices.TryGetValue((listing.ItemId, listing.IsHq), out var average) ||
                 listing.PricePerUnit <= average * (decimal)Math.Min(1.25, threshold + 0.25)))
@@ -439,7 +439,7 @@ internal sealed class SniperMonitor : IDisposable
                     }
                     foreach (var itemId in batchItemIds)
                     {
-                        if (successfulItemIds.Contains(itemId)) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); }
+                        if (successfulItemIds.Contains(itemId)) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); runState.CandidateIds.Remove(itemId); runState.NextCandidateCheck.Remove(itemId); runState.CandidateAttempts.Remove(itemId); }
                         else runState.FailedItemIds.Add(itemId);
                     }
                     failedHistoryItemCount = runState.FailedItemIds.Count;

@@ -1080,7 +1080,19 @@ internal sealed class MainWindow : Window
                 : "your home world";
         ImGui.TextWrapped($"Start watching to scan {(sniperItemSelections.Count == 0 ? "every marketable item" : $"{sniperItemSelections.Count} selected item(s)")} in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. In Region scope, each server name includes its Data Center. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
         ImGui.TextWrapped(sniper.DiscoveryHelp);
-        ImGui.TextDisabled("Cached discovery uses 100-item batches with up to 6 concurrent requests. Live candidate history is verified sequentially with your selected window and minimum sales. Failed verification is retried after 15/30 seconds (up to 3 passes); manual retry remains available. Cache failures fall back to checking unknown-reference live candidates.");
+        ImGui.TextDisabled("Cached discovery uses 100-item batches with up to 6 concurrent requests. Live candidate history is verified sequentially with your selected window and minimum sales. Failed verification returns to the queue with 15/30/45/60-second delays, then keeps retrying at 60-second intervals while watching. Other ready candidates are checked first; manual retry remains available. Cache failures fall back to checking unknown-reference live candidates.");
+        if (ImGui.CollapsingHeader("Sniper request debug"))
+        {
+            ImGui.TextWrapped("Latest 100 requests this session: cache/history successes and failures. A 504 affects the entire request and does not identify a culprit item. Failed candidates remain queued until verified or watching stops.");
+            if (ImGui.Button("Copy Sniper debug")) ImGui.SetClipboardText(string.Join("\n", sniper.CandidateDebug) + "\n\n" + string.Join("\n", sniper.RequestDebug));
+            if (ImGui.BeginChild("SniperDebugLog", new Vector2(0, 180)))
+            {
+                foreach (var line in sniper.CandidateDebug) ImGui.TextWrapped(line);
+                ImGui.Separator();
+                foreach (var line in sniper.RequestDebug.Reverse()) ImGui.TextWrapped(line);
+            }
+            ImGui.EndChild();
+        }
         if (ImGui.CollapsingHeader("Pending history verification"))
         {
             ImGui.TextWrapped("These items are not verified deals. Failed requests cannot establish a price; they remain pending for retry.");
