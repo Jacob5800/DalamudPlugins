@@ -102,6 +102,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool IsVentureTaskAskVisible => IsAddonVisible("RetainerTaskAsk");
     public bool IsVentureTaskResultVisible => IsAddonVisible("RetainerTaskResult");
     public bool IsVentureTaskSupplyVisible => IsAddonVisible("RetainerTaskSupply");
+    public uint GetMarketboardContextItemId()
+    {
+        if (!IsMarketBoardOpen || !IsComparisonVisible) return 0;
+        var proxy = InfoProxyItemSearch.Instance();
+        return proxy == null ? 0 : proxy->SearchItemId;
+    }
     public bool TryGetMarketboardMenuPosition(out System.Numerics.Vector2 position)
     {
         position = default;

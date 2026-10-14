@@ -30,6 +30,9 @@ internal sealed class MainWindow : Window
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string sniperItemSearch = "";
     private int sniperDealsPage;
+    private bool openBuyListTab;
+    private SniperDeal? pendingBuyListRemoval;
+    public void OpenBuyList() { IsOpen = true; openBuyListTab = true; }
     private int buyListPage;
     private string buyListSearchMessage = "";
     private string sniperDealSearch = "";
@@ -40,6 +43,8 @@ internal sealed class MainWindow : Window
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
+    private bool openPriceLookupTab;
+    private bool openRetrievedPriceTab;
     private ItemChoice? lookupSelection;
     private bool lookupHq;
     private ulong existingRetainerFilter;
@@ -252,9 +257,9 @@ internal sealed class MainWindow : Window
         DrawPriceDropReviewPopup();
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
-            if (ImGui.BeginTabItem("Price lookup")) { DrawManualLookup(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Buy list")) { DrawBuyList(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Buy list", openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
@@ -1300,6 +1305,14 @@ internal sealed class MainWindow : Window
         }
         if (!string.IsNullOrEmpty(buyListSearchMessage)) ImGui.TextWrapped(buyListSearchMessage);
         ImGui.TextDisabled("Copy item name, then Paste clipboard and search with a marketboard open. Searches your current world; purchases are manual.");
+        if (pendingBuyListRemoval is not null) ImGui.OpenPopup("Remove buy-list offer?");
+        if (ImGui.BeginPopupModal("Remove buy-list offer?", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextWrapped($"Remove {pendingBuyListRemoval?.ItemName} on {pendingBuyListRemoval?.WorldName}? Only this offer will be removed.");
+            if (ImGui.Button("Remove offer")) { if (pendingBuyListRemoval is not null) config.SniperBuyList.Remove(pendingBuyListRemoval); pendingBuyListRemoval = null; save(); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine(); if (ImGui.Button("Cancel")) { pendingBuyListRemoval = null; ImGui.CloseCurrentPopup(); }
+            ImGui.EndPopup();
+        }
         DrawSniperDeals(true);
     }
 
@@ -1426,7 +1439,14 @@ internal sealed class MainWindow : Window
                 var purchase = decimal.Ceiling(deal.EstimatedUnitCost(config.SniperPurchaseFeePercent) * deal.Quantity);
                 Cell(deal.IsOneGilAlert ? "1 gil" : "Deal",
                     deal.IsOneGilAlert ? "Listing priced at 1 gil per item. These alerts bypass ordinary deal filters. When Skip 1 gil lookup is enabled, matching-quality history must meet your minimum sales before the alert appears." : "Listing qualifies against your configured sales-median threshold.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
-                Cell(deal.ItemName,
+                if (buyList)
+                {
+                    ImGui.TableNextColumn();
+                    if (ImGui.SmallButton($"X##buyRemove{deal.Key}")) pendingBuyListRemoval = deal;
+                    ImGui.SameLine();
+                    ImGui.TextUnformatted(deal.ItemName);
+                }
+                else Cell(deal.ItemName,
                     $"{deal.ItemName}\nLive listing received: {deal.DetectedAt.ToLocalTime():g}. Purchases are manual; availability can change.", deal.IsOneGilAlert, deal.IsOneGilAlert && deal.LastSaleAt is null);
                 if (ImGui.BeginPopupContextItem($"dealMenu-{deal.Key}"))
                 {
@@ -1790,6 +1810,20 @@ internal sealed class MainWindow : Window
         });
     }
 
+    public void SearchMarketboardItem(uint rawItemId)
+    {
+        var id = rawItemId >= 1_000_000 ? rawItemId - 1_000_000 : rawItemId;
+        var item = sniper.MarketableItems.FirstOrDefault(item => item.ItemId == id);
+        var world = homeWorld();
+        if (item is null || world is null) return;
+        lookupSelection = item;
+        lookupHq = rawItemId >= 1_000_000;
+        IsOpen = true;
+        openPriceLookupTab = true;
+        openRetrievedPriceTab = true;
+        dispatch(() => controller.CheckManualItem(item, lookupHq, world));
+    }
+
     private void DrawManualLookup()
     {
         ImGui.TextWrapped("Search any item and retrieve its Universalis price from your selected market scope without opening a retainer sale window. This lookup is read-only; it never changes a listing.");
@@ -1800,8 +1834,9 @@ internal sealed class MainWindow : Window
                 DrawManualLookupSearch();
                 ImGui.EndTabItem();
             }
-            if (ImGui.BeginTabItem("Retrieved price"))
+            if (ImGui.BeginTabItem("Retrieved price", openRetrievedPriceTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
             {
+                openRetrievedPriceTab = false;
                 DrawManualLookupResult();
                 ImGui.EndTabItem();
             }

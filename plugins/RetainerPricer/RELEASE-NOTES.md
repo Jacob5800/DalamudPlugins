@@ -1,4 +1,5 @@
-## 0.5.0.37
+## 0.5.0.38
 
-- Remove item from buy list now removes only the clicked offer row. Other saved offers for the same item remain intact.
-- Add to buy list continues to move all currently captured Sniper offers with that item name, preserving each offer's data. The item stays suppressed in Sniper while any of its rows remain in Buy list.
+- Added Open buy list above Paste clipboard and search on the marketboard overlay. It opens Retainer Pricer directly on the Buy list tab.
+- Buy list offers now have an X button beside their item name. X asks for confirmation and removes only that offer. Right-click Remove item from buy list remains immediate and also removes only that offer.
+- Added Search on Universalis to context menus on marketboard result items. It opens Price lookup on Retrieved price and retrieves the selected item through the existing read-only lookup, using your Pricing scope settings. Purchases and listing prices are not changed.

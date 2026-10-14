@@ -11,6 +11,7 @@ internal sealed class InventoryListMenu : IDisposable
     private readonly Action save;
     private readonly IReadOnlyDictionary<uint, (bool Marketable, bool Vendorable)> eligibility;
     private readonly NativeMarketBridge bridge;
+    public Action<uint>? SearchUniversalis { get; set; }
 
     public InventoryListMenu(IContextMenu menus, PluginConfig config, Action save, NativeMarketBridge bridge,
         IReadOnlyDictionary<uint, (bool Marketable, bool Vendorable)> eligibility)
@@ -23,6 +24,13 @@ internal sealed class InventoryListMenu : IDisposable
 
     private void OnMenuOpened(IMenuOpenedArgs args)
     {
+        if (args.AddonName == "ItemSearchResult")
+        {
+            var rawId = bridge.GetMarketboardContextItemId();
+            var marketItemId = rawId >= 1_000_000 ? rawId - 1_000_000 : rawId;
+            if (eligibility.TryGetValue(marketItemId, out var capability) && capability.Marketable)
+                args.AddMenuItem(new MenuItem { Name = "Search on Universalis", OnClicked = _ => SearchUniversalis?.Invoke(rawId) });
+        }
         if (!config.ShowInventoryContextMenu) return;
         if (args.Target is not MenuTargetInventory target || target.TargetItem is not { } item) return;
         var id = item.BaseItemId;

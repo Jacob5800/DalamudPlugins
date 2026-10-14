@@ -90,6 +90,7 @@ public sealed class Plugin : IDalamudPlugin
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting, undercuts,
             UndercutsPaused);
+        inventoryMenus.SearchUniversalis = window.SearchMarketboardItem;
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
             log.Warning("Retainer Pricer local pricing: {Error}", localCompatibilityError);
@@ -181,12 +182,13 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawMarketboardClipboard()
     {
         if (disposed || !bridge.TryGetMarketboardMenuPosition(out var position)) return;
-        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(new System.Numerics.Vector2(position.X, Math.Max(0, position.Y - 34)), Dalamud.Bindings.ImGui.ImGuiCond.Always);
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(new System.Numerics.Vector2(position.X, Math.Max(0, position.Y - 62)), Dalamud.Bindings.ImGui.ImGuiCond.Always);
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowBgAlpha(1);
         var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
             Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoFocusOnAppearing;
         if (Dalamud.Bindings.ImGui.ImGui.Begin("Marketboard clipboard##RetainerPricer", flags))
         {
+            if (Dalamud.Bindings.ImGui.ImGui.Button("Open buy list")) window.OpenBuyList();
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanSearchBuyListItem);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Paste clipboard and search"))
             {
