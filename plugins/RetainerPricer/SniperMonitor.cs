@@ -69,6 +69,7 @@ internal sealed class SniperMonitor : IDisposable
     public string Status { get { lock (gate) return status; } }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
+    public IReadOnlyList<ItemChoice> MarketableItems => marketableItems;
 
     public void Start(MarketWorld? world, bool useDataCenter, bool useRegion, IReadOnlyCollection<uint>? selectedItemIds = null)
     {
@@ -241,17 +242,18 @@ internal sealed class SniperMonitor : IDisposable
         CancellationToken cancellationToken, bool autoRetry = false)
     {
         var failed = new System.Collections.Concurrent.ConcurrentBag<string>();
-        var batchCount = (watchedItems.Count + UniversalisClient.SniperHistoryBatchSize - 1) /
-                         UniversalisClient.SniperHistoryBatchSize;
+        var batchSize = historyDays == 0 && scope.HistoryScopes.Any(query => query.Kind != SniperHistoryScopeKind.World)
+            ? 90 : UniversalisClient.SniperHistoryBatchSize;
+        var batchCount = (watchedItems.Count + batchSize - 1) / batchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
-        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=1; maxBatchItems=100; maxSalesPerItem=500");
+        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=1; maxBatchItems={batchSize}; maxSalesPerItem=500");
         var completedBatches = 0;
         var processedItems = 0;
         var loadedItems = 0;
         var failedItemsThisScan = 0;
         try
         {
-            await Parallel.ForEachAsync(watchedItems.Chunk(UniversalisClient.SniperHistoryBatchSize),
+            await Parallel.ForEachAsync(watchedItems.Chunk(batchSize),
                 new ParallelOptions { MaxDegreeOfParallelism = 1, CancellationToken = cancellationToken },
                 async (batch, batchCancellation) =>
             {
