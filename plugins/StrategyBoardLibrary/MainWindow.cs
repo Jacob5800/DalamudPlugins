@@ -208,10 +208,9 @@ internal sealed class MainWindow : Window
 
     private void DrawFooter()
     {
-        const string buttonLabel = "Discord";
-        var buttonWidth = ImGuiComponents.GetIconButtonWithTextWidth(FontAwesomeIcon.Gamepad, buttonLabel);
+        var buttonWidth = 116f;
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + Math.Max(0, ImGui.GetContentRegionAvail().X - buttonWidth));
-        if (ImGuiComponents.IconButtonWithText(FontAwesomeIcon.Gamepad, buttonLabel))
+        if (DiscordJoinButton.Draw())
             Util.OpenLink(DiscordInviteUrl);
     }
 
