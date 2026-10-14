@@ -132,7 +132,7 @@
     "Author": "Jacob5800",
     "Name": "Tug of War",
     "InternalName": "TugOfWar",
-    "AssemblyVersion": "0.2.0.1",
+    "AssemblyVersion": "0.2.0.2",
     "Description": "Track Tug of War scores from /random 100 rolls and import current party members into teams.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -149,13 +149,13 @@
     "CanUnloadAsync": false,
     "LoadPriority": 0,
     "Punchline": "Track team scores from FFXIV /random rolls.",
-    "Changelog": "### 0.2.0.1\n\n- Tug of War is now available through Jacob5800's combined Dalamud plugin repository. Existing team settings and opt-in party announcements remain supported.",
+    "Changelog": "## 0.2.0.2\n\n- Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.\n- Winning score is configurable from 1–100, default 3. Team setup is locked during an active match.\n- Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.1/TugOfWar.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.1/TugOfWar.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": 1791938474,
+    "LastUpdate": 1791942905,
     "TestingDalamudApiLevel": null
   }
 ]
