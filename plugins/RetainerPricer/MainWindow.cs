@@ -1338,8 +1338,8 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable(buyList ? "##buyListDealsV2" : "##sniperDealsLayoutV7", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-                ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
+        if (ImGui.BeginTable(buyList ? "##buyListDealsV3" : "##sniperDealsLayoutV8", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.Sortable | ImGuiTableFlags.SortTristate | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 65))))
         {
@@ -1394,6 +1394,12 @@ internal sealed class MainWindow : Window
                 sortedDeals = spec.SortDirection == ImGuiSortDirection.Ascending
                     ? sortedDeals.OrderBy(key).ThenBy(deal => deal.ItemName).ToList()
                     : sortedDeals.OrderByDescending(key).ThenBy(deal => deal.ItemName).ToList();
+            }
+            else
+            {
+                sortedDeals = sortedDeals.OrderBy(deal => deal.MedianSalePrice > 0 &&
+                    (deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) < 0 ||
+                     deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) < 0)).ToList();
             }
             void Cell(string text, string help, bool alert = false, bool unknownHistory = false, bool slowSales = false, bool healthySales = false, bool strongSales = false, bool hqQuality = false)
             {

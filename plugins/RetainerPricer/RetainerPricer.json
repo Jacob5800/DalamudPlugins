@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.34",
+  "AssemblyVersion": "0.5.0.35",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.34\n\n- ROI now appears directly before Discount in Sniper and Buy list, with corrected sorting and default layouts.\n- ROI is red below 0%, light green from 25% to under 100%, and green at 100% or more. Values from 0% to under 25% remain neutral. Tooltips explain the estimated return after configured fees and that actual resale can differ.\n- Added Paste clipboard and search to Buy list item-name right-click menus. With a marketboard open and pricing idle, an exact marketable item name from the clipboard is resolved and searched using the existing game search helper. Use Copy item name first. Search uses the current world's marketboard; purchases remain manual.\n",
+  "Changelog": "## 0.5.0.35\n\n- Sniper and Buy list now place rows with known negative estimated profit or ROI at the bottom by default, before pagination. Unknown-history rows are not classified as losses.\n- Clicking a column header still applies your selected ascending/descending sort. Headers support clearing the sort to restore the default loss-last order.\n- Updated default table layouts so old saved sorts do not prevent the new default ordering from appearing.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
