@@ -29,6 +29,14 @@ internal sealed class MatchEngine
     private TeamRoll? rollA;
     private TeamRoll? rollB;
 
+    private (int A, int B, int Round)? lastScoredTurn;
+    public int WinningScore { get; private set; } = 3;
+    public bool CanUndo => lastScoredTurn.HasValue;
+    public bool UndoLastTurn() {
+        if (lastScoredTurn is not { } previous) return false;
+        ScoreA = previous.A; ScoreB = previous.B; Round = previous.Round;
+        rollA = null; rollB = null; IsActive = true; lastScoredTurn = null; return true;
+    }
     public string TeamAName { get; private set; } = "Team A";
     public string TeamBName { get; private set; } = "Team B";
     public int ScoreA { get; private set; }
@@ -65,8 +73,10 @@ internal sealed class MatchEngine
         return true;
     }
 
-    public void Start()
+    public void Start(int winningScore = 3)
     {
+        WinningScore = Math.Clamp(winningScore, 1, 100);
+        lastScoredTurn = null;
         ScoreA = 0;
         ScoreB = 0;
         Round = 1;
@@ -75,7 +85,7 @@ internal sealed class MatchEngine
         IsActive = true;
     }
 
-    public void Stop() => IsActive = false;
+    public void Stop() { IsActive = false; lastScoredTurn = null; }
 
     public RollOutcome Accept(string sender, string message)
     {
@@ -110,6 +120,7 @@ internal sealed class MatchEngine
         if (resolvedA.Value == resolvedB.Value)
             return new RollOutcome(RollStatus.Tie, $"Tie at {resolvedA.Value}; both teams reroll. Score: {ScoreA}:{ScoreB}.");
 
+        lastScoredTurn = (ScoreA, ScoreB, Round);
         var winner = resolvedA.Value > resolvedB.Value ? TeamSide.A : TeamSide.B;
         if (winner == TeamSide.A)
         {
@@ -124,7 +135,7 @@ internal sealed class MatchEngine
 
         var winningName = winner == TeamSide.A ? TeamAName : TeamBName;
         var messageText = $"{resolvedA.Player} ({resolvedA.Value}) vs {resolvedB.Player} ({resolvedB.Value}): {winningName} wins. Score: {ScoreA}:{ScoreB}.";
-        if (ScoreA >= 3 || ScoreB >= 3)
+        if (ScoreA >= WinningScore || ScoreB >= WinningScore)
         {
             IsActive = false;
             messageText += $" {winningName} wins the match!";

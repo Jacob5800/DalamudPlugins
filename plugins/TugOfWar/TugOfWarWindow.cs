@@ -16,6 +16,7 @@ internal sealed class TugOfWarWindow : Window
     private string status = "Enter team names and member rosters, then start the match.";
     private string manualPlayer = string.Empty;
     private int manualRoll;
+    private string presetName = string.Empty;
 
     public TugOfWarConfig Config { get; }
 
@@ -35,10 +36,13 @@ internal sealed class TugOfWarWindow : Window
 
     public override void Draw()
     {
-        ImGui.TextWrapped("Track each /random 100 result for two teams. The winning team gains a point; the other team loses one if it has any. First to 3 wins.");
+        ImGui.TextWrapped("Track each /random 100 result for two teams. The winning team gains a point; the other team loses one if it has any. First to the configured winning score wins.");
         ImGui.TextDisabled("Members can roll in any order and the team rosters can be different sizes. Only the first roll from each team counts per turn.");
         ImGui.Separator();
 
+        ImGui.BeginDisabled(engine.IsActive);
+        var winningScore = Config.WinningScore;
+        if (ImGui.InputInt("Winning score", ref winningScore)) { Config.WinningScore = Math.Clamp(winningScore, 1, 100); save(); }
         var nameA = Config.TeamAName;
         if (ImGui.InputText("Team A name", ref nameA, 80)) { Config.TeamAName = nameA; save(); }
         ImGui.Text("Team A members");
@@ -83,6 +87,26 @@ internal sealed class TugOfWarWindow : Window
             }
         }
 
+        Config.TeamPresets ??= [];
+        if (ImGui.CollapsingHeader("Saved team presets")) {
+            ImGui.InputText("Preset name", ref presetName, 80);
+            if (ImGui.Button("Save teams as preset") && !string.IsNullOrWhiteSpace(presetName)) {
+                Config.TeamPresets.RemoveAll(preset => preset.Name.Equals(presetName.Trim(), StringComparison.OrdinalIgnoreCase));
+                Config.TeamPresets.Add(new(presetName.Trim(), Config.TeamAName, Config.TeamARoster, Config.TeamBName, Config.TeamBRoster, Config.WinningScore)); save();
+            }
+            foreach (var preset in Config.TeamPresets.ToArray()) {
+                ImGui.PushID(preset.Name);
+                if (ImGui.Button($"Load {preset.Name}")) {
+                    Config.TeamAName = preset.TeamAName; Config.TeamARoster = preset.TeamARoster;
+                    Config.TeamBName = preset.TeamBName; Config.TeamBRoster = preset.TeamBRoster;
+                    Config.WinningScore = Math.Clamp(preset.WinningScore, 1, 100); save();
+                }
+                ImGui.SameLine();
+                if (ImGui.SmallButton("Delete")) { Config.TeamPresets.Remove(preset); save(); }
+                ImGui.PopID();
+            }
+        }
+        ImGui.EndDisabled();
         var announce = Config.AnnounceToParty;
         if (ImGui.Checkbox("Announce match and resolved scores in party chat", ref announce))
         { Config.AnnounceToParty = announce; save(); }
@@ -99,6 +123,15 @@ internal sealed class TugOfWarWindow : Window
             ImGui.Text($"Round {engine.Round}");
         }
 
+        ImGui.BeginDisabled(!engine.CanUndo);
+        if (ImGui.Button("Undo last scored turn")) {
+            if (engine.UndoLastTurn()) SetStatus("Last scored turn undone. Pending rolls cleared; both teams reroll. Previous chat announcements cannot be withdrawn.");
+        }
+        ImGui.EndDisabled();
+        if (engine.IsActive) {
+            ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), $"TURN {engine.Round} · FIRST TO {engine.WinningScore}");
+            ImGui.TextUnformatted(engine.RollA is null && engine.RollB is null ? "Waiting for both teams" : engine.RollA is null ? $"Waiting for {engine.TeamAName}" : $"Waiting for {engine.TeamBName}");
+        }
         ImGui.Spacing();
         ImGui.Text($"{engine.TeamAName}: {engine.ScoreA}    -    {engine.ScoreB} :{engine.TeamBName}");
         ImGui.Text($"{engine.TeamAName} roll: {FormatRoll(engine.RollA)}");

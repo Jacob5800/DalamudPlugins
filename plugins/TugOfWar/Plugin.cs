@@ -77,10 +77,10 @@ public sealed class Plugin : IDalamudPlugin
             mainWindow.SetStatus(error);
             return;
         }
-        engine.Start();
+        engine.Start(mainWindow.Config.WinningScore);
         mainWindow.SetStatus($"Match started: {engine.TeamAName} vs {engine.TeamBName}. Waiting for /random 100 rolls.");
         if (mainWindow.Config.AnnounceToParty)
-            SendPartyMessage($"[Tug of War] Match started: {engine.TeamAName} vs {engine.TeamBName}. First to 3.");
+            SendPartyMessage($"[Tug of War] Match started: {engine.TeamAName} vs {engine.TeamBName}. First to {engine.WinningScore}.");
     }
 
     private void OnChatMessage(IHandleableChatMessage message)
@@ -136,5 +136,8 @@ public sealed class TugOfWarConfig : Dalamud.Configuration.IPluginConfiguration
     public string TeamARoster { get; set; } = string.Empty;
     public string TeamBName { get; set; } = "Team B";
     public string TeamBRoster { get; set; } = string.Empty;
+    public int WinningScore { get; set; } = 3;
+    public List<TeamPreset> TeamPresets { get; set; } = [];
+    public sealed record TeamPreset(string Name, string TeamAName, string TeamARoster, string TeamBName, string TeamBRoster, int WinningScore);
     public bool AnnounceToParty { get; set; }
 }
