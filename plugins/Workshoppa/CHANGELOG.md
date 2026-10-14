@@ -1,3 +1,7 @@
+## 9.3.13.3
+
+- Added a Settings tab inside the /ws menu with the existing Workshoppa options and settings backup controls.
+
 ## 9.3.13.2
 
 - Added an optional WS server-bar button, disabled by default. Enable Show WS server-bar button in Workshoppa settings; clicking it opens the Workshoppa UI. The setting is included in settings backups.

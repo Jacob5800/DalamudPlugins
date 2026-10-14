@@ -47,6 +47,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     private readonly MainWindow _mainWindow;
     private readonly ConfigWindow _configWindow;
+    internal void DrawSettingsTab() => _configWindow.DrawContent();
     private readonly RepairKitWindow _repairKitWindow;
     private readonly CeruleumTankWindow _ceruleumTankWindow;
     private readonly RetainerDepositWindow _retainerDepositWindow;

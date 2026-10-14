@@ -4,7 +4,7 @@
   "Punchline": "Better Company Workshop Turn-In",
   "Description": "Dalamud API 15 continuation of Workshoppa. Automates workshop material turn-ins, offers retainer deposits with item exclusions, and can skip cutscenes between production phases.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-  "Changelog": "## 9.3.13.2\n\n- Added an optional WS server-bar button, disabled by default. Enable Show WS server-bar button in Workshoppa settings; clicking it opens the Workshoppa UI. The setting is included in settings backups.",
-  "AssemblyVersion": "9.3.13.2",
+  "Changelog": "## 9.3.13.3\n\n- Added a Settings tab inside the /ws menu with the existing Workshoppa options and settings backup controls.\n",
+  "AssemblyVersion": "9.3.13.3",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/Workshoppa/images/icon.png"
 }
