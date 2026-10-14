@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.31",
+  "AssemblyVersion": "0.5.0.32",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.31\n\n- Fixed RP venture readiness turning neutral when the game retainer roster is unavailable after closing the picker. The indicator now retains last observed timers for the current character's confirmed available retainers and turns green when those timers expire.\n- Newer saved venture snapshots shown in Universalis lookup can update the remembered timer. Greyed-out/unavailable retainers remain excluded. Remembered availability and timers clear on logout or character change; open the summoning bell to establish or refresh availability.\n- Tooltip explains that readiness uses last observed/saved data and can be refreshed at the bell. This is an estimate from known timers, not a fresh server-side venture query.\n- Includes the preceding update's cyan HQ labels, discount/recent-sale colors, negative profit/savings warnings and color explanations.\n",
+  "Changelog": "## 0.5.0.32\n\n- When Skip 1 gil lookup is off, confirmed 1-gil candidates now take priority over ordinary candidates for detailed-history verification, in addition to the existing startup listing-lookup priority.\n- Fresh candidates still run ahead of previously failed candidates, preserving deferred retry behavior. All candidates still use the same sequential history checks, selected history window and minimum sales.\n- Updated the Skip 1 gil lookup tooltip to explain both priorities. Changes apply when watching starts.\n- Includes the preceding release's RP venture indicator fix: remembered current-character timers and newer saved lookup snapshots can turn the bar green after the picker closes, while unavailable retainers remain excluded.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

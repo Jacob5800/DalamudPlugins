@@ -26,6 +26,8 @@ internal sealed class SniperMonitor : IDisposable
 
 
         public HashSet<uint> CandidateIds { get; } = [];
+        public HashSet<uint> OneGilCandidateIds { get; } = [];
+        public bool PrioritizeOneGilHistory { get; init; }
         public Dictionary<uint, DateTimeOffset> NextCandidateCheck { get; } = [];
         public Dictionary<uint, int> CandidateAttempts { get; } = [];
 
@@ -166,7 +168,7 @@ internal sealed class SniperMonitor : IDisposable
             if (watchedWorlds.Count == 0)
                 throw new InvalidOperationException("The selected Sniper scope did not contain any supported worlds.");
 
-            var runState = new RunState { WatchedItemIds = watchedItems.Select(item => item.ItemId).ToHashSet() };
+            var runState = new RunState { WatchedItemIds = watchedItems.Select(item => item.ItemId).ToHashSet(), PrioritizeOneGilHistory = !config.SniperSkipOneGilLookup };
             lock (gate)
             {
                 activeState = runState;
@@ -348,7 +350,7 @@ internal sealed class SniperMonitor : IDisposable
                     ItemChoice? item;
                     lock (gate)
                     {
-                        var id = state.CandidateIds.Where(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow).OrderBy(id => state.CandidateAttempts.GetValueOrDefault(id)).FirstOrDefault();
+                        var id = state.CandidateIds.Where(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow).OrderBy(id => state.CandidateAttempts.GetValueOrDefault(id)).ThenBy(id => state.PrioritizeOneGilHistory && state.OneGilCandidateIds.Contains(id) ? 0 : 1).FirstOrDefault();
                         item = watchedItems.FirstOrDefault(item => item.ItemId == id);
                         if (item is not null) state.CandidateIds.Remove(item.ItemId);
                     }
@@ -375,6 +377,7 @@ internal sealed class SniperMonitor : IDisposable
 
     private static void QueueCandidateLocked(UniversalisListing listing, RunState state, double threshold, int minimumPrice)
     {
+        if (listing.PricePerUnit == 1) state.OneGilCandidateIds.Add(listing.ItemId);
         if (listing.PricePerUnit != 1 && !state.DiscoveryComplete && !state.CachedItems.Contains(listing.ItemId)) return;
         if (state.CompletedHistoryItemIds.Contains(listing.ItemId)) return;
         if (listing.PricePerUnit == 1 || listing.PricePerUnit >= minimumPrice &&

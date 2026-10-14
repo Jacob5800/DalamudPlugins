@@ -1143,7 +1143,7 @@ internal sealed class MainWindow : Window
         var skipOneGilLookup = config.SniperSkipOneGilLookup;
         if (ImGui.Checkbox("Skip 1 gil lookup", ref skipOneGilLookup))
         { config.SniperSkipOneGilLookup = skipOneGilLookup; save(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skip targeted startup lookups for existing 1-gil offers. New live 1-gil alerts still appear normally. Applies when you start watching.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skip targeted startup lookups for existing 1-gil offers. New live 1-gil alerts still appear normally. When off, confirmed 1-gil items also take priority over ordinary candidates for history verification. Applies when you start watching.");
         ImGui.TextUnformatted("Market scope");
         var worldScope = !config.SniperUseDataCenterPrices && !config.SniperUseRegionPrices;
         if (ImGui.RadioButton("World", worldScope))
