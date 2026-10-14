@@ -18,6 +18,10 @@ internal sealed class SniperMonitor : IDisposable
         public Dictionary<(uint ItemId, bool IsHq), decimal> CachedPrices { get; } = [];
         public HashSet<uint> CachedItems { get; } = [];
         public bool DiscoveryComplete { get; set; }
+        public long LiveListingsSeen { get; set; }
+        public DateTimeOffset? LastLiveListingAt { get; set; }
+        public int CacheFailedBatches { get; set; }
+
         public HashSet<uint> CandidateIds { get; } = [];
         public Dictionary<uint, DateTimeOffset> NextCandidateCheck { get; } = [];
         public Dictionary<uint, int> CandidateAttempts { get; } = [];
@@ -32,6 +36,7 @@ internal sealed class SniperMonitor : IDisposable
     private readonly object gate = new();
     private readonly SemaphoreSlim historyVerificationGate = new(1, 1);
     private bool verifyingCandidate;
+    private string verifyingItemName = "";
     private RunState? activeState;
     public IReadOnlyList<string> RequestDebug => universalis.SniperRequestDebug;
     public IReadOnlyList<string> CandidateDebug { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => $"{itemNames.GetValueOrDefault(id, $"Item {id}")} (#{id}) · failed passes {activeState.CandidateAttempts.GetValueOrDefault(id)} · retry {(activeState.NextCandidateCheck.TryGetValue(id, out var next) ? next.ToLocalTime().ToString("HH:mm:ss") : "ready")}").ToArray(); } }
@@ -82,7 +87,24 @@ internal sealed class SniperMonitor : IDisposable
     public bool IsRunning { get { lock (gate) return cancellation is not null; } }
     public bool IsWatchingWorld { get { lock (gate) return cancellation is not null && !cancellation.IsCancellationRequested && worldOnlyRun; } }
     public bool IsInitialScanRunning { get { lock (gate) return initialScanRunning; } }
-    public string Status { get { lock (gate) return status; } }
+    public string Status
+    {
+        get
+        {
+            lock (gate)
+            {
+                if (cancellation is null || initialScanRunning || activeState is not { DiscoveryComplete: true } state) return status;
+                var now = DateTimeOffset.UtcNow;
+                var ready = state.CandidateIds.Count(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= now);
+                var deferred = state.CandidateIds.Count - ready;
+                var activity = verifyingCandidate ? $"Verifying history: {verifyingItemName}"
+                    : ready > 0 ? $"Processing verification queue ({ready} ready)"
+                    : deferred > 0 ? $"Waiting to retry failed candidates; next attempt in {Math.Max(0, Math.Ceiling((state.CandidateIds.Select(id => state.NextCandidateCheck.GetValueOrDefault(id, now)).Min() - now).TotalSeconds)):N0}s"
+                    : "Watching live listings — waiting for new candidates";
+                return $"{activity} · {liveFeedStatus} · {state.LiveListingsSeen:N0} new listings received · {ready:N0} ready / {deferred:N0} deferred · {state.CompletedHistoryItemIds.Count:N0} items checked ({state.Baselines.Keys.Select(key => key.ItemId).Distinct().Count():N0} with usable history) · {state.FailedItemIds.Count:N0} pending history failures · {state.CacheFailedBatches:N0} cache batch failures. Cached discovery is complete; existing listings are not rescanned.";
+            }
+        }
+    }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
     public string DiscoveryHelp => "Cached four-day averages screen live candidates; detailed history verifies your selected window. Candidates within threshold + 25 percentage points (capped at 125% of average) are checked. Unknown cache values are checked too. Cache refresh age is not provided; source upload timestamps do not prove aggregate refresh time. This screen can miss deals versus a full history scan.";
@@ -284,6 +306,7 @@ internal sealed class SniperMonitor : IDisposable
         var summary = new HistoryScanSummary(0, errors.ToArray());
         lock (gate)
         {
+            state.CacheFailedBatches = errors.Count;
             state.DiscoveryComplete = true;
             foreach (var listing in state.PendingLiveListings.Values.ToArray()) QueueCandidateLocked(listing, state, threshold, minimumItemPrice);
             state.Summary = summary;
@@ -339,7 +362,7 @@ internal sealed class SniperMonitor : IDisposable
         CancellationToken cancellationToken, bool autoRetry = false, bool slowRescan = false)
     {
         await historyVerificationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        lock (gate) verifyingCandidate = true;
+        lock (gate) { verifyingCandidate = true; verifyingItemName = watchedItems.Count == 1 ? watchedItems[0].Name : $"{watchedItems.Count} retry items"; }
         try { return await ScanHistoryCoreAsync(scope, watchedItems, world, watchedWorlds, minimumSales, threshold, historyDays, minimumItemPrice, runState, cancellationToken, slowRescan: slowRescan).ConfigureAwait(false); }
         finally { lock (gate) verifyingCandidate = false; historyVerificationGate.Release(); }
     }
@@ -510,7 +533,14 @@ internal sealed class SniperMonitor : IDisposable
         lock (gate)
         {
             foreach (var listing in listings)
+            {
+                if (!listing.IsRemoved && runState.WatchedItemIds.Contains(listing.ItemId))
+                {
+                    runState.LiveListingsSeen++;
+                    runState.LastLiveListingAt = DateTimeOffset.UtcNow;
+                }
                 ProcessLiveListingLocked(listing, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
+            }
         }
     }
 

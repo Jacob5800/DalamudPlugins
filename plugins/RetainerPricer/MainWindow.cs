@@ -1275,7 +1275,7 @@ internal sealed class MainWindow : Window
         if (deals.Length == 0)
         {
             ImGui.TextDisabled(sniper.IsInitialScanRunning
-                ? "No qualifying new listings received yet; deals will appear as their history batches finish."
+                ? "No verified deals yet. Sniper is watching new live listings and verifying qualifying candidates; cached discovery does not list existing offers."
                 : "No qualifying new listings received yet.");
             return;
         }
