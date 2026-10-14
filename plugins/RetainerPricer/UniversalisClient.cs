@@ -30,8 +30,8 @@ public sealed class UniversalisClient : IDisposable
     private static readonly SemaphoreSlim RequestRateGate = new(1, 1);
     private static readonly SemaphoreSlim RequestConcurrencyGate = new(8, 8);
     private static long nextRequestTimestamp;
-    private static readonly SemaphoreSlim AnyAgeHistoryRateGate = new(1, 1);
-    private static long nextAnyAgeHistoryTimestamp;
+    private static readonly SemaphoreSlim HistoryBatchRateGate = new(1, 1);
+    private static long nextHistoryBatchTimestamp;
     public const int SniperHistoryBatchSize = 100;
     private const int MaximumCachedItems = 512;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
@@ -238,7 +238,7 @@ public sealed class UniversalisClient : IDisposable
             var requestStartedAt = Stopwatch.GetTimestamp();
             try
             {
-                var json = await RequestHistoryJsonAsync(path, historyDays == 0, deadline.Token).ConfigureAwait(false);
+                var json = await RequestHistoryJsonAsync(path, deadline.Token).ConfigureAwait(false);
                 return ParseSniperSalesBatch(json, scope, homeWorldId, itemIds, historyDays, DateTimeOffset.UtcNow);
             }
             catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
@@ -287,7 +287,7 @@ public sealed class UniversalisClient : IDisposable
         exception.StatusCode is null or HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests ||
         exception.StatusCode is { } statusCode && (int)statusCode >= 500;
 
-    private async Task<byte[]> RequestHistoryJsonAsync(string path, bool anyAge, CancellationToken ct)
+    private async Task<byte[]> RequestHistoryJsonAsync(string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://universalis.app/api/v2/{path}");
         request.Headers.UserAgent.ParseAdd("RetainerPricer/0.4");
@@ -295,7 +295,7 @@ public sealed class UniversalisClient : IDisposable
         await RequestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (anyAge) await WaitForAnyAgeHistorySlotAsync(ct).ConfigureAwait(false);
+            await WaitForHistoryBatchSlotAsync(ct).ConfigureAwait(false);
             await WaitForRequestSlotAsync(ct).ConfigureAwait(false);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.TooManyRequests ||
@@ -513,17 +513,17 @@ public sealed class UniversalisClient : IDisposable
         finally { RequestConcurrencyGate.Release(); }
     }
 
-    private static async Task WaitForAnyAgeHistorySlotAsync(CancellationToken ct)
+    private static async Task WaitForHistoryBatchSlotAsync(CancellationToken ct)
     {
-        await AnyAgeHistoryRateGate.WaitAsync(ct).ConfigureAwait(false);
+        await HistoryBatchRateGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var remaining = nextAnyAgeHistoryTimestamp - Stopwatch.GetTimestamp();
+            var remaining = nextHistoryBatchTimestamp - Stopwatch.GetTimestamp();
             if (remaining > 0)
                 await Task.Delay(TimeSpan.FromSeconds((double)remaining / Stopwatch.Frequency), ct).ConfigureAwait(false);
-            nextAnyAgeHistoryTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency + Stopwatch.Frequency / 100;
+            nextHistoryBatchTimestamp = Stopwatch.GetTimestamp() + Stopwatch.Frequency + Stopwatch.Frequency / 100;
         }
-        finally { AnyAgeHistoryRateGate.Release(); }
+        finally { HistoryBatchRateGate.Release(); }
     }
     private static async Task WaitForRequestSlotAsync(CancellationToken ct)
     {

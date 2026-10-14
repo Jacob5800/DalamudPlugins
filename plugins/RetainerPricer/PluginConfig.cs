@@ -48,6 +48,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
     public double SniperMinimumDiscountPercent { get; set; }
+    public bool SniperMinimumProfitEnabled { get; set; }
     public int SniperMinimumUnitProfit { get; set; }
     public int SniperMinimumUnitSaving { get; set; }
     public bool SniperShowProfitEstimates { get; set; } = true;

@@ -1022,7 +1022,7 @@ internal sealed class MainWindow : Window
                     : "your home-world Data Center"
                 : "your home world";
         ImGui.TextWrapped($"Start watching to scan every marketable item in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. In Region scope, each server name includes its Data Center. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
-        ImGui.TextDisabled("History is requested in batches of up to 100 items, with up to 2 concurrent batches for fixed windows. History days 0 uses one batch at a time with at least 1 second between request starts (including retries). All requests share a 25-requests-per-second limit and an 8-request connection limit. New 1-gil listings show immediately; other new listings are checked as their history batch completes. Temporary request failures are retried, then split into groups of 50 and 25 if necessary. New batches start at 100 again. Scan incomplete shows unresolved failures; Retry failed items retries only those items while keeping live watching active. An ETA appears during the initial scan only; after that, Sniper keeps listening without repeating the full scan. Stop watching cancels the scan and live feed.");
+        ImGui.TextDisabled("History is requested in batches of up to 100 items, with one batch at a time and at least 1 second between request starts in every history mode (including retries). All requests share a 25-requests-per-second limit and an 8-request connection limit. New 1-gil listings show immediately; other new listings are checked as their history batch completes. Temporary request failures are retried, then split into groups of 50 and 25 if necessary. New batches start at 100 again. Scan incomplete shows unresolved failures; Retry failed items retries only those items while keeping live watching active. An ETA appears during the initial scan only; after that, Sniper keeps listening without repeating the full scan. Stop watching cancels the scan and live feed.");
 
         var isRunning = sniper.IsRunning;
         ImGui.BeginDisabled(isRunning);
@@ -1088,6 +1088,26 @@ internal sealed class MainWindow : Window
             save();
         }
         ImGui.TextDisabled("Ordinary deals below this price are hidden. 1-gil alerts always show.");
+        var minimumProfitEnabled = config.SniperMinimumProfitEnabled;
+        if (ImGui.Checkbox("Filter by minimum profit value", ref minimumProfitEnabled))
+        {
+            config.SniperMinimumProfitEnabled = minimumProfitEnabled;
+            if (minimumProfitEnabled)
+            {
+                config.SniperShowProfitEstimates = true;
+                config.SniperMinimumUnitProfit = Math.Max(1, config.SniperMinimumUnitProfit);
+            }
+            save();
+        }
+        if (config.SniperMinimumProfitEnabled && config.SniperShowProfitEstimates)
+        {
+            var minimumProfit = config.SniperMinimumUnitProfit;
+            ImGui.SetNextItemWidth(150);
+            if (ImGui.InputInt("Minimum profit value (gil per item)", ref minimumProfit))
+            { config.SniperMinimumUnitProfit = Math.Clamp(minimumProfit, 1, 999_999_999); save(); }
+            ImGui.TextDisabled("Ordinary deals need a known estimated profit at or above this amount. 1-gil alerts bypass this minimum.");
+        }
+        else ImGui.TextDisabled("Minimum profit filter is off; its gil amount is hidden. Turning off Show estimated resale profit also disables this filter.");
 
         ImGui.EndDisabled();
 
@@ -1126,17 +1146,13 @@ internal sealed class MainWindow : Window
 
         var showProfit = config.SniperShowProfitEstimates;
         if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
-        { config.SniperShowProfitEstimates = showProfit; save(); }
+        { config.SniperShowProfitEstimates = showProfit; if (!showProfit) config.SniperMinimumProfitEnabled = false; save(); }
         if (ImGui.CollapsingHeader("Deal filters and fee assumptions"))
         {
             var discount = config.SniperMinimumDiscountPercent;
             ImGui.SetNextItemWidth(130);
             if (ImGui.InputDouble("Minimum discount % (0 = off)", ref discount, 1, 5, "%.1f"))
             { config.SniperMinimumDiscountPercent = discount; config.Normalize(); save(); }
-            var profit = config.SniperMinimumUnitProfit;
-            ImGui.SetNextItemWidth(130);
-            if (ImGui.InputInt("Minimum estimated profit per item (0 = off)", ref profit))
-            { config.SniperMinimumUnitProfit = profit; config.Normalize(); save(); }
             var saving = config.SniperMinimumUnitSaving;
             ImGui.SetNextItemWidth(130);
             if (ImGui.InputInt("Minimum savings per item (0 = off)", ref saving))
@@ -1152,13 +1168,14 @@ internal sealed class MainWindow : Window
             ImGui.TextWrapped("Profit estimates assume resale at the sales median and the fees above. Actual tax, purchase fees, demand and resale prices can vary. 1-gil alerts bypass minimum filters. With Show estimated resale profit enabled, 1-gil alerts with a known estimated profit of zero or less are hidden; unknown-history alerts remain visible. Filters apply immediately to received deals.");
         }
         var allDeals = sniper.Deals;
-        var deals = allDeals.Where(deal =>
+        var deals = allDeals.Where(deal => deal.IsOneGilAlert || !config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates ||
+            (deal.MedianSalePrice > 0 && deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)).Where(deal =>
             (deal.IsOneGilAlert && (!config.SniperShowProfitEstimates || deal.MedianSalePrice == 0 ||
                 deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) > 0)) ||
             (!deal.IsOneGilAlert &&
             (deal.DiscountPercent >= (decimal)config.SniperMinimumDiscountPercent &&
              (config.SniperMinimumUnitSaving == 0 || deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitSaving) &&
-             (config.SniperMinimumUnitProfit == 0 || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)))).ToArray();
+             (!config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates || deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)))).ToArray();
         ImGui.Separator();
         ImGui.TextUnformatted($"Deals · {deals.Length} shown · {allDeals.Count - deals.Length} hidden by filters");
         if (deals.Length == 0)
@@ -1253,7 +1270,9 @@ internal sealed class MainWindow : Window
                     ? sampleHelp + (deal.HistoryDays == 0 || deal.HistoryWasCapped
                         ? " Estimated sales/day uses that sampled time coverage, not the configured maximum age. Capped samples may not represent the full history; demand on this server can differ."
                         : $" Sales/day uses the full configured {deal.HistoryDays}-day window because the returned sample did not reach the cap.")
-                        + (!deal.HasSalesPerDayEstimate ? " Not enough dated sales to estimate a daily rate." : "") : missing);
+                        + (!deal.HasSalesPerDayEstimate ? " Not enough dated sales to estimate a daily rate." : "")
+                        + (deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1 ? " Warning: fewer than one estimated sale per day. Resale may be slow and the price estimate less dependable." : "") : missing,
+                    unknownHistory: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1);
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
                     ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing,
                     deal.HistoryDays == 0 && deal.LastSaleAt is { } recordedSaleAt && DateTimeOffset.UtcNow - recordedSaleAt > TimeSpan.FromDays(30));

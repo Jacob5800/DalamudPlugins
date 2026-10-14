@@ -18,6 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework framework;
     private readonly IPluginLog log;
     private readonly IDtrBarEntry serverInfoBarEntry;
+    private bool serverBarScanning;
     private readonly WindowSystem windows = new("RetainerPricer");
     private readonly PluginConfig config;
     private readonly NativeMarketBridge bridge;
@@ -140,6 +141,15 @@ public sealed class Plugin : IDalamudPlugin
                 chat.Print(new XivChatEntry { Type = XivChatType.Echo,
                     Message = new SeStringBuilder().AddText($"[Retainer Pricer] Undercut: {name} ({(row.Listing.IsHq ? "HQ" : "NQ")}) on {row.Retainer}: your saved price {row.Listing.Price:N0} gil, competitor {row.LowestPrice:N0} gil.").Build() });
             });
+            var scanning = sniper.IsInitialScanRunning || undercuts.Checking;
+            if (scanning != serverBarScanning)
+            {
+                serverBarScanning = scanning;
+                serverInfoBarEntry.Text = scanning ? "RP (scanning…)" : "RP";
+                serverInfoBarEntry.Tooltip = scanning
+                    ? "Fetching Sniper history or checking undercuts. Click to open Retainer Pricer."
+                    : "Click to open Retainer Pricer";
+            }
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;
             wasOpen = open;
