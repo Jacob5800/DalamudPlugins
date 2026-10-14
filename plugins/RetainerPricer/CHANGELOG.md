@@ -1,3 +1,8 @@
+## 0.5.1.2
+
+- Retrieved price shows estimated ROI beside Cheapest and Home marketboard prices, based on resale on your home world with the configured Sniper fee assumptions. Hover ROI for its calculation.
+- Sniper item selection now says Add item(s) to watch.
+
 # Retainer Pricer changelog
 
 ## 0.5.1.1

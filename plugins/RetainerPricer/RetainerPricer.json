@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.1",
+  "AssemblyVersion": "0.5.1.2",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.1\n\n- Search on Universalis from marketboard result menus now reads the selected listing's HQ/NQ flag, so an HQ offer retrieves matching HQ prices instead of defaulting to NQ.\n- The selected listing index is checked against the loaded result count and item ID before its quality is used. Your configured Pricing scope still determines the lookup market.\n",
+  "Changelog": "## 0.5.1.2\n\n- Retrieved price shows estimated ROI beside Cheapest and Home marketboard prices, based on resale on your home world with the configured Sniper fee assumptions. Hover ROI for its calculation.\n- Sniper item selection now says Add item(s) to watch.\n\n# Retainer Pricer changelog\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

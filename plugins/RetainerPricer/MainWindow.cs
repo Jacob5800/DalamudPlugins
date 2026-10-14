@@ -1006,7 +1006,7 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("Tabs");
         ImGui.BulletText("Saved retainer snapshots show venture time remaining after refreshing. Which venture lets you type an item name to filter the dropdown; leave the search empty to browse.");
         ImGui.BulletText("New / selected item: shows the item sale window currently open in game. Check price again gets a suggestion; Apply price to selling window fills the price without confirming the sale. The automatic new-item option can price and confirm newly opened eligible sale windows.");
-        ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages.");
+        ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages. The two Marketboard Price rows also estimate ROI against the cheapest matching home-world listing minus 1 gil, using Sniper purchase fee and resale tax assumptions.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
         ImGui.BulletText("Existing listings: filter by retainer or item name and click column headers to sort. Last sold price shows loaded sales data; hover for its date. Set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory or the chocobo saddlebag to find items, filter by name, add a selected item, or bulk-add either snapshot. Exceptions are item-based, so the same item is skipped if it is later in carried inventory or selected for Retainer sell.");
@@ -1116,7 +1116,7 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(isRunning);
         ImGui.SetNextItemWidth(300);
         ImGui.InputText("Search specific items##sniper", ref sniperItemSearch, 128);
-        if (ImGui.BeginCombo("Add item to watch##sniper", "Search and add items"))
+        if (ImGui.BeginCombo("Add item(s) to watch##sniper", "Search and add items"))
         {
             if (!string.IsNullOrWhiteSpace(sniperItemSearch))
                 foreach (var item in sniper.MarketableItems.Where(item => item.Name.Contains(sniperItemSearch.Trim(), StringComparison.CurrentCultureIgnoreCase)
@@ -1941,7 +1941,8 @@ internal sealed class MainWindow : Window
         var comparable = snapshot.Listings.Where(listing => listing.IsHq == hq && !listing.OnMannequin).ToArray();
         var home = homeWorld();
         string WorldLabel(uint id, string? name) => name ?? (home?.WorldId == id ? home.Name : id > 0 ? $"World #{id}" : "Unknown world");
-        void PriceLine(string label, uint? price, DateTimeOffset? time)
+        var homeListing = comparable.Where(listing => listing.WorldId == snapshot.WorldId).OrderBy(listing => listing.PricePerUnit).FirstOrDefault();
+        void PriceLine(string label, uint? price, DateTimeOffset? time, bool showRoi = false)
         {
             ImGui.TextUnformatted(label);
             ImGui.SameLine();
@@ -1949,6 +1950,24 @@ internal sealed class MainWindow : Window
             {
                 ImGui.TextColored(new Vector4(1f, 0.85f, 0.25f, 1f), $"{gil:N0} gil each");
                 if (time is { } at) { ImGui.SameLine(); ImGui.TextDisabled($"({PriceAge(at)} ago)"); }
+                if (showRoi)
+                {
+                    ImGui.SameLine();
+                    if (homeListing is { PricePerUnit: > 0 } && gil > 0)
+                    {
+                        var resale = Math.Max(1m, (decimal)homeListing.PricePerUnit - 1m);
+                        var cost = gil * (1m + (decimal)config.SniperPurchaseFeePercent / 100m);
+                        var roi = (resale * (1m - (decimal)config.SniperResaleTaxPercent / 100m) - cost) / cost * 100m;
+                        var color = roi < 0 ? new Vector4(1f, 0.35f, 0.35f, 1f) : roi >= 100 ? new Vector4(0.2f, 1f, 0.3f, 1f) : roi >= 25 ? new Vector4(0.6f, 0.9f, 0.6f, 1f) : new Vector4(1f, 1f, 1f, 1f);
+                        ImGui.TextColored(color, $"ROI: {roi:0.0}%");
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Estimated resale on your home world at {resale:N0} gil (cheapest matching HQ/NQ listing minus 1 gil). Includes {config.SniperPurchaseFeePercent:0.##}% purchase fee and {config.SniperResaleTaxPercent:0.##}% resale tax from Sniper assumptions. Red: loss; light green: 25–100%; green: 100% or more. Current listing estimate, not a sales-history median or guaranteed return.");
+                    }
+                    else
+                    {
+                        ImGui.TextDisabled("ROI: —");
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip("ROI requires a matching home-world listing and a positive purchase price.");
+                    }
+                }
             }
             else ImGui.TextDisabled("No matching data");
         }
@@ -1956,10 +1975,9 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("Marketboard Price:");
         var cheapest = comparable.OrderBy(listing => listing.PricePerUnit).FirstOrDefault();
         PriceLine(cheapest is null ? "Cheapest:" : $"Cheapest ({WorldLabel(cheapest.WorldId, cheapest.WorldName)}):",
-            cheapest?.PricePerUnit, cheapest?.ReviewedAt ?? snapshot.ObservedAt);
-        var homeListing = comparable.Where(listing => listing.WorldId == snapshot.WorldId).OrderBy(listing => listing.PricePerUnit).FirstOrDefault();
+            cheapest?.PricePerUnit, cheapest?.ReviewedAt ?? snapshot.ObservedAt, showRoi: true);
         PriceLine($"Home ({WorldLabel(snapshot.WorldId, null)}):", homeListing?.PricePerUnit,
-            homeListing?.ReviewedAt ?? snapshot.ObservedAt);
+            homeListing?.ReviewedAt ?? snapshot.ObservedAt, showRoi: true);
         ImGui.Spacing();
         ImGui.TextUnformatted("Most Recent Purchase:");
         var sales = (snapshot.Sales ?? []).Where(sale => sale.IsHq == hq).OrderByDescending(sale => sale.SoldAt).ToArray();
