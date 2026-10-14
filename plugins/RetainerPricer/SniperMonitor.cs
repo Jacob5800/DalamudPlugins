@@ -70,15 +70,16 @@ internal sealed class SniperMonitor : IDisposable
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
 
-    public void Start(MarketWorld? world, bool useDataCenter, bool useRegion, uint? selectedItemId = null)
+    public void Start(MarketWorld? world, bool useDataCenter, bool useRegion, IReadOnlyCollection<uint>? selectedItemIds = null)
     {
         if (world is null)
         {
             SetStatus("Log in to start Sniper.");
             return;
         }
-        IReadOnlyList<ItemChoice> watchedItems = selectedItemId is { } id
-            ? marketableItems.Where(item => item.ItemId == id).ToArray() : marketableItems;
+        var selectedIds = selectedItemIds?.ToHashSet();
+        IReadOnlyList<ItemChoice> watchedItems = selectedIds is { Count: > 0 }
+            ? marketableItems.Where(item => selectedIds.Contains(item.ItemId)).ToArray() : marketableItems;
         if (watchedItems.Count == 0) { SetStatus("Select a marketable item before starting Sniper."); return; }
         CancellationTokenSource run;
         lock (gate)
@@ -255,17 +256,19 @@ internal sealed class SniperMonitor : IDisposable
                 async (batch, batchCancellation) =>
             {
                 batchCancellation.ThrowIfCancellationRequested();
-                var batchSucceeded = false;
+                var successfulItemIds = new HashSet<uint>();
                 var batchBaselines = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 var availableHistory = new Dictionary<(uint ItemId, bool IsHq), SniperQualityBaseline>();
                 try
                 {
                     var batchSales = new Dictionary<uint, List<SniperSale>>();
+                    var returnedInEveryScope = batch.Select(item => item.ItemId).ToHashSet();
                     foreach (var historyScope in scope.HistoryScopes)
                     {
                         var snapshots = await universalis.FetchSniperSalesBatchAsync(historyScope,
                                 batch.Select(item => item.ItemId).ToArray(), historyDays, world.WorldId, cancellationToken)
                             .ConfigureAwait(false);
+                        returnedInEveryScope.IntersectWith(snapshots.Keys);
                         foreach (var snapshot in snapshots.Values)
                         {
                             if (!batchSales.TryGetValue(snapshot.ItemId, out var sales))
@@ -273,9 +276,15 @@ internal sealed class SniperMonitor : IDisposable
                             sales.AddRange(snapshot.Sales);
                         }
                     }
-                    batchSucceeded = true;
+                    if (returnedInEveryScope.Count != batch.Length)
+                    {
+                        var missingIds = batch.Select(item => item.ItemId).Where(id => !returnedInEveryScope.Contains(id)).ToArray();
+                        failed.Add($"Partial history response: {missingIds.Length} item(s) missing usable responses.");
+                        universalis.DiagnosticLog?.Invoke($"Sniper partial history response: scope={scope.Label}; requestedItems={batch.Length}; returnedItems={returnedInEveryScope.Count}; missingIds={string.Join(',', missingIds)}");
+                    }
                     foreach (var (itemId, sales) in batchSales)
                     {
+                        if (!returnedInEveryScope.Contains(itemId)) continue;
                         var fetchedAt = DateTimeOffset.UtcNow;
                         var oldestSale = sales.Where(sale => sale.SoldAt.HasValue).Min(sale => sale.SoldAt);
                         double? coverageDays = oldestSale is { } oldest && oldest < fetchedAt
@@ -294,6 +303,7 @@ internal sealed class SniperMonitor : IDisposable
                             availableHistory[(itemId, qualitySales.Key)] = history;
                             if (orderedPrices.Length >= minimumSales) batchBaselines[(itemId, qualitySales.Key)] = history;
                         }
+                        successfulItemIds.Add(itemId);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -320,7 +330,7 @@ internal sealed class SniperMonitor : IDisposable
                     }
                     foreach (var itemId in batchItemIds)
                     {
-                        if (batchSucceeded) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); }
+                        if (successfulItemIds.Contains(itemId)) { runState.FailedItemIds.Remove(itemId); runState.CompletedHistoryItemIds.Add(itemId); }
                         else runState.FailedItemIds.Add(itemId);
                     }
                     failedHistoryItemCount = runState.FailedItemIds.Count;
@@ -331,8 +341,8 @@ internal sealed class SniperMonitor : IDisposable
                         ProcessLiveListingLocked(pending.Value, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
                     }
                     processedItems += batch.Length;
-                    if (batchSucceeded) loadedItems += batch.Length;
-                    else failedItemsThisScan += batch.Length;
+                    loadedItems += successfulItemIds.Count;
+                    failedItemsThisScan += batch.Length - successfulItemIds.Count;
                     completedBatches++;
                     initialScanProgress = $"Initial scan · {processedItems:N0}/{watchedItems.Count:N0} items attempted · {loadedItems:N0} history loaded · {failedItemsThisScan:N0} failed · {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · {completedBatches}/{batchCount} batches attempted · {FormatEta(Stopwatch.GetElapsedTime(scanStartedAt), completedBatches, batchCount - completedBatches)}";
                     RefreshInitialScanStatusAndGetLocked(runState);
