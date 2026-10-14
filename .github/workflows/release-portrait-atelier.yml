@@ -32,6 +32,9 @@ jobs:
           if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion must match project version $projectVersion." }
       - name: Build and package
         run: dotnet build .\plugins\PortraitAtelier\PortraitAtelier.csproj --configuration Release
+      - name: Stamp packaged publication date
+        shell: pwsh
+        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/PortraitAtelier/dist/Release/PortraitAtelier' -InternalName 'PortraitAtelier'
       - name: Name release asset
         shell: pwsh
         run: Copy-Item -LiteralPath 'plugins/PortraitAtelier/dist/Release/PortraitAtelier/latest.zip' -Destination 'PortraitAtelier.zip' -Force

@@ -33,7 +33,7 @@ if ($Testing) {
     $entry | Add-Member -NotePropertyName TestingAssemblyVersion -NotePropertyValue $manifest.AssemblyVersion -Force
     $entry | Add-Member -NotePropertyName TestingDalamudApiLevel -NotePropertyValue $manifest.DalamudApiLevel -Force
     $entry | Add-Member -NotePropertyName DownloadLinkTesting -NotePropertyValue $download -Force
-    $entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+    $entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     ConvertTo-Json -InputObject @($feed) -Depth 10 | Set-Content -LiteralPath $FeedPath -Encoding utf8
     return
 }
@@ -57,6 +57,6 @@ $entry.DownloadLinkUpdate = $download
 $entry.DownloadLinkTesting = $null
 $entry.TestingAssemblyVersion = $null
 $entry | Add-Member -NotePropertyName TestingDalamudApiLevel -NotePropertyValue $null -Force
-$entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString()
+$entry.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 ConvertTo-Json -InputObject @($feed) -Depth 10 | Set-Content -LiteralPath $FeedPath -Encoding utf8

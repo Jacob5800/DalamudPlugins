@@ -21,7 +21,7 @@
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/PortraitAtelier-v0.1.4.1/PortraitAtelier.zip",
     "Changelog": "## 0.1.4.1\n\n- Added a Discord join button with a recognizable Discord-style symbol at the bottom of the menu, linked to the community invite.\n- Added a portrait-themed plugin icon.",
     "TestingAssemblyVersion": null,
-    "LastUpdate": "1791940991",
+    "LastUpdate": 1791940991,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/PortraitAtelier/images/icon.png",
     "TestingDalamudApiLevel": null
   },
@@ -40,7 +40,7 @@
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.5.0.14/RetainerPricer.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.5.0.14/RetainerPricer.zip",
-    "LastUpdate": "1791939404",
+    "LastUpdate": 1791939404,
     "TestingAssemblyVersion": null,
     "DownloadLinkTesting": null,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png",
@@ -67,7 +67,7 @@
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.1/StrategyBoardLibrary.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.1/StrategyBoardLibrary.zip",
-    "LastUpdate": "1791940844",
+    "LastUpdate": 1791940844,
     "Changelog": "## 0.1.2.1\n\n- Replaced the generic gamepad on the Discord join button with a recognizable Discord-style symbol, linked to the community invite.",
     "DownloadLinkTesting": null,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon.png",
@@ -93,7 +93,7 @@
     "Punchline": "Remind you to visit your house just in case you forgot.",
     "Changelog": "## 1.0.5.5\n\n- Added a House overview showing all saved characters, house addresses, last interior visits, days since visit and tracking explanations. Missing houses, disabled reminders and FC access restrictions are clearly identified.\n- Added configurable reminder repeat and snooze durations (1–168 hours, default 24). Dismissed reminders return after the chosen interval; Snooze temporarily hides a reminder without changing recorded visits.\n- Added Visit history, retaining up to 500 new visit confirmations. Earlier visits are not reconstructed.\n- Added a Date format dropdown: Day/Month/Year (default), Month/Day/Year, or Year/Month/Day, with a local-time example. The HT tooltip uses the chosen format.\n- Added a Discord join button with a recognizable Discord-style symbol. Settings now have a scrollable area for the additional controls.\n- Reminder dates are based on saved interior visits and your chosen interval, not Square Enix's demolition timer.\n",
     "AcceptsFeedback": true,
-    "LastUpdate": "1791941506",
+    "LastUpdate": 1791941506,
     "IsHide": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/HousingTimeoutReminder/releases/download/v1.0.5.5/HousingTimeoutReminder.zip",
     "IsTestingExclusive": false,
@@ -122,7 +122,7 @@
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/Workshoppa-v9.3.13.1/Workshoppa.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/Workshoppa-v9.3.13.1/Workshoppa.zip",
     "DownloadLinkTesting": null,
-    "LastUpdate": "1791940715",
+    "LastUpdate": 1791940715,
     "Changelog": "## 9.3.13.1\n\n- Retainer Deposit now opens manually by default. Enable Automatically open Retainer Deposit in settings to restore automatic opening.\n- Added Add all inventory items to keep list, with clear text that those item types (HQ and NQ) will not be deposited. Refreshing the picker remains separate.\n- Added settings export/import for the keep list, presets, queued projects and calculator settings. Import merges the keep list, replaces presets/queue/settings and saves a safety backup first. Live crafting progress is excluded.\n- The Discord join button now uses a recognizable Discord-style symbol. Added a workshop-themed plugin icon.",
     "TestingAssemblyVersion": null,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/Workshoppa/images/icon.png",
@@ -155,7 +155,7 @@
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.1/TugOfWar.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": "1791938474",
+    "LastUpdate": 1791938474,
     "TestingDalamudApiLevel": null
   }
 ]
