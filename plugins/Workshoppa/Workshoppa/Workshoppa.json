@@ -4,7 +4,7 @@
   "Punchline": "Better Company Workshop Turn-In",
   "Description": "Dalamud API 15 continuation of Workshoppa. Automates workshop material turn-ins, offers retainer deposits with item exclusions, and can skip cutscenes between production phases.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-  "IconUrl": "https://plugins.carvel.li/icons/Workshoppa.png",
   "Changelog": "### 9.3.13.0\n- Workshoppa is now available through the shared Jacob5800 plugin collection.",
-  "AssemblyVersion": "9.3.13.0"
+  "AssemblyVersion": "9.3.13.0",
+  "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/Workshoppa/images/icon.png"
 }
