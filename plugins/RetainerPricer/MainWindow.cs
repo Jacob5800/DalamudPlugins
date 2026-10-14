@@ -78,6 +78,8 @@ internal sealed class MainWindow : Window
     private string? feedbackStatus;
     private bool feedbackSending;
     private Action? pendingEmptyExceptionsListingStart;
+    private bool startListingFromShortcut;
+    public void RequestListingFromMarketMenu() { IsOpen = true; startListingFromShortcut = true; }
 
     public Func<string>? MarketboardRoiDiagnostics { get; set; }
     public bool PriceInsightLoaded { get; set; }
@@ -139,6 +141,7 @@ internal sealed class MainWindow : Window
 
     public override void Draw()
     {
+        if (startListingFromShortcut) { startListingFromShortcut = false; RequestListingStart(controller.StartListingItems); }
         if (controller.MateriaWarningItem is { } melded)
         {
             ImGui.OpenPopup("Materia pricing warning");

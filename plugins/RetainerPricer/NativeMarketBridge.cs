@@ -90,12 +90,21 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public string? RetainerAvailabilityError { get; private set; }
     public string? ItemSelectorAvailabilityError { get; private set; }
     public string? RetainerSaleAvailabilityError { get; private set; }
+    public bool TryGetRetainerListingButtonPosition(out System.Numerics.Vector2 position)
+    {
+        position = default;
+        var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerSellList").Address;
+        if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
+        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 195 * addon->Scale, addon->Y + 8 * addon->Scale);
+        return true;
+    }
+
     public bool TryGetRetainerVentureButtonPosition(out System.Numerics.Vector2 position)
     {
         position = default;
         var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerList").Address;
         if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
-        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 390 * addon->Scale, addon->Y + 38 * addon->Scale);
+        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 390 * addon->Scale, addon->Y + 8 * addon->Scale);
         return true;
     }
 

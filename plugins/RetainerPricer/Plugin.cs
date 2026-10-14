@@ -106,6 +106,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
         pluginInterface.UiBuilder.Draw += DrawRetainerVentureButton;
+        pluginInterface.UiBuilder.Draw += DrawRetainerListingButton;
         pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
         pluginInterface.UiBuilder.Draw += marketboardRoi.Draw;
         pluginInterface.UiBuilder.OpenMainUi += Toggle;
@@ -215,9 +216,31 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.End();
     }
 
+    private void DrawRetainerListingButton()
+    {
+        if (disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
+        var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoBackground | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoFocusOnAppearing;
+        Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
+        if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer listing shortcut##RetainerPricer", flags))
+        {
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanStartListingItems || controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            if (Dalamud.Bindings.ImGui.ImGui.Button("Start listing items")) window.RequestListingFromMarketMenu();
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                Dalamud.Bindings.ImGui.ImGui.SetTooltip("List eligible carried inventory using your current pricing rules and exclusions. Existing confirmation prompts still apply.");
+        }
+        Dalamud.Bindings.ImGui.ImGui.End();
+        Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
+    }
+
     private void DrawRetainerVentureButton()
     {
         if (disposed || !bridge.TryGetRetainerVentureButtonPosition(out var position)) return;
+        var updateWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Update existing listings").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
+        position.X -= updateWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
         var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
             Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
@@ -225,6 +248,12 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
         if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer venture shortcut##RetainerPricer", flags))
         {
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            if (Dalamud.Bindings.ImGui.ImGui.Button("Update existing listings", new System.Numerics.Vector2(updateWidth, 0))) Dispatch(controller.UpdateExistingListings);
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                Dalamud.Bindings.ImGui.ImGui.SetTooltip("Update existing retainer listings using your configured pricing rules, exclusions, and price-drop checks.");
+            Dalamud.Bindings.ImGui.ImGui.SameLine();
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!config.RunVentures || controller.Busy || vendor.IsRunning || ventures.IsRunning);
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.Button, new System.Numerics.Vector4(0.84f, 0.70f, 0.12f, 1));
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.96f, 0.82f, 0.22f, 1));
@@ -255,6 +284,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.Draw -= windows.Draw;
         pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
         pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton;
+        pluginInterface.UiBuilder.Draw -= DrawRetainerListingButton;
         pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw;
         itemPriceTooltip.Dispose();
         pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw;
