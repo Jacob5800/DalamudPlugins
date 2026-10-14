@@ -30,8 +30,10 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
         var addon = (AddonItemSearchResult*)gameGui.GetAddonByName("ItemSearchResult").Address;
         var agent = AgentItemSearch.Instance();
         var proxy = InfoProxyItemSearch.Instance();
-        if (world is null || addon == null || !addon->IsVisible || addon->Results == null || agent == null || proxy == null || proxy->WaitingForListings)
+        if (world is null || addon == null || !addon->IsVisible || addon->Results == null || agent == null || proxy == null)
         { Diagnostics = $"ROI: home={world is not null}; result window={addon != null && addon->IsVisible}; list={addon != null && addon->Results != null}; agent={agent != null}; proxy={proxy != null}; loading={proxy != null && proxy->WaitingForListings}"; return; }
+        // WaitingForListings can remain true after the visible marketboard response is complete.
+        // Validate the rendered list and each matching offer instead of treating it as a blocker.
         var raw = agent->ResultItemId;
         var id = raw >= 1_000_000 ? raw - 1_000_000 : raw;
         if (id == 0 || proxy->SearchItemId != id) { Diagnostics = $"ROI: result item={id}; proxy item={proxy->SearchItemId}; waiting for matching result data."; return; }
@@ -90,7 +92,7 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
             ImGui.PopStyleVar();
             shown++;
         }
-        Diagnostics = $"ROI: item={id}; list rows={list->ListLength}; listings={proxy->ListingCount}; visible={visible}; labels={shown}; home prices={(matching ? "ready" : status)}";
+        Diagnostics = $"ROI: item={id}; list rows={list->ListLength}; listings={proxy->ListingCount}; visible={visible}; labels={shown}; native loading={proxy->WaitingForListings}; home prices={(matching ? "ready" : status)}";
     }
     public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
 }

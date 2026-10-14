@@ -21,6 +21,8 @@ internal sealed class ItemPriceTooltip : IDisposable
     private readonly PluginConfig config;
     private readonly IAddonLifecycle lifecycle;
     private readonly HashSet<uint> marketable;
+    private readonly HashSet<uint> hqCapable;
+    private readonly Dictionary<uint, DateTimeOffset> lastAttempt = [];
     private readonly CancellationTokenSource lifetime = new();
     private readonly Dictionary<uint, (TooltipMarketData Data, DateTimeOffset At)> cache = [];
     private readonly HashSet<uint> queued = [];
@@ -43,6 +45,7 @@ internal sealed class ItemPriceTooltip : IDisposable
     public ItemPriceTooltip(IGameGui gameGui, NativeMarketBridge bridge, UniversalisClient client, PluginConfig config, IAddonLifecycle lifecycle, HashSet<uint> marketable, IDataManager data)
     {
         (this.gameGui, this.bridge, this.client, this.config, this.lifecycle, this.marketable) = (gameGui, bridge, client, config, lifecycle, marketable);
+        hqCapable = data.GetExcelSheet<Item>().Where(row => row.CanBeHq).Select(row => row.RowId).ToHashSet();
         ushort Closest(int red, int green, int blue) => (ushort)data.GetExcelSheet<UIColor>()
             .Where(row => row.RowId > 0 && row.RowId <= ushort.MaxValue && (row.Dark & 255) != 0)
             .MinBy(row => Math.Pow((row.Dark >> 24) - red, 2) + Math.Pow(((row.Dark >> 16) & 255) - green, 2) + Math.Pow(((row.Dark >> 8) & 255) - blue, 2)).RowId;
@@ -57,9 +60,18 @@ internal sealed class ItemPriceTooltip : IDisposable
     private unsafe void BeforeUpdate(AddonEvent _, AddonArgs args) => Restore((AtkUnitBase*)args.Addon.Address);
     private unsafe void BeforeFinalize(AddonEvent _, AddonArgs args) { Restore((AtkUnitBase*)args.Addon.Address); RemoveNode((AtkUnitBase*)args.Addon.Address); }
     private bool Fresh(uint id) => cache.TryGetValue(id, out var entry) && DateTimeOffset.UtcNow - entry.At < TimeSpan.FromMinutes(90);
-    private void Queue(uint id)
+    private void Queue(uint id, bool refreshMissing = false)
     {
-        if (marketable.Contains(id) && !Fresh(id) && !activeIds.Contains(id) && (!retryAt.TryGetValue(id, out var at) || DateTimeOffset.UtcNow >= at)) queued.Add(id);
+        var missing = false;
+        if (refreshMissing && cache.TryGetValue(id, out var entry))
+        {
+            bool Incomplete(TooltipQuality quality) => quality.Price is null or <= 0 || quality.Uploaded is null ||
+                quality.LastPrice is null or <= 0 || quality.Sold is null || quality.SalesPerDay is null;
+            missing = Incomplete(entry.Data.Nq) || (hqCapable.Contains(id) && Incomplete(entry.Data.Hq));
+            if (lastAttempt.TryGetValue(id, out var attempted) && DateTimeOffset.UtcNow - attempted < TimeSpan.FromMinutes(1)) missing = false;
+        }
+        if (marketable.Contains(id) && (!Fresh(id) || missing) && !activeIds.Contains(id) &&
+            (!retryAt.TryGetValue(id, out var at) || DateTimeOffset.UtcNow >= at)) queued.Add(id);
     }
     private unsafe void Prefetch()
     {
@@ -89,16 +101,16 @@ internal sealed class ItemPriceTooltip : IDisposable
         if (!config.ShowItemTooltipPrices) { Restore(addon); return; }
         var world = bridge.GetHomeWorld();
         if (world is null) { Restore(addon); return; }
-        if (worldId != world.WorldId) { worldId = world.WorldId; cache.Clear(); queued.Clear(); retryAt.Clear(); nextPrefetch = DateTimeOffset.MinValue; }
+        if (worldId != world.WorldId) { worldId = world.WorldId; cache.Clear(); queued.Clear(); retryAt.Clear(); lastAttempt.Clear(); nextPrefetch = DateTimeOffset.MinValue; }
         var nowAt = DateTimeOffset.UtcNow;
         if (nowAt >= nextPrefetch) { Prefetch(); nextPrefetch = nowAt.AddSeconds(5); }
         var raw = gameGui.HoveredItem;
         var hovered = raw is > 0 and < 500_000 || raw is >= 1_000_000 and < 1_500_000 ? (uint)(raw % 500_000) : 0;
-        if (hovered != 0) Queue(hovered);
+        if (hovered != 0) Queue(hovered, refreshMissing: true);
         if (request is null && queued.Count > 0 && nowAt >= nextBatch)
         {
             activeIds = queued.OrderByDescending(id => id == hovered).Take(50).ToArray();
-            foreach (var id in activeIds) queued.Remove(id);
+            foreach (var id in activeIds) { queued.Remove(id); lastAttempt[id] = nowAt; }
             activeWorld = worldId;
             request = client.FetchTooltipBatchAsync(worldId, activeIds, lifetime.Token);
             nextBatch = nowAt.AddMilliseconds(200);

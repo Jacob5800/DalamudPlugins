@@ -219,6 +219,8 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawRetainerListingButton()
     {
         if (disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
+        var vendorWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Retainer vendor items").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
+        position.X -= vendorWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
         var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
             Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
@@ -231,6 +233,16 @@ public sealed class Plugin : IDalamudPlugin
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip("List eligible carried inventory using your current pricing rules and exclusions. Existing confirmation prompts still apply.");
+            Dalamud.Bindings.ImGui.ImGui.SameLine();
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning || bridge.RetainerSaleAvailabilityError is not null);
+            if (Dalamud.Bindings.ImGui.ImGui.Button("Retainer vendor items", new System.Numerics.Vector2(vendorWidth, 0)))
+            {
+                window.IsOpen = true;
+                Dispatch(vendor.Start);
+            }
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                Dalamud.Bindings.ImGui.ImGui.SetTooltip("Same as Start retainer sales: uses your price threshold, retainer-sale whitelist, Don't vendor list, exclusions and saved-gearset protections. Unsellable items are skipped.");
         }
         Dalamud.Bindings.ImGui.ImGui.End();
         Dalamud.Bindings.ImGui.ImGui.PopStyleVar();

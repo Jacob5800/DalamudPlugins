@@ -104,7 +104,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         position = default;
         var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerList").Address;
         if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
-        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 390 * addon->Scale, addon->Y + 8 * addon->Scale);
+        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 330 * addon->Scale, addon->Y + 8 * addon->Scale);
         return true;
     }
 
@@ -1120,9 +1120,12 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return OpenRetainerSell(agent, type, checked((ushort)expected.Slot), out error);
     }
 
+    public bool CanVendorItem(uint itemId) => data.GetExcelSheet<Item>().GetRowOrDefault(itemId) is { PriceLow: > 0 };
+
     public bool TrySellInventoryItemThroughRetainer(CarriedItemCandidate expected, MarketSession expectedSession,
         bool allowBound, out string error)
     {
+        if (!CanVendorItem(expected.ItemId)) { error = "This item has no NPC selling price and cannot be vendored."; return false; }
         if (!TryGetSession(out var session, out error)) return false;
         if (session.ContentId != expectedSession.ContentId || session.RetainerId != expectedSession.RetainerId ||
             session.WorldId != expectedSession.WorldId)
