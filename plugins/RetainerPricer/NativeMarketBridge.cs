@@ -755,6 +755,21 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    public IReadOnlyList<string> GetCompletedVentureNames()
+    {
+        var names = new List<string>();
+        if (!TryGetOwnRetainers(out var roster)) return names;
+        var manager = RetainerManager.Instance();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        for (uint index = 0; index < roster.Count; index++)
+        {
+            var retainer = manager->GetRetainerBySortedIndex(index);
+            if (retainer != null && retainer->VentureId != 0 && retainer->VentureComplete != 0 && retainer->VentureComplete <= now)
+                names.Add(retainer->NameString);
+        }
+        return names;
+    }
+
     public bool TryGetOwnRetainers(out IReadOnlyList<RetainerIdentity> retainers)
     {
         var result = new List<RetainerIdentity>();

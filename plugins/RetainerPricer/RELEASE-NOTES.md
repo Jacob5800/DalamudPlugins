@@ -1,4 +1,5 @@
-## 0.5.0.15
+## 0.5.0.16
 
-- Sniper estimated sales/day is orange below 1 and yellow from 1 through 3, warning about slower resale.
-- Removed the 25-item history fallback to reduce time spent retrying failed batches. Failed 100-item batches can still split into 50-item groups; unresolved items are retried automatically after the full scan.
+- The optional RP server-bar button turns green when the current character has completed ventures in loaded retainer data.
+- Hover over RP to see the completed venture count and retainer names. If none are detected, the tooltip explains that opening the summoning bell refreshes the loaded roster.
+- The scanning indicator remains visible while Sniper history or undercut checks are running.

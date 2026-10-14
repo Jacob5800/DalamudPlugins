@@ -18,7 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework framework;
     private readonly IPluginLog log;
     private readonly IDtrBarEntry serverInfoBarEntry;
-    private bool serverBarScanning;
+    private DateTimeOffset nextServerBarUpdate;
     private readonly WindowSystem windows = new("RetainerPricer");
     private readonly PluginConfig config;
     private readonly NativeMarketBridge bridge;
@@ -142,13 +142,20 @@ public sealed class Plugin : IDalamudPlugin
                     Message = new SeStringBuilder().AddText($"[Retainer Pricer] Undercut: {name} ({(row.Listing.IsHq ? "HQ" : "NQ")}) on {row.Retainer}: your saved price {row.Listing.Price:N0} gil, competitor {row.LowestPrice:N0} gil.").Build() });
             });
             var scanning = sniper.IsInitialScanRunning || undercuts.Checking;
-            if (scanning != serverBarScanning)
+            if (DateTimeOffset.UtcNow >= nextServerBarUpdate)
             {
-                serverBarScanning = scanning;
-                serverInfoBarEntry.Text = scanning ? "RP (scanning…)" : "RP";
-                serverInfoBarEntry.Tooltip = scanning
-                    ? "Fetching Sniper history or checking undercuts. Click to open Retainer Pricer."
-                    : "Click to open Retainer Pricer";
+                nextServerBarUpdate = DateTimeOffset.UtcNow.AddSeconds(1);
+                var completed = bridge.GetCompletedVentureNames();
+                var text = new SeStringBuilder();
+                if (completed.Count > 0) text.AddUiForeground(45);
+                text.AddText(scanning ? "RP (scanning…)" : "RP");
+                if (completed.Count > 0) text.AddUiForegroundOff();
+                serverInfoBarEntry.Text = text.Build();
+                serverInfoBarEntry.Tooltip = (completed.Count > 0
+                    ? $"Completed ventures ({completed.Count}): {string.Join(", ", completed)}.\n"
+                    : "No completed ventures in the current character's loaded retainer data. Open the summoning bell to refresh.\n")
+                    + (scanning ? "Fetching Sniper history or checking undercuts.\n" : "")
+                    + "Click to open Retainer Pricer.";
             }
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;
