@@ -10,6 +10,10 @@ namespace StrategyBoardLibrary;
 
 internal sealed class MainWindow : Window
 {
+    private string folderFilter = "";
+    private string encounterFilter = "";
+    private string backupPath = "";
+    private bool recentlyUsed;
     private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly CatalogStore catalog;
     private string search = string.Empty;
@@ -46,6 +50,16 @@ internal sealed class MainWindow : Window
         DrawImportPanel();
         ImGui.Separator();
         DrawLibraryTransfer();
+        ImGui.InputText("Backup file path", ref backupPath, 1024);
+        if (ImGui.Button("Export library to file")) {
+            try { File.WriteAllText(backupPath.Trim().Trim('"'), catalog.ExportJson()); status = "Library exported, including folders, favorites and recent-use dates."; }
+            catch (Exception ex) { status = ex.Message; }
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Import library file (merge)")) {
+            try { var file = new FileInfo(backupPath.Trim().Trim('"')); if (!file.Exists || file.Length > 5 * 1024 * 1024) throw new InvalidOperationException("Choose a JSON backup smaller than 5 MB."); catalog.ImportJson(File.ReadAllText(file.FullName), out _, out status); }
+            catch (Exception ex) { status = ex.Message; }
+        }
         ImGui.Separator();
         DrawFooter();
     }
@@ -66,6 +80,19 @@ internal sealed class MainWindow : Window
         ImGui.SameLine();
         if (ImGui.Button(favoritesOnly ? "★ Favorites" : "☆ Favorites"))
             favoritesOnly = !favoritesOnly;
+        if (ImGui.BeginCombo("Folder", string.IsNullOrEmpty(folderFilter) ? "All folders" : folderFilter)) {
+            if (ImGui.Selectable("All folders", folderFilter.Length == 0)) folderFilter = "";
+            foreach (var folder in catalog.Entries.Select(entry => entry.Folder).Where(value => !string.IsNullOrEmpty(value)).Distinct().Order())
+                if (ImGui.Selectable(folder, folderFilter == folder)) folderFilter = folder;
+            ImGui.EndCombo();
+        }
+        if (ImGui.BeginCombo("Encounter", string.IsNullOrEmpty(encounterFilter) ? "All encounters" : encounterFilter)) {
+            if (ImGui.Selectable("All encounters", encounterFilter.Length == 0)) encounterFilter = "";
+            foreach (var encounter in catalog.Entries.Select(entry => entry.Encounter).Where(value => !string.IsNullOrEmpty(value)).Distinct().Order())
+                if (ImGui.Selectable(encounter, encounterFilter == encounter)) encounterFilter = encounter;
+            ImGui.EndCombo();
+        }
+        ImGui.Checkbox("Recently used first", ref recentlyUsed);
         ImGui.TextDisabled($"{GetVisibleEntries().Count} matching / {catalog.Entries.Count} saved");
     }
 
@@ -108,6 +135,8 @@ internal sealed class MainWindow : Window
         }
 
         ImGui.Text($"Selected: {selected.Title}");
+        var folder = selected.Folder ?? "";
+        if (ImGui.InputText("Folder for selected board", ref folder, 100)) { selected.Folder = folder.Trim(); catalog.Save(); }
         if (!string.IsNullOrWhiteSpace(selected.Encounter))
             ImGui.TextDisabled($"Encounter: {selected.Encounter}");
         if (selected.Tags.Count > 0)
@@ -126,6 +155,7 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Copy share code for in-game import"))
         {
             ImGui.SetClipboardText(selected.ShareCode);
+            selected.LastUsedUtc = DateTime.UtcNow; catalog.Save();
             status = "Share code copied. Open Strategy Board > Import in-game and paste it.";
         }
         ImGui.SameLine();
@@ -219,12 +249,15 @@ internal sealed class MainWindow : Window
         var query = search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return catalog.Entries
             .Where(entry => !favoritesOnly || entry.Favorite)
+            .Where(entry => folderFilter.Length == 0 || entry.Folder == folderFilter)
+            .Where(entry => encounterFilter.Length == 0 || entry.Encounter == encounterFilter)
             .Where(entry => query.All(term =>
                 entry.Title.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || entry.Encounter.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || entry.SourceUrl.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || entry.Tags.Any(tag => tag.Contains(term, StringComparison.OrdinalIgnoreCase))))
-            .OrderByDescending(entry => entry.Favorite)
+            .OrderByDescending(entry => recentlyUsed ? entry.LastUsedUtc ?? DateTime.MinValue : DateTime.MinValue)
+            .ThenByDescending(entry => entry.Favorite)
             .ThenBy(entry => entry.Encounter, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();

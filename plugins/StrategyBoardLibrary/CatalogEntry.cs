@@ -4,6 +4,8 @@ internal sealed class CatalogEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
+    public string Folder { get; set; } = string.Empty;
+    public DateTime? LastUsedUtc { get; set; }
     public string Encounter { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = [];
     public string SourceUrl { get; set; } = string.Empty;

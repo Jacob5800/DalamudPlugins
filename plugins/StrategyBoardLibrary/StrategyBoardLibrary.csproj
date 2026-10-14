@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.1.2.1</Version>
+    <Version>0.1.2.2</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Author>Jacob5800</Author>
     <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>

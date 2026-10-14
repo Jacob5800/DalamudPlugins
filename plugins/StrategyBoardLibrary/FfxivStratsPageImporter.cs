@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Net.Http;
 using System.Net;
 using System.Text;
@@ -18,6 +20,9 @@ internal static class FfxivStratsPageImporter
             return new PageImportResult(null, null, "Paste a valid https://ffxivstrats.io/strategy/... URL.");
         }
 
+        var strategyId = Regex.Match(uri.AbsolutePath, @"^/strategy/(\d+)/?$", RegexOptions.CultureInvariant);
+        if (!strategyId.Success) return new PageImportResult(null, null, "Use a strategy page URL such as https://ffxivstrats.io/strategy/237.");
+        uri = new Uri($"https://api.ffxivstrats.io/strategy/{strategyId.Groups[1].Value}");
         try
         {
             for (var redirectCount = 0; redirectCount <= 3; redirectCount++)
@@ -27,8 +32,10 @@ internal static class FfxivStratsPageImporter
                 {
                     if (redirectCount == 3 || response.Headers.Location is null
                         || !Uri.TryCreate(uri, response.Headers.Location, out var redirectedUri)
-                        || !TryGetAllowedUri(redirectedUri.ToString(), out uri))
+                        || redirectedUri.Scheme != Uri.UriSchemeHttps || redirectedUri.Host != "api.ffxivstrats.io"
+                        || redirectedUri.AbsolutePath != uri.AbsolutePath)
                         return new PageImportResult(null, null, "The site redirected outside its allowed address. Open the link in a browser and paste the share code here.");
+                    uri = redirectedUri;
                     continue;
                 }
 
@@ -53,17 +60,20 @@ internal static class FfxivStratsPageImporter
                 if (html.Length == 0)
                     return new PageImportResult(null, null, "The page was empty.");
 
-                var title = ShareCodeTools.ExtractPageTitle(html);
-                var code = ShareCodeTools.TryExtract(html, out var extracted) ? extracted : null;
+                using var json = JsonDocument.Parse(html);
+                var root = json.RootElement;
+                var title = root.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() : null;
+                var rawCode = root.TryGetProperty("code", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                var code = ShareCodeTools.TryExtract(rawCode, out var extracted) ? extracted : null;
                 var message = code is null
-                    ? "The page loaded, but its HTML doesn't contain a share code. Copy the code from the site and paste it below."
+                    ? "The site's strategy data did not contain a valid share code. Copy the code from the site and paste it below."
                     : "Share code found. Review the title and save it to your library.";
                 return new PageImportResult(code, title, message);
             }
 
             return new PageImportResult(null, null, "The site redirected too many times.");
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             return new PageImportResult(null, null, $"Couldn't read that page: {ex.Message}");
         }

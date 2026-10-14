@@ -21,7 +21,7 @@ internal sealed class CatalogStore
     {
         if (Entries.Any(existing => string.Equals(existing.ShareCode, entry.ShareCode, StringComparison.Ordinal)))
         {
-            LastError = "That share code is already in your library.";
+            LastError = $"That share code is already saved as {Entries.First(existing => existing.ShareCode == entry.ShareCode).Title}.";
             return false;
         }
 
@@ -64,16 +64,19 @@ internal sealed class CatalogStore
                 return false;
             }
 
+            var duplicates = 0;
+            File.WriteAllText(filePath + $".before-import-{DateTime.Now:yyyyMMdd-HHmmssfff}.json", ExportJson());
             foreach (var entry in incoming)
             {
                 if (string.IsNullOrWhiteSpace(entry.Title) || !ShareCodeTools.TryExtract(entry.ShareCode, out var shareCode))
                     continue;
+                entry.Folder ??= string.Empty;
                 entry.Encounter ??= string.Empty;
                 entry.Tags ??= [];
                 entry.SourceUrl ??= string.Empty;
                 entry.ShareCode = shareCode;
                 if (Entries.Any(existing => string.Equals(existing.ShareCode, shareCode, StringComparison.Ordinal)))
-                    continue;
+                    { duplicates++; continue; }
                 if (entry.Id == Guid.Empty || Entries.Any(existing => existing.Id == entry.Id))
                     entry.Id = Guid.NewGuid();
                 Entries.Add(entry);
@@ -81,7 +84,7 @@ internal sealed class CatalogStore
             }
 
             Save();
-            message = imported == 0 ? "No new valid boards were found." : $"Imported {imported} board(s).";
+            message = $"Imported {imported} board(s); skipped {duplicates} duplicate code(s). Previous library backed up before import.";
             return true;
         }
         catch (JsonException)
@@ -102,6 +105,7 @@ internal sealed class CatalogStore
             foreach (var entry in entries)
             {
                 entry.Title ??= string.Empty;
+                entry.Folder ??= string.Empty;
                 entry.Encounter ??= string.Empty;
                 entry.Tags ??= [];
                 entry.SourceUrl ??= string.Empty;

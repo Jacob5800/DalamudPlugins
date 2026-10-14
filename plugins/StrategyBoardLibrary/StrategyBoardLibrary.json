@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Strategy Board Library",
   "InternalName": "StrategyBoardLibrary",
-  "AssemblyVersion": "0.1.2.1",
+  "AssemblyVersion": "0.1.2.2",
   "Description": "Searches a local library of FFXIV Strategy Board share codes and provides a quick copy-to-import flow.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -19,6 +19,6 @@
   "LoadPriority": 0,
   "Punchline": "Search and import strategy board share codes.",
   "AcceptsFeedback": true,
-  "Changelog": "## 0.1.2.1\n\n- Replaced the generic gamepad on the Discord join button with a recognizable Discord-style symbol, linked to the community invite.",
+  "Changelog": "## 0.1.2.2\n\n- Fixed FFXIVStrats URL imports by reading the site's strategy API instead of searching the initial HTML. Strategy page titles and share codes are retrieved directly.\n- Added folders and encounter filters, plus Recently used first sorting. Copying a board's code records its use.\n- Duplicate-code messages identify the saved board; JSON imports report duplicate counts.\n- Added library file export and merge import, preserving folders, favorites and recent-use dates. A timestamped backup of the current library is saved before importing.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon.png"
 }
