@@ -1394,7 +1394,12 @@ internal sealed class MainWindow : Window
                     ? $"Middle same-quality sale price from {deal.SalesInHistoryWindow:N0} recorded transactions {(deal.HistoryDays == 0 ? "of any age (returned sample only)" : $"in {deal.HistoryDays} days")}. History checked: {deal.HistoryFetchedAt?.ToLocalTime().ToString("g") ?? "unknown"}. Restart watching to refresh the baseline."
                     : missing);
                 Cell(hasMedian ? $"{deal.DiscountPercent:0.0}% cheaper" : "—", hasMedian
-                    ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : missing);
+                    ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." +
+                        (deal.DiscountPercent >= 50 ? " Green: at least 50% below the recorded sales median." : deal.DiscountPercent >= 25 ? " Light green: 25% to under 50% below the recorded sales median." : "") +
+                        " A large discount does not guarantee resale profit or demand."
+                    : missing,
+                    healthySales: hasMedian && deal.DiscountPercent >= 25 && deal.DiscountPercent < 50,
+                    strongSales: hasMedian && deal.DiscountPercent >= 50);
                 var coverageText = deal.SampleCoverageDays is { } days
                     ? days < 1 ? $"{days * 24:0.##} hours" : $"{days:0.##} days" : "unknown";
                 var sampleHelp = $"{deal.SalesInHistoryWindow:N0} same-quality sales in the returned sample (up to {UniversalisClient.SniperHistoryEntryLimit:N0} HQ/NQ sales combined). Oldest returned sale to history check: {coverageText}.";
@@ -1403,22 +1408,24 @@ internal sealed class MainWindow : Window
                         ? " Estimated sales/day uses that sampled time coverage, not the configured maximum age. Capped samples may not represent the full history; demand on this server can differ."
                         : $" Sales/day uses the full configured {deal.HistoryDays}-day window because the returned sample did not reach the cap.")
                         + (!deal.HasSalesPerDayEstimate ? " Not enough dated sales to estimate a daily rate." : "")
-                        + (deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1 ? " Orange warning: fewer than one estimated sale per day. Resale may be slow and the price estimate less dependable." : deal.HasSalesPerDayEstimate && deal.SalesPerDay <= 3 ? " Yellow warning: one to three estimated sales per day. Resale may be slow." : "") : missing,
+                        + (deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1 ? " Orange warning: fewer than one estimated sale per day. Resale may be slow and the price estimate less dependable." : deal.HasSalesPerDayEstimate && deal.SalesPerDay <= 3 ? " Yellow warning: one to three estimated sales per day. Resale may be slow." : deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 30 ? " Green: at least 30 estimated sale transactions per day, indicating an active market in this scope. This does not guarantee fast resale on your world." : deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 15 ? " Light green: 15 to under 30 estimated sale transactions per day, indicating healthy activity in this scope. This does not guarantee fast resale." : "") : missing,
                     unknownHistory: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 1 && deal.SalesPerDay <= 3,
                     slowSales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1,
                     healthySales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 15 && deal.SalesPerDay < 30,
                     strongSales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 30);
                 var saleAgeDays = deal.LastSaleAt is { } latestSale ? (DateTimeOffset.UtcNow - latestSale).TotalDays : 0;
                 var veryOldSale = deal.HistoryDays == 0 && saleAgeDays > 30;
+                var recentSale = deal.LastSaleAt is not null && saleAgeDays * 1440 >= 1 && saleAgeDays * 1440 <= 120;
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
-                    ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing,
+                    ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate. " + (recentSale ? "Green: the most recent recorded sale was 1–120 minutes ago, indicating recent activity. One recent sale does not guarantee fast resale." : veryOldSale ? "Red: last sale is over 30 days old in any-age mode." : saleAgeDays > 7 ? "Orange: last sale is over 7 days old." : saleAgeDays > 1 ? "Yellow: last sale is over 1 day old." : "Normal color: last sale is no more than 1 day old.") : missing,
                     alert: veryOldSale,
                     unknownHistory: !veryOldSale && saleAgeDays > 1 && saleAgeDays <= 7,
-                    slowSales: !veryOldSale && saleAgeDays > 7);
+                    slowSales: !veryOldSale && saleAgeDays > 7,
+                    strongSales: recentSale);
                 Cell(hasMedian ? decimal.Floor(unitProfit).ToString("N0") : "—", hasMedian
-                    ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax) − {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitProfit * deal.Quantity):N0} gil estimated profit. Rounded down; real prices and fees vary." : missing);
+                    ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax) − {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitProfit * deal.Quantity):N0} gil estimated profit. Rounded down; real prices and fees vary." + (unitProfit < 0 ? " Red: the estimated resale would lose gil after the assumed fees." : "") : missing, alert: hasMedian && unitProfit < 0);
                 Cell(hasMedian ? decimal.Floor(unitSaving).ToString("N0") : "—", hasMedian
-                    ? $"Purchase savings versus median: {deal.MedianSalePrice:N0} minus asking price including {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee.\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitSaving * deal.Quantity):N0} gil estimated savings. This is purchase savings before resale." : missing);
+                    ? $"Purchase savings versus median: {deal.MedianSalePrice:N0} minus asking price including {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee.\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitSaving * deal.Quantity):N0} gil estimated savings. This is purchase savings before resale." + (unitSaving < 0 ? " Red: the estimated purchase cost exceeds the sales median." : "") : missing, alert: hasMedian && unitSaving < 0);
                 Cell(deal.LastSalePrice is { } lastPrice ? lastPrice.ToString("N0") : "—",
                     deal.LastSaleAt is { } soldAt && deal.LastSalePrice is not null
                         ? $"Most recent recorded same-quality sale in the selected market scope: {deal.LastSalePrice:N0} gil per item at {soldAt.ToLocalTime():g}. This is one sale, not the median; it may be old in any-age mode."
