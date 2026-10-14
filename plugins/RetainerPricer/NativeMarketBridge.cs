@@ -758,28 +758,44 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private ulong ventureAvailabilityCharacter;
     private readonly HashSet<ulong> availableVentureRetainers = [];
 
-    public IReadOnlyList<string> GetCompletedVentureNames()
+    private readonly Dictionary<ulong, (string Name, ushort Venture, long EndsAt, DateTimeOffset ChangedAt)> knownVentureTimers = [];
+    public IReadOnlyList<string> GetCompletedVentureNames(IReadOnlyDictionary<ulong, RetainerListingCache> saved)
     {
-        var names = new List<string>();
         if (!player.IsLoaded || ventureAvailabilityCharacter != player.ContentId)
         {
             availableVentureRetainers.Clear();
+            knownVentureTimers.Clear();
             ventureAvailabilityCharacter = player.IsLoaded ? player.ContentId : 0;
         }
-        if (!TryGetOwnRetainers(out var roster)) return names;
-        if (TryReadRetainerPickerEntries(out var entries, out _))
+        if (!player.IsLoaded) return [];
+        if (TryGetOwnRetainers(out var roster))
         {
-            availableVentureRetainers.Clear();
-            foreach (var entry in entries.Where(entry => entry.IsAvailable))
-                availableVentureRetainers.Add(entry.Retainer.RetainerId);
+            if (TryReadRetainerPickerEntries(out var entries, out _))
+            {
+                availableVentureRetainers.Clear();
+                foreach (var entry in entries.Where(entry => entry.IsAvailable)) availableVentureRetainers.Add(entry.Retainer.RetainerId);
+            }
+            var manager = RetainerManager.Instance();
+            for (uint index = 0; index < roster.Count; index++)
+            {
+                var retainer = manager->GetRetainerBySortedIndex(index);
+                if (retainer == null) continue;
+                if (!knownVentureTimers.TryGetValue(retainer->RetainerId, out var previous) || previous.Venture != retainer->VentureId || previous.EndsAt != retainer->VentureComplete)
+                    knownVentureTimers[retainer->RetainerId] = (retainer->NameString, retainer->VentureId, retainer->VentureComplete, DateTimeOffset.UtcNow);
+            }
         }
-        var manager = RetainerManager.Instance();
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        for (uint index = 0; index < roster.Count; index++)
+        var names = new List<string>();
+        foreach (var id in availableVentureRetainers)
         {
-            var retainer = manager->GetRetainerBySortedIndex(index);
-            if (retainer != null && availableVentureRetainers.Contains(retainer->RetainerId) && retainer->VentureId != 0 && retainer->VentureComplete != 0 && retainer->VentureComplete <= now)
-                names.Add(retainer->NameString);
+            if (!knownVentureTimers.TryGetValue(id, out var timer)) continue;
+            var venture = timer.Venture;
+            var endsAt = timer.EndsAt;
+            if (saved.TryGetValue(id, out var snapshot) && snapshot.RefreshedAt > timer.ChangedAt && snapshot.VentureId is { } savedVenture)
+            {
+                venture = savedVenture;
+                endsAt = snapshot.VentureCompletesAt?.ToUnixTimeSeconds() ?? 0;
+            }
+            if (venture != 0 && endsAt > 0 && endsAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()) names.Add(timer.Name);
         }
         return names;
     }

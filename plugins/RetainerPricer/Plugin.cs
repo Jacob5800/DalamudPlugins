@@ -145,7 +145,7 @@ public sealed class Plugin : IDalamudPlugin
             if (DateTimeOffset.UtcNow >= nextServerBarUpdate)
             {
                 nextServerBarUpdate = DateTimeOffset.UtcNow.AddSeconds(1);
-                var completed = bridge.GetCompletedVentureNames();
+                var completed = bridge.GetCompletedVentureNames(config.UniversalisRetainerListings);
                 var text = new SeStringBuilder();
                 if (completed.Count > 0) text.AddUiForeground(45);
                 text.AddText(scanning ? "RP (scanning…)" : "RP");
@@ -155,7 +155,7 @@ public sealed class Plugin : IDalamudPlugin
                     ? $"Completed ventures on available retainers ({completed.Count}): {string.Join(", ", completed)}.\n"
                     : "No completed ventures on retainers confirmed available. Open the summoning bell to refresh availability.\n")
                     + (scanning ? "Fetching Sniper history or checking undercuts.\n" : "")
-                    + "Click to open Retainer Pricer.";
+                    + "Click to open Retainer Pricer. Readiness uses last observed venture timers and newer saved Universalis lookup snapshots; open the bell to refresh.";
             }
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;
