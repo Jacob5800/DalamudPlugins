@@ -104,3 +104,5 @@ Skip 1 gil lookup (off by default) disables existing-offer startup checks while 
 Hide 1gil deals is a display-only option, off by default, available while watching. Sale-age cells warn yellow over one day, orange over seven days, and red over thirty days in any-age mode. Estimated sales/day is light green at 15–<30 and green at 30+.
 
 Sniper retains up to 5,000 results in pages of 100. ROI is estimated net resale profit divided by purchase cost including fees; Minimum ROI % is a display filter (0 disables it). Right-click an item name to move its captured rows to the saved Buy list next to Sniper. Buy list suppresses that item in Sniper until removed or cleared, and offers Copy item name and confirmed Clear list. Saved rows are snapshots, not purchases. With Skip 1 gil lookup enabled, live 1-gil alerts require matching-quality history meeting minimum sales. Sale-age yellow now starts at 3 days.
+
+ROI appears before Discount: negative is red, 25–<100% light green, and 100%+ green. In Buy list, Copy item name then Paste clipboard and search uses the open current-world marketboard while pricing is idle. Purchases are manual.

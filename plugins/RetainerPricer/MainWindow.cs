@@ -31,6 +31,7 @@ internal sealed class MainWindow : Window
     private string sniperItemSearch = "";
     private int sniperDealsPage;
     private int buyListPage;
+    private string buyListSearchMessage = "";
     private string sniperDealSearch = "";
     private readonly List<ItemChoice> sniperItemSelections = [];
     private string backupPath = "";
@@ -1297,6 +1298,8 @@ internal sealed class MainWindow : Window
             ImGui.SameLine(); if (ImGui.Button("Cancel")) ImGui.CloseCurrentPopup();
             ImGui.EndPopup();
         }
+        if (!string.IsNullOrEmpty(buyListSearchMessage)) ImGui.TextWrapped(buyListSearchMessage);
+        ImGui.TextDisabled("Copy item name, then Paste clipboard and search with a marketboard open. Searches your current world; purchases are manual.");
         DrawSniperDeals(true);
     }
 
@@ -1335,7 +1338,7 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable(buyList ? "##buyListDealsV1" : "##sniperDealsLayoutV6", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+        if (ImGui.BeginTable(buyList ? "##buyListDealsV2" : "##sniperDealsLayoutV7", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 65))))
@@ -1353,16 +1356,16 @@ internal sealed class MainWindow : Window
             SetupDealColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 70);
             SetupDealColumn("Listing price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 100);
             SetupDealColumn(config.SniperHistoryDays == 0 ? "Any-age median" : $"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
+            SetupDealColumn("ROI", ImGuiTableColumnFlags.WidthFixed, 90);
             SetupDealColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
             SetupDealColumn("Est. sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
             SetupDealColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
             SetupDealColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             SetupDealColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
             SetupDealColumn("Last sale price", ImGuiTableColumnFlags.WidthFixed, 105);
-            SetupDealColumn("ROI", ImGuiTableColumnFlags.WidthFixed, 90);
-            ImGui.TableSetColumnEnabled(13, config.SniperHistoryDays == 0);
+            ImGui.TableSetColumnEnabled(14, config.SniperHistoryDays == 0);
             ImGui.TableSetColumnEnabled(2, config.SniperUseRegionPrices);
-            ImGui.TableSetColumnEnabled(11, config.SniperShowProfitEstimates);
+            ImGui.TableSetColumnEnabled(12, config.SniperShowProfitEstimates);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
             var sortedDeals = deals.ToList();
@@ -1380,12 +1383,12 @@ internal sealed class MainWindow : Window
                     5 => deal => deal.Quantity,
                     6 => deal => deal.PricePerUnit,
                     7 => deal => deal.MedianSalePrice,
-                    8 => deal => deal.DiscountPercent,
-                    9 => deal => deal.SalesPerDay,
-                    10 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
-                    14 => deal => deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
-                    13 => deal => deal.LastSalePrice ?? 0,
-                    11 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
+                    9 => deal => deal.DiscountPercent,
+                    10 => deal => deal.SalesPerDay,
+                    11 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
+                    8 => deal => deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
+                    14 => deal => deal.LastSalePrice ?? 0,
+                    12 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
                     _ => deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)
                 };
                 sortedDeals = spec.SortDirection == ImGuiSortDirection.Ascending
@@ -1429,6 +1432,18 @@ internal sealed class MainWindow : Window
                         save();
                     }
                     if (ImGui.MenuItem("Copy item name")) ImGui.SetClipboardText(deal.ItemName);
+                    if (buyList)
+                    {
+                        ImGui.BeginDisabled(!controller.CanSearchBuyListItem);
+                        if (ImGui.MenuItem("Paste clipboard and search"))
+                        {
+                            var clipboardName = ImGui.GetClipboardText()?.Trim();
+                            var selectedItem = sniper.MarketableItems.FirstOrDefault(item => string.Equals(item.Name, clipboardName, StringComparison.CurrentCultureIgnoreCase));
+                            if (selectedItem is not null) dispatch(() => controller.SearchBuyListItem(selectedItem.ItemId));
+                            else buyListSearchMessage = "Clipboard must contain an exact marketable item name. Use Copy item name first.";
+                        }
+                        ImGui.EndDisabled();
+                    }
                     if (buyList && ImGui.MenuItem("Remove item from buy list")) { config.SniperBuyList.RemoveAll(row => row.ItemName == deal.ItemName); save(); }
                     ImGui.EndPopup();
                 }
@@ -1441,6 +1456,12 @@ internal sealed class MainWindow : Window
                 Cell(hasMedian ? deal.MedianSalePrice.ToString("N0") : "—", hasMedian
                     ? $"Middle same-quality sale price from {deal.SalesInHistoryWindow:N0} recorded transactions {(deal.HistoryDays == 0 ? "of any age (returned sample only)" : $"in {deal.HistoryDays} days")}. History checked: {deal.HistoryFetchedAt?.ToLocalTime().ToString("g") ?? "unknown"}. Restart watching to refresh the baseline."
                     : missing);
+                var roi = deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
+                Cell(hasMedian ? $"{roi:0.0}%" : "—", "Estimated ROI = estimated resale profit divided by purchase cost including assumed fees, times 100. Uses recorded median; actual returns may differ. " +
+                    (roi < 0 ? "Red: estimated loss after fees." : roi >= 100 ? "Green: estimated return is at least 100% of purchase cost." : roi >= 25 ? "Light green: estimated return is 25% to under 100% of purchase cost." : "Normal color: estimated return is 0% to under 25%."),
+                    alert: hasMedian && roi < 0,
+                    healthySales: hasMedian && roi >= 25 && roi < 100,
+                    strongSales: hasMedian && roi >= 100);
                 Cell(hasMedian ? $"{deal.DiscountPercent:0.0}% cheaper" : "—", hasMedian
                     ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." +
                         (deal.DiscountPercent >= 50 ? " Green: at least 50% below the recorded sales median." : deal.DiscountPercent >= 25 ? " Light green: 25% to under 50% below the recorded sales median." : "") +
@@ -1478,8 +1499,6 @@ internal sealed class MainWindow : Window
                     deal.LastSaleAt is { } soldAt && deal.LastSalePrice is not null
                         ? $"Most recent recorded same-quality sale in the selected market scope: {deal.LastSalePrice:N0} gil per item at {soldAt.ToLocalTime():g}. This is one sale, not the median; it may be old in any-age mode."
                         : "No dated same-quality sale is available yet.");
-                var roi = deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent);
-                Cell(hasMedian ? $"{roi:0.0}%" : "—", "Estimated ROI = estimated resale profit divided by purchase cost including assumed fees, times 100. Uses recorded median; actual returns may differ.", alert: hasMedian && roi < 0);
             }
             ImGui.EndTable();
             if (ImGui.Button("Previous page")) { if (buyList) buyListPage = Math.Max(0, buyListPage - 1); else sniperDealsPage = Math.Max(0, sniperDealsPage - 1); }

@@ -677,6 +677,15 @@ internal sealed class PricingController : IDisposable
         Status = $"Retainer snapshot queued for {autoRetainers.Count} retainer(s), starting {startDescription}.";
     }
 
+    public bool CanSearchBuyListItem => !Busy && bridge.IsMarketBoardOpen;
+    public void SearchBuyListItem(uint itemId)
+    {
+        if (!CanSearchBuyListItem) { Status = "Open a marketboard and finish active pricing operations before searching a buy-list item."; return; }
+        if (bridge.TryStartMarketBoardSearch(itemId, out var error))
+            Status = $"Searching buy-list item #{itemId} on the current world's marketboard. Purchases are manual.";
+        else Status = error;
+    }
+
     public void SearchPendingUniversalisItems()
     {
         if (Busy) return;
