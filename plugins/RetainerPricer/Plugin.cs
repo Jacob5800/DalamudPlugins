@@ -98,6 +98,7 @@ public sealed class Plugin : IDalamudPlugin
         if (bridge.ItemSelectorAvailabilityError is { } selectorCompatibilityError)
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
         pluginInterface.UiBuilder.Draw += windows.Draw;
+        pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
         pluginInterface.UiBuilder.OpenMainUi += Toggle;
         pluginInterface.UiBuilder.OpenConfigUi += Toggle;
         framework.Update += Update;
@@ -176,6 +177,30 @@ public sealed class Plugin : IDalamudPlugin
             ventures.Start();
     }
 
+    private string clipboardSearchMessage = "";
+    private void DrawMarketboardClipboard()
+    {
+        if (disposed || !bridge.TryGetMarketboardMenuPosition(out var position)) return;
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(new System.Numerics.Vector2(position.X, Math.Max(0, position.Y - 34)), Dalamud.Bindings.ImGui.ImGuiCond.Always);
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowBgAlpha(1);
+        var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoFocusOnAppearing;
+        if (Dalamud.Bindings.ImGui.ImGui.Begin("Marketboard clipboard##RetainerPricer", flags))
+        {
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanSearchBuyListItem);
+            if (Dalamud.Bindings.ImGui.ImGui.Button("Paste clipboard and search"))
+            {
+                var name = Dalamud.Bindings.ImGui.ImGui.GetClipboardText()?.Trim();
+                var item = sniper.MarketableItems.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.CurrentCultureIgnoreCase));
+                if (item is null) clipboardSearchMessage = "Copy an exact marketable item name first.";
+                else { clipboardSearchMessage = ""; Dispatch(() => controller.SearchBuyListItem(item.ItemId)); }
+            }
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (!string.IsNullOrEmpty(clipboardSearchMessage)) Dalamud.Bindings.ImGui.ImGui.TextUnformatted(clipboardSearchMessage);
+        }
+        Dalamud.Bindings.ImGui.ImGui.End();
+    }
+
     private void Toggle() => window.Toggle();
     private bool UndercutsPaused() => config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
@@ -189,6 +214,7 @@ public sealed class Plugin : IDalamudPlugin
         controller.AutoUpdateCompleted -= StartVenturesAfterAutoUpdate;
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;
+        pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
         pluginInterface.UiBuilder.OpenMainUi -= Toggle;
         pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
         commands.RemoveHandler("/retainerpricer");

@@ -1,5 +1,4 @@
-## 0.5.0.35
+## 0.5.0.36
 
-- Sniper and Buy list now place rows with known negative estimated profit or ROI at the bottom by default, before pagination. Unknown-history rows are not classified as losses.
-- Clicking a column header still applies your selected ascending/descending sort. Headers support clearing the sort to restore the default loss-last order.
-- Updated default table layouts so old saved sorts do not prevent the new default ordering from appearing.
+- Added a Paste clipboard and search button directly above the game's open Item Search marketboard menu. It follows the menu position and disappears when the menu closes; opening Buy list is no longer required.
+- The button resolves an exact marketable item name from your clipboard and uses the existing marketboard search helper on your current world. It is disabled while pricing is busy. Invalid clipboard text displays an explanation. Purchases remain manual.

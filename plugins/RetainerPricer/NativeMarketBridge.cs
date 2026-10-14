@@ -102,6 +102,15 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     public bool IsVentureTaskAskVisible => IsAddonVisible("RetainerTaskAsk");
     public bool IsVentureTaskResultVisible => IsAddonVisible("RetainerTaskResult");
     public bool IsVentureTaskSupplyVisible => IsAddonVisible("RetainerTaskSupply");
+    public bool TryGetMarketboardMenuPosition(out System.Numerics.Vector2 position)
+    {
+        position = default;
+        if (!IsMarketBoardOpen) return false;
+        var addon = (AtkUnitBase*)gameGui.GetAddonByName("ItemSearch").Address;
+        if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
+        position = new System.Numerics.Vector2(addon->X, addon->Y);
+        return true;
+    }
     public bool IsMarketBoardOpen => !IsRetainerSellListVisible && !IsSellWindowVisible &&
         (IsAddonVisible("ItemSearch") || IsComparisonVisible);
     public bool IsLocalSearchBusy
