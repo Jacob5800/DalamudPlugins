@@ -13,6 +13,7 @@ internal sealed class Configuration : IPluginConfiguration
 
     public CurrentItem? CurrentlyCraftedItem { get; set; }
     public List<QueuedItem> ItemQueue { get; set; } = new();
+    public bool ShowServerBar { get; set; }
     public bool AutoOpenRetainerDeposit { get; set; }
     public bool EnableRepairKitCalculator { get; set; } = true;
     public bool EnableCeruleumTankCalculator { get; set; } = true;

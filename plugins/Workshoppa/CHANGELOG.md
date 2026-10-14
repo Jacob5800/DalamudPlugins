@@ -1,3 +1,7 @@
+## 9.3.13.2
+
+- Added an optional WS server-bar button, disabled by default. Enable Show WS server-bar button in Workshoppa settings; clicking it opens the Workshoppa UI. The setting is included in settings backups.
+
 ## 9.3.13.1
 
 - Retainer Deposit now opens manually by default. Enable Automatically open Retainer Deposit in settings to restore automatic opening.

@@ -39,6 +39,9 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
 
     public override void DrawContent()
     {
+        var showBar = _configuration.ShowServerBar;
+        if (ImGui.Checkbox("Show WS server-bar button", ref showBar))
+        { _configuration.ShowServerBar = showBar; _pluginInterface.SavePluginConfig(_configuration); }
         var autoOpen = _configuration.AutoOpenRetainerDeposit;
         if (ImGui.Checkbox("Automatically open Retainer Deposit", ref autoOpen))
         { _configuration.AutoOpenRetainerDeposit = autoOpen; _pluginInterface.SavePluginConfig(_configuration); }
@@ -66,7 +69,7 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
         string ExportJson() => JsonSerializer.Serialize(new {
             Plugin = "Workshoppa", BackupVersion = 1,
             Settings = new {
-                _configuration.EnableRepairKitCalculator, _configuration.EnableCeruleumTankCalculator, _configuration.AutoOpenRetainerDeposit,
+                _configuration.EnableRepairKitCalculator, _configuration.EnableCeruleumTankCalculator, _configuration.AutoOpenRetainerDeposit, _configuration.ShowServerBar,
                 _configuration.RetainerDepositExcludedItemIds, _configuration.Presets, _configuration.ItemQueue
             }
         }, BackupJsonOptions);
@@ -91,6 +94,7 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
                     throw new InvalidOperationException("Missing lists.");
                 var safety = Path.Combine(Path.GetDirectoryName(path)!, $"Workshoppa-before-import-{DateTime.Now:yyyyMMdd-HHmmssfff}.json");
                 File.WriteAllText(safety, ExportJson());
+                _configuration.ShowServerBar = imported.ShowServerBar;
                 _configuration.AutoOpenRetainerDeposit = imported.AutoOpenRetainerDeposit;
                 _configuration.EnableRepairKitCalculator = imported.EnableRepairKitCalculator;
                 _configuration.EnableCeruleumTankCalculator = imported.EnableCeruleumTankCalculator;

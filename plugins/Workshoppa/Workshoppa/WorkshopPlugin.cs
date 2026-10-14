@@ -1,4 +1,5 @@
-﻿using System;
+using Dalamud.Game.Gui.Dtr;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -35,6 +36,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
     private readonly IPluginLog _pluginLog;
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IChatGui _chatGui;
+    private readonly IDtrBarEntry _serverBar;
 
     private readonly Configuration _configuration;
     private readonly ExternalPluginHandler _externalPluginHandler;
@@ -74,9 +76,10 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
     public WorkshopPlugin(IDalamudPluginInterface pluginInterface, IGameGui gameGui, IFramework framework,
         ICondition condition, IClientState clientState, IObjectTable objectTable, IDataManager dataManager,
         ICommandManager commandManager, IPluginLog pluginLog, IAddonLifecycle addonLifecycle, IChatGui chatGui,
-        ITextureProvider textureProvider)
+        ITextureProvider textureProvider, IDtrBar dtrBar)
     {
         ArgumentNullException.ThrowIfNull(dataManager);
+        ArgumentNullException.ThrowIfNull(dtrBar);
 
         _pluginInterface = pluginInterface;
         _gameGui = gameGui;
@@ -93,6 +96,10 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
         _workshopTransitionCutsceneSkip = new WorkshopTransitionCutsceneSkip(_condition, _pluginLog);
         _addonEventHandler = new WorkshopAddonEventHandler(this, _pluginLog);
         _configuration = (Configuration?)_pluginInterface.GetPluginConfig() ?? new Configuration();
+        _serverBar = dtrBar.Get("Workshoppa", "WS");
+        _serverBar.Tooltip = "Click to open Workshoppa";
+        _serverBar.OnClick = _ => OpenMainUi();
+        _serverBar.Shown = _configuration.ShowServerBar;
         _workshopCache = new WorkshopCache(dataManager, _pluginLog);
         _gameStrings = new(dataManager, _pluginLog);
 
@@ -163,6 +170,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     private void FrameworkUpdate(IFramework framework)
     {
+        _serverBar.Shown = _configuration.ShowServerBar;
         _retainerDepositWindow.UpdateRetainerWindowState();
         _retainerDepositWindow.UpdateTransfer();
 
@@ -333,6 +341,8 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     public void Dispose()
     {
+        _serverBar.Remove();
+        _serverBar.Dispose();
         _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, "ContextIconMenu",
             _addonEventHandler.ContextIconMenuPostReceiveEvent);
         _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "Request", _addonEventHandler.RequestPostRefresh);
