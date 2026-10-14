@@ -1,7 +1,7 @@
 namespace RetainerPricer;
 
 public sealed record SniperQualityBaseline(bool IsHq, int SaleCount, uint MedianSalePrice,
-    int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null, double? SampleCoverageDays = null, bool HistoryWasCapped = false);
+    int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null, double? SampleCoverageDays = null, bool HistoryWasCapped = false, uint? LastSalePrice = null);
 
 internal enum SniperHistoryScopeKind { World, DataCenter, Region }
 
@@ -19,7 +19,7 @@ public sealed record SniperDeal(string Key, uint ItemId, string ItemName, uint W
     bool IsHq, uint PricePerUnit, uint Quantity, uint MedianSalePrice, int SalesInHistoryWindow,
     DateTimeOffset DetectedAt, string? ListingId, bool IsOneGilAlert = false,
     int HistoryDays = 7, DateTimeOffset? HistoryFetchedAt = null, DateTimeOffset? LastSaleAt = null,
-    string? DataCenterName = null, double? SampleCoverageDays = null, bool HistoryWasCapped = false)
+    string? DataCenterName = null, double? SampleCoverageDays = null, bool HistoryWasCapped = false, uint? LastSalePrice = null)
 {
     public decimal DiscountPercent => MedianSalePrice > 0 ? (1m - (decimal)PricePerUnit / MedianSalePrice) * 100m : 0;
     public bool HasSalesPerDayEstimate => HistoryDays > 0 && !HistoryWasCapped ||

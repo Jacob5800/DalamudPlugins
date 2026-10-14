@@ -31,7 +31,7 @@ public sealed class UniversalisClient : IDisposable
     }
     private const int HistoryEntryLimit = 100;
     private const int HistoryWindowSeconds = 30 * 24 * 60 * 60;
-    private const int SniperHistoryEntryLimit = 500;
+    public const int SniperHistoryEntryLimit = 1000;
     private const int MaximumSniperHistoryAttempts = 2;
     private const int UniversalisRequestsPerSecond = 25;
     private static readonly TimeSpan HistoryRequestTimeout = TimeSpan.FromSeconds(60);
@@ -194,7 +194,7 @@ public sealed class UniversalisClient : IDisposable
     }
 
     internal async Task<IReadOnlyDictionary<(uint ItemId, bool IsHq), decimal>> FetchSniperCachedPricesAsync(
-        SniperHistoryScope scope, IReadOnlyList<uint> ids, CancellationToken ct)
+        SniperHistoryScope scope, IReadOnlyList<uint> ids, CancellationToken ct, Action<uint>? oneGilCandidate = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(RequestTimeout);
@@ -212,13 +212,54 @@ public sealed class UniversalisClient : IDisposable
         {
             if (!row.TryGetProperty("itemId", out var id) || !id.TryGetUInt32(out var itemId) || !ids.Contains(itemId)) continue;
             foreach (var quality in new[] { (Name: "nq", Hq: false), (Name: "hq", Hq: true) })
-                if (row.TryGetProperty(quality.Name, out var q) && q.TryGetProperty("averageSalePrice", out var avg) &&
-                    avg.TryGetProperty(scopeKey, out var market) && market.TryGetProperty("price", out var price) &&
-                    price.TryGetDecimal(out var value) && value > 0)
+            {
+                if (!row.TryGetProperty(quality.Name, out var q)) continue;
+                if (q.TryGetProperty("minListing", out var minimum) && minimum.TryGetProperty(scopeKey, out var lowest) &&
+                    lowest.TryGetProperty("price", out var minimumPrice) && minimumPrice.TryGetDecimal(out var minValue) && minValue == 1)
+                    oneGilCandidate?.Invoke(itemId);
+                if (q.TryGetProperty("averageSalePrice", out var avg) && avg.TryGetProperty(scopeKey, out var market) &&
+                    market.TryGetProperty("price", out var price) && price.TryGetDecimal(out var value) && value > 0)
                     result[(itemId, quality.Hq)] = value;
+            }
         }
         RecordSniperRequest($"Sniper cache success: scope={scope.Name}; ids={string.Join(',', ids)}; returnedQualityReferences={result.Count}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}");
         return result;
+    }
+
+    internal async Task<IReadOnlyList<MarketListing>> FetchExistingOneGilAsync(SniperHistoryScope scope, uint itemId, uint homeWorldId, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RequestTimeout);
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var json = await RequestJsonAsync($"{Uri.EscapeDataString(scope.Name)}/{itemId}?entries=0&fields=itemID,worldID,dcName,regionName,listings", scope.Name, deadline.Token).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("itemID", out var id) || !id.TryGetUInt32(out var returnedId) || returnedId != itemId ||
+                !root.TryGetProperty("listings", out var listings) || listings.ValueKind != JsonValueKind.Array)
+                throw new InvalidOperationException("Malformed existing 1-gil listing response.");
+            var scopeProperty = scope.Kind == SniperHistoryScopeKind.World ? "worldID" : scope.Kind == SniperHistoryScopeKind.DataCenter ? "dcName" : "regionName";
+            if (!root.TryGetProperty(scopeProperty, out var returnedScope) ||
+                (scope.Kind == SniperHistoryScopeKind.World
+                    ? !returnedScope.TryGetUInt32(out var returnedWorld) || returnedWorld != homeWorldId
+                    : returnedScope.ValueKind != JsonValueKind.String || !StringComparer.OrdinalIgnoreCase.Equals(returnedScope.GetString(), scope.Name)))
+                throw new InvalidOperationException("Existing 1-gil listings belong to a different market scope.");
+            var results = new List<MarketListing>();
+            foreach (var listing in listings.EnumerateArray())
+                if (listing.TryGetProperty("pricePerUnit", out var price) && price.TryGetUInt32(out var gil) && gil == 1 &&
+                    listing.TryGetProperty("quantity", out var quantity) && quantity.TryGetUInt32(out var count) && count > 0 &&
+                    listing.TryGetProperty("hq", out var hq) && hq.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                {
+                    var worldId = scope.Kind == SniperHistoryScopeKind.World ? homeWorldId :
+                        listing.TryGetProperty("worldID", out var world) && world.TryGetUInt32(out var worldValue) ? worldValue : 0;
+                    if (worldId != 0) results.Add(new MarketListing(itemId, hq.GetBoolean(), 1, count, 0, WorldId: worldId));
+                }
+            RecordSniperRequest($"Sniper existing 1-gil success: scope={scope.Name}; id={itemId}; confirmedListings={results.Count}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}");
+            return results;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { RecordSniperRequest($"Sniper existing 1-gil failed: scope={scope.Name}; id={itemId}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}; error={ex.Message}"); throw; }
     }
 
     internal async Task<PriceSnapshot> FetchUndercutAsync(MarketWorld world, uint itemId, int marketScope, CancellationToken ct)

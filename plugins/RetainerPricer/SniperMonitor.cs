@@ -21,6 +21,9 @@ internal sealed class SniperMonitor : IDisposable
         public long LiveListingsSeen { get; set; }
         public DateTimeOffset? LastLiveListingAt { get; set; }
         public int CacheFailedBatches { get; set; }
+        public HashSet<uint> ExistingOneGilItems { get; } = [];
+        public Dictionary<uint, DateTimeOffset> ExistingOneGilNext { get; } = [];
+
 
         public HashSet<uint> CandidateIds { get; } = [];
         public Dictionary<uint, DateTimeOffset> NextCandidateCheck { get; } = [];
@@ -39,10 +42,10 @@ internal sealed class SniperMonitor : IDisposable
     private string verifyingItemName = "";
     private RunState? activeState;
     public IReadOnlyList<string> RequestDebug => universalis.SniperRequestDebug;
-    public IReadOnlyList<string> CandidateDebug { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => $"{itemNames.GetValueOrDefault(id, $"Item {id}")} (#{id}) · failed passes {activeState.CandidateAttempts.GetValueOrDefault(id)} · retry {(activeState.NextCandidateCheck.TryGetValue(id, out var next) ? next.ToLocalTime().ToString("HH:mm:ss") : "ready")}").ToArray(); } }
+    public IReadOnlyList<string> CandidateDebug { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Concat(activeState.ExistingOneGilItems).Distinct().Select(id => $"{itemNames.GetValueOrDefault(id, $"Item {id}")} (#{id}) · failed passes {activeState.CandidateAttempts.GetValueOrDefault(id)} · retry {(activeState.NextCandidateCheck.TryGetValue(id, out var next) ? next.ToLocalTime().ToString("HH:mm:ss") : "ready")}").ToArray(); } }
 
     public bool IsVerifyingCandidate { get { lock (gate) return verifyingCandidate; } }
-    public IReadOnlyList<string> PendingVerificationItems { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => itemNames.GetValueOrDefault(id, $"Item {id}")).ToArray(); } }
+    public IReadOnlyList<string> PendingVerificationItems { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Concat(activeState.ExistingOneGilItems).Distinct().Select(id => itemNames.GetValueOrDefault(id, $"Item {id}")).ToArray(); } }
 
     private readonly UniversalisClient universalis;
     private readonly PluginConfig config;
@@ -98,10 +101,11 @@ internal sealed class SniperMonitor : IDisposable
                 var ready = state.CandidateIds.Count(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= now);
                 var deferred = state.CandidateIds.Count - ready;
                 var activity = verifyingCandidate ? $"Verifying history: {verifyingItemName}"
+                    : state.ExistingOneGilItems.Count > 0 ? $"Checking existing 1-gil offers ({state.ExistingOneGilItems.Count} lookups pending)"
                     : ready > 0 ? $"Processing verification queue ({ready} ready)"
                     : deferred > 0 ? $"Waiting to retry failed candidates; next attempt in {Math.Max(0, Math.Ceiling((state.CandidateIds.Select(id => state.NextCandidateCheck.GetValueOrDefault(id, now)).Min() - now).TotalSeconds)):N0}s"
                     : "Watching live listings — waiting for new candidates";
-                return $"{activity} · {liveFeedStatus} · {state.LiveListingsSeen:N0} new listings received · {ready:N0} ready / {deferred:N0} deferred · {state.CompletedHistoryItemIds.Count:N0} items checked ({state.Baselines.Keys.Select(key => key.ItemId).Distinct().Count():N0} with usable history) · {state.FailedItemIds.Count:N0} pending history failures · {state.CacheFailedBatches:N0} cache batch failures. Cached discovery is complete; existing listings are not rescanned.";
+                return $"{activity} · {liveFeedStatus} · {state.LiveListingsSeen:N0} new listings received · {ready:N0} ready / {deferred:N0} deferred · {state.CompletedHistoryItemIds.Count:N0} items checked ({state.Baselines.Keys.Select(key => key.ItemId).Distinct().Count():N0} with usable history) · {state.FailedItemIds.Count:N0} pending history failures · {state.CacheFailedBatches:N0} cache batch failures · {state.ExistingOneGilItems.Count:N0} existing 1-gil lookups pending. Cached discovery is complete; existing 1-gil offers are checked once, ordinary deals watch new listings.";
             }
         }
     }
@@ -286,7 +290,7 @@ internal sealed class SniperMonitor : IDisposable
         {
             try
             {
-                var prices = await universalis.FetchSniperCachedPricesAsync(scope.HistoryScopes.Single(), batch.Select(item => item.ItemId).ToArray(), token).ConfigureAwait(false);
+                var prices = await universalis.FetchSniperCachedPricesAsync(scope.HistoryScopes.Single(), batch.Select(item => item.ItemId).ToArray(), token, id => { lock (gate) state.ExistingOneGilItems.Add(id); }).ConfigureAwait(false);
                 lock (gate)
                 {
                     foreach (var pair in prices) state.CachedPrices[pair.Key] = pair.Value;
@@ -318,6 +322,28 @@ internal sealed class SniperMonitor : IDisposable
             {
                 while (!ct.IsCancellationRequested)
                 {
+                    uint existingId;
+                    lock (gate) existingId = state.ExistingOneGilItems.FirstOrDefault(id => !state.ExistingOneGilNext.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow);
+                    if (existingId != 0)
+                    {
+                        lock (gate) { verifyingCandidate = true; verifyingItemName = $"existing 1-gil listings for {itemNames.GetValueOrDefault(existingId, $"Item {existingId}")}"; }
+                        try
+                        {
+                            var listings = await universalis.FetchExistingOneGilAsync(scope.HistoryScopes.Single(), existingId, world.WorldId, ct).ConfigureAwait(false);
+                            lock (gate)
+                            {
+                                foreach (var listing in listings.Where(listing => watchedWorlds.Contains(listing.WorldId)))
+                                    ProcessLiveListingLocked(new UniversalisListing(listing.ItemId, listing.WorldId, listing.IsHq, 1, listing.Quantity, null), world, scope, watchedWorlds, state, threshold, minimumItemPrice);
+                                state.ExistingOneGilItems.Remove(existingId);
+                                state.ExistingOneGilNext.Remove(existingId);
+                            }
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                        catch (Exception) { lock (gate) state.ExistingOneGilNext[existingId] = DateTimeOffset.UtcNow.AddSeconds(30); }
+                        finally { lock (gate) verifyingCandidate = false; }
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
+                        continue;
+                    }
                     ItemChoice? item;
                     lock (gate)
                     {
@@ -376,7 +402,7 @@ internal sealed class SniperMonitor : IDisposable
         var batchSize = UniversalisClient.SniperHistoryBatchSize;
         var batchCount = (watchedItems.Count + batchSize - 1) / batchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
-        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=1; maxBatchItems={batchSize}; maxSalesPerItem=500");
+        universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=1; maxBatchItems={batchSize}; maxSalesPerItem={UniversalisClient.SniperHistoryEntryLimit}");
         var completedBatches = 0;
         var processedItems = 0;
         var loadedItems = 0;
@@ -421,7 +447,7 @@ internal sealed class SniperMonitor : IDisposable
                         var oldestSale = sales.Where(sale => sale.SoldAt.HasValue).Min(sale => sale.SoldAt);
                         double? coverageDays = oldestSale is { } oldest && oldest < fetchedAt
                             ? (fetchedAt - oldest).TotalDays : null;
-                        var capped = sales.Count >= 500;
+                        var capped = sales.Count >= UniversalisClient.SniperHistoryEntryLimit;
                         foreach (var qualitySales in sales.GroupBy(sale => sale.IsHq))
                         {
                             var orderedPrices = qualitySales.Select(sale => sale.PricePerUnit).OrderBy(price => price).ToArray();
@@ -431,7 +457,7 @@ internal sealed class SniperMonitor : IDisposable
                                 ? (uint)(((ulong)orderedPrices[middle - 1] + orderedPrices[middle]) / 2)
                                 : orderedPrices[middle];
                             var history = new SniperQualityBaseline(qualitySales.Key, orderedPrices.Length, median,
-                                historyDays, fetchedAt, qualitySales.Max(sale => sale.SoldAt), coverageDays, capped);
+                                historyDays, fetchedAt, qualitySales.Max(sale => sale.SoldAt), coverageDays, capped, qualitySales.Where(sale => sale.SoldAt.HasValue).OrderByDescending(sale => sale.SoldAt).FirstOrDefault()?.PricePerUnit);
                             availableHistory[(itemId, qualitySales.Key)] = history;
                             if (orderedPrices.Length >= minimumSales) batchBaselines[(itemId, qualitySales.Key)] = history;
                         }
@@ -458,7 +484,7 @@ internal sealed class SniperMonitor : IDisposable
                             deals[dealIndex] = alert with { MedianSalePrice = history.MedianSalePrice,
                                 SalesInHistoryWindow = history.SaleCount, HistoryDays = history.HistoryDays,
                                 HistoryFetchedAt = history.HistoryFetchedAt, LastSaleAt = history.LastSaleAt,
-                                SampleCoverageDays = history.SampleCoverageDays, HistoryWasCapped = history.HistoryWasCapped };
+                                SampleCoverageDays = history.SampleCoverageDays, HistoryWasCapped = history.HistoryWasCapped, LastSalePrice = history.LastSalePrice };
                     }
                     foreach (var itemId in batchItemIds)
                     {
@@ -612,7 +638,7 @@ internal sealed class SniperMonitor : IDisposable
         var deal = new SniperDeal(dealKey, listing.ItemId, name, listing.WorldId, listingWorldName,
             listing.IsHq, listing.PricePerUnit, listing.Quantity, baseline?.MedianSalePrice ?? 0,
             baseline?.SaleCount ?? 0, DateTimeOffset.UtcNow, listing.ListingId, isOneGilAlert,
-            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt, dataCenterName, baseline?.SampleCoverageDays, baseline?.HistoryWasCapped ?? false);
+            baseline?.HistoryDays ?? config.SniperHistoryDays, baseline?.HistoryFetchedAt, baseline?.LastSaleAt, dataCenterName, baseline?.SampleCoverageDays, baseline?.HistoryWasCapped ?? false, baseline?.LastSalePrice);
         if (isOneGilAlert)
             deals.RemoveAll(previous => previous.IsOneGilAlert && previous.ItemId == listing.ItemId &&
                 previous.WorldId == listing.WorldId && previous.IsHq == listing.IsHq);

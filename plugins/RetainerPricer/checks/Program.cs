@@ -143,7 +143,7 @@ using (var http = new HttpClient(new StubHandler((request, _) =>
            var requestedIds = uri.AbsolutePath.Split('/').Last().Split(',');
            Assert(request.Method == HttpMethod.Get && requestedIds.Length == UniversalisClient.SniperHistoryBatchSize,
                "Sniper sends 100 item IDs in one history request");
-           Assert(uri.Query.Contains("entriesToReturn=500", StringComparison.Ordinal) &&
+           Assert(uri.Query.Contains("entriesToReturn=1000", StringComparison.Ordinal) &&
                   uri.Query.Contains("entriesWithin=604800", StringComparison.Ordinal),
                "Sniper history request uses the configured lookback and per-item history limit");
            return Task.FromResult(JsonResponse((JsonObject)sniperBatchBody.DeepClone()));

@@ -1080,7 +1080,7 @@ internal sealed class MainWindow : Window
                 : "your home world";
         ImGui.TextWrapped($"Start watching to scan {(sniperItemSelections.Count == 0 ? "every marketable item" : $"{sniperItemSelections.Count} selected item(s)")} in {marketScope}. Sniper connects to live listings during the scan, so new deals can appear before the scan finishes. In Region scope, each server name includes its Data Center. Sniper highlights deals and 1-gil listings for you to review; it never buys automatically.");
         ImGui.TextWrapped(sniper.DiscoveryHelp);
-        ImGui.TextDisabled("Cached discovery uses 100-item batches with up to 6 concurrent requests. Live candidate history is verified sequentially with your selected window and minimum sales. Failed verification returns to the queue with 15/30/45/60-second delays, then keeps retrying at 60-second intervals while watching. Other ready candidates are checked first; manual retry remains available. Cache failures fall back to checking unknown-reference live candidates.");
+        ImGui.TextDisabled("Cached discovery uses 100-item batches with up to 6 concurrent requests. Live candidate history is verified sequentially with your selected window and minimum sales. Failed verification returns to the queue with 15/30/45/60-second delays, then keeps retrying at 60-second intervals while watching. Other ready candidates are checked first; manual retry remains available. Cache failures fall back to checking unknown-reference live candidates. Cached 1-gil minima trigger targeted current-listing lookups; only confirmed offers are shown, then history is checked.");
         if (ImGui.CollapsingHeader("Sniper request debug"))
         {
             ImGui.TextWrapped("Latest 100 requests this session: cache/history successes and failures. A 504 affects the entire request and does not identify a culprit item. Failed candidates remain queued until verified or watching stops.");
@@ -1100,6 +1100,8 @@ internal sealed class MainWindow : Window
         }
 
         var isRunning = sniper.IsRunning;
+        if (ImGui.CollapsingHeader("Scan options##sniper", ImGuiTreeNodeFlags.DefaultOpen))
+        {
         ImGui.BeginDisabled(isRunning);
         ImGui.SetNextItemWidth(300);
         ImGui.InputText("Search specific items##sniper", ref sniperItemSearch, 128);
@@ -1199,6 +1201,7 @@ internal sealed class MainWindow : Window
         else ImGui.TextDisabled("Minimum profit filter is off; its gil amount is hidden. Turning off Show estimated resale profit also disables this filter.");
 
         ImGui.EndDisabled();
+        }
 
         ImGui.Separator();
         if (sniperItemSelections.Count > 0)
@@ -1207,7 +1210,7 @@ internal sealed class MainWindow : Window
             ImGui.TextUnformatted($"Search scope · all {sniper.MarketableItemCount:N0} marketable items · {marketScope}");
         ImGui.TextDisabled(sniperItemSelections.Count > 0
             ? "Start watching fetches cached references for the selected items and verifies live candidates using detailed HQ/NQ history."
-            : "Start watching fetches the configured sales window in batches of up to 100 items, while monitoring the live listing feed. HQ/NQ baselines become available batch by batch, so matching new listings can appear during the scan.");
+            : "Cached discovery screens new live candidates for history verification and checks existing cached 1-gil offers.");
 
         ImGui.Separator();
         ImGui.BeginDisabled(isRunning || world is null);
@@ -1236,7 +1239,7 @@ internal sealed class MainWindow : Window
             ImGui.EndDisabled();
         }
         ImGui.TextWrapped(sniper.Status);
-        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to 500 recent sales are used per item. New 1-gil listings always show; purchases are manual.");
+        ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to {UniversalisClient.SniperHistoryEntryLimit:N0} recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
         var showProfit = config.SniperShowProfitEstimates;
         if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
@@ -1275,11 +1278,11 @@ internal sealed class MainWindow : Window
         if (deals.Length == 0)
         {
             ImGui.TextDisabled(sniper.IsInitialScanRunning
-                ? "No verified deals yet. Sniper is watching new live listings and verifying qualifying candidates; cached discovery does not list existing offers."
+                ? "No verified deals yet. Sniper is watching new live listings and verifying qualifying candidates; cached 1-gil candidates also receive a current-listing check."
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDealsLayoutV3", 13, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+        if (ImGui.BeginTable("##sniperDealsLayoutV4", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
@@ -1297,6 +1300,8 @@ internal sealed class MainWindow : Window
             ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
             ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
             ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
+            ImGui.TableSetupColumn("Last sale price", ImGuiTableColumnFlags.WidthFixed, 105);
+            ImGui.TableSetColumnEnabled(13, config.SniperHistoryDays == 0);
             ImGui.TableSetColumnEnabled(2, config.SniperUseRegionPrices);
             ImGui.TableSetColumnEnabled(11, config.SniperShowProfitEstimates);
             ImGui.TableSetupScrollFreeze(0, 1);
@@ -1319,6 +1324,7 @@ internal sealed class MainWindow : Window
                     8 => deal => deal.DiscountPercent,
                     9 => deal => deal.SalesPerDay,
                     10 => deal => deal.LastSaleAt is { } at ? -at.UtcTicks : long.MaxValue,
+                    13 => deal => deal.LastSalePrice ?? 0,
                     11 => deal => deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent),
                     _ => deal => deal.EstimatedUnitSaving(config.SniperPurchaseFeePercent)
                 };
@@ -1360,7 +1366,7 @@ internal sealed class MainWindow : Window
                     ? $"Listing {deal.PricePerUnit:N0} versus median {deal.MedianSalePrice:N0}: {deal.DiscountPercent:0.0}% cheaper before purchase fees." : missing);
                 var coverageText = deal.SampleCoverageDays is { } days
                     ? days < 1 ? $"{days * 24:0.##} hours" : $"{days:0.##} days" : "unknown";
-                var sampleHelp = $"{deal.SalesInHistoryWindow:N0} same-quality sales in the returned sample (up to 500 HQ/NQ sales combined). Oldest returned sale to history check: {coverageText}.";
+                var sampleHelp = $"{deal.SalesInHistoryWindow:N0} same-quality sales in the returned sample (up to {UniversalisClient.SniperHistoryEntryLimit:N0} HQ/NQ sales combined). Oldest returned sale to history check: {coverageText}.";
                 Cell(deal.HasSalesPerDayEstimate && hasMedian ? deal.SalesPerDay.ToString("0.00") : "—", hasMedian
                     ? sampleHelp + (deal.HistoryDays == 0 || deal.HistoryWasCapped
                         ? " Estimated sales/day uses that sampled time coverage, not the configured maximum age. Capped samples may not represent the full history; demand on this server can differ."
@@ -1376,6 +1382,10 @@ internal sealed class MainWindow : Window
                     ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax) − {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitProfit * deal.Quantity):N0} gil estimated profit. Rounded down; real prices and fees vary." : missing);
                 Cell(hasMedian ? decimal.Floor(unitSaving).ToString("N0") : "—", hasMedian
                     ? $"Purchase savings versus median: {deal.MedianSalePrice:N0} minus asking price including {config.SniperPurchaseFeePercent:0.##}% assumed purchase fee.\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitSaving * deal.Quantity):N0} gil estimated savings. This is purchase savings before resale." : missing);
+                Cell(deal.LastSalePrice is { } lastPrice ? lastPrice.ToString("N0") : "—",
+                    deal.LastSaleAt is { } soldAt && deal.LastSalePrice is not null
+                        ? $"Most recent recorded same-quality sale in the selected market scope: {deal.LastSalePrice:N0} gil per item at {soldAt.ToLocalTime():g}. This is one sale, not the median; it may be old in any-age mode."
+                        : "No dated same-quality sale is available yet.");
             }
             ImGui.EndTable();
         }
