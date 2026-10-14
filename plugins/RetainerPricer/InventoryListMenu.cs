@@ -24,7 +24,7 @@ internal sealed class InventoryListMenu : IDisposable
 
     private void OnMenuOpened(IMenuOpenedArgs args)
     {
-        if (args.AddonName == "ItemSearchResult")
+        if (args.AddonName is "ItemSearchResult" or "ItemSearch")
         {
             var rawId = bridge.GetMarketboardContextItemId();
             var marketItemId = rawId >= 1_000_000 ? rawId - 1_000_000 : rawId;

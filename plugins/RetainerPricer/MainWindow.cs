@@ -33,6 +33,7 @@ internal sealed class MainWindow : Window
     private bool openBuyListTab;
     private SniperDeal? pendingBuyListRemoval;
     public void OpenBuyList() { IsOpen = true; openBuyListTab = true; }
+    private readonly HashSet<string> selectedBuyOffers = [];
     private int buyListPage;
     private string buyListSearchMessage = "";
     private string sniperDealSearch = "";
@@ -1295,6 +1296,16 @@ internal sealed class MainWindow : Window
     {
         config.SniperBuyList ??= [];
         ImGui.TextWrapped("Saved purchase candidates. These are captured snapshots, not confirmed purchases or guaranteed current offers. Right-click an item to copy its name or remove it.");
+        selectedBuyOffers.RemoveWhere(key => !config.SniperBuyList.Any(row => row.Key == key));
+        var selectedOffers = config.SniperBuyList.Where(row => selectedBuyOffers.Contains(row.Key)).ToArray();
+        var selectedCost = selectedOffers.Sum(row => decimal.Ceiling(row.EstimatedUnitCost(config.SniperPurchaseFeePercent) * row.Quantity));
+        var valuedOffers = selectedOffers.Where(row => row.MedianSalePrice > 0).ToArray();
+        var selectedProfit = valuedOffers.Sum(row => decimal.Floor(row.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) * row.Quantity));
+        ImGui.TextUnformatted($"Selected offers: {selectedOffers.Length:N0} · estimated purchase cost: {selectedCost:N0} gil");
+        ImGui.TextColored(selectedProfit < 0 ? new Vector4(1f, 0.35f, 0.25f, 1) : new Vector4(1, 1, 1, 1), $"Estimated profit: {selectedProfit:N0} gil · {selectedOffers.Length - valuedOffers.Length:N0} selected offers with unknown profit");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Totals include whole stacks across all pages, using your assumed purchase fee and resale tax. Offers without a verified median contribute purchase cost but are excluded from the profit total. Checking multiple offers assumes you buy each stack.");
+        if (ImGui.Button("Select all offers")) foreach (var row in config.SniperBuyList) selectedBuyOffers.Add(row.Key);
+        ImGui.SameLine(); if (ImGui.Button("Clear selection")) selectedBuyOffers.Clear();
         if (ImGui.Button("Clear list")) ImGui.OpenPopup("Clear buy list?");
         if (ImGui.BeginPopupModal("Clear buy list?", ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -1304,7 +1315,7 @@ internal sealed class MainWindow : Window
             ImGui.EndPopup();
         }
         if (!string.IsNullOrEmpty(buyListSearchMessage)) ImGui.TextWrapped(buyListSearchMessage);
-        ImGui.TextDisabled("Copy item name, then Paste clipboard and search with a marketboard open. Searches your current world; purchases are manual.");
+        ImGui.TextDisabled("Search this offer or Paste clipboard and search requires standing at a marketboard with its menu open. Searches your current world; purchases are manual.");
         if (pendingBuyListRemoval is not null) ImGui.OpenPopup("Remove buy-list offer?");
         if (ImGui.BeginPopupModal("Remove buy-list offer?", ImGuiWindowFlags.AlwaysAutoResize))
         {
@@ -1442,6 +1453,9 @@ internal sealed class MainWindow : Window
                 if (buyList)
                 {
                     ImGui.TableNextColumn();
+                    var selectedOffer = selectedBuyOffers.Contains(deal.Key);
+                    if (ImGui.Checkbox($"##buySelect{deal.Key}", ref selectedOffer)) { if (selectedOffer) selectedBuyOffers.Add(deal.Key); else selectedBuyOffers.Remove(deal.Key); }
+                    ImGui.SameLine();
                     if (ImGui.SmallButton($"X##buyRemove{deal.Key}")) pendingBuyListRemoval = deal;
                     ImGui.SameLine();
                     ImGui.TextUnformatted(deal.ItemName);
@@ -1461,6 +1475,12 @@ internal sealed class MainWindow : Window
                     if (buyList)
                     {
                         ImGui.BeginDisabled(!controller.CanSearchBuyListItem);
+                        if (ImGui.MenuItem("Search this offer (requires open marketboard)"))
+                        {
+                            ImGui.SetClipboardText(deal.ItemName);
+                            buyListSearchMessage = "";
+                            dispatch(() => controller.SearchBuyListItem(deal.ItemId));
+                        }
                         if (ImGui.MenuItem("Paste clipboard and search"))
                         {
                             var clipboardName = ImGui.GetClipboardText()?.Trim();
