@@ -106,9 +106,16 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     {
         if (!IsMarketBoardOpen) return 0;
         var agent = AgentItemSearch.Instance();
-        if (agent != null && agent->ResultItemId != 0) return agent->ResultItemId;
         var proxy = InfoProxyItemSearch.Instance();
-        return proxy == null ? 0 : proxy->SearchItemId;
+        var id = agent != null && agent->ResultItemId != 0 ? agent->ResultItemId : proxy == null ? 0 : proxy->SearchItemId;
+        if (id == 0) return 0;
+        var baseId = id >= 1_000_000 ? id - 1_000_000 : id;
+        if (agent != null && proxy != null && IsComparisonVisible && agent->ResultSelectedIndex < proxy->ListingCount && agent->ResultSelectedIndex < 100)
+        {
+            var listing = proxy->Listings[(int)agent->ResultSelectedIndex];
+            if (listing.ItemId == baseId) return baseId + (listing.IsHqItem ? 1_000_000u : 0u);
+        }
+        return id;
     }
     public bool TryGetMarketboardMenuPosition(out System.Numerics.Vector2 position)
     {

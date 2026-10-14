@@ -1,5 +1,10 @@
 # Retainer Pricer changelog
 
+## 0.5.1.1
+
+- Search on Universalis from marketboard result menus now reads the selected listing's HQ/NQ flag, so an HQ offer retrieves matching HQ prices instead of defaulting to NQ.
+- The selected listing index is checked against the loaded result count and item ID before its quality is used. Your configured Pricing scope still determines the lookup market.
+
 ## 0.5.1.0
 
 - Added checkboxes to Buy list offers, with Select all offers and Clear selection. Totals cover selected whole stacks across all pages and show estimated purchase cost including assumed fees and estimated resale profit after tax. Unknown-profit offers are counted separately and excluded from the profit total; their purchase cost is included.
