@@ -100,3 +100,5 @@ Cached one-gil minima also trigger targeted startup listing lookups. Only offers
 Search the Sniper deals table by item name, 1 gil for 1-gil alerts, or deal/deals for ordinary deals. Clear restores the view; search does not change watched items.
 
 Skip 1 gil lookup (off by default) disables existing-offer startup checks while keeping live alerts. Startup checks batch up to 100 flagged items without history; successful results are kept and unresolved IDs retry. Deal headers start wide enough for full names and sort arrows.
+
+Hide 1gil deals is a display-only option, off by default, available while watching. Sale-age cells warn yellow over one day, orange over seven days, and red over thirty days in any-age mode. Estimated sales/day is light green at 15–<30 and green at 30+.

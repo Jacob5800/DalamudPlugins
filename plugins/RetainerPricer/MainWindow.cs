@@ -1134,6 +1134,12 @@ internal sealed class MainWindow : Window
             ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.55f, 1f), "All marketable items (default)");
             ImGui.TextDisabled("Add items above only to limit the scan, for example when testing.");
         }
+        ImGui.EndDisabled();
+        var hideOneGilDeals = config.SniperHideOneGilDeals;
+        if (ImGui.Checkbox("Hide 1gil deals", ref hideOneGilDeals))
+        { config.SniperHideOneGilDeals = hideOneGilDeals; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Hide 1-gil alerts from the deals table. They are still collected; turn this off to show them again. This does not skip lookups.");
+        ImGui.BeginDisabled(isRunning);
         var skipOneGilLookup = config.SniperSkipOneGilLookup;
         if (ImGui.Checkbox("Skip 1 gil lookup", ref skipOneGilLookup))
         { config.SniperSkipOneGilLookup = skipOneGilLookup; save(); }
@@ -1274,7 +1280,7 @@ internal sealed class MainWindow : Window
         ImGui.SameLine();
         if (ImGui.SmallButton("Clear##SniperDealSearch")) sniperDealSearch = "";
         var allDeals = sniper.Deals;
-        var deals = allDeals.Where(deal => deal.IsOneGilAlert || !config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates ||
+        var deals = allDeals.Where(deal => !config.SniperHideOneGilDeals || !deal.IsOneGilAlert).Where(deal => deal.IsOneGilAlert || !config.SniperMinimumProfitEnabled || !config.SniperShowProfitEstimates ||
             (deal.MedianSalePrice > 0 && deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= config.SniperMinimumUnitProfit)).Where(deal =>
             (deal.IsOneGilAlert && (!config.SniperShowProfitEstimates || deal.MedianSalePrice == 0 ||
                 deal.EstimatedUnitProfit(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) > 0)) ||
@@ -1354,10 +1360,12 @@ internal sealed class MainWindow : Window
                     ? sortedDeals.OrderBy(key).ThenBy(deal => deal.ItemName).ToList()
                     : sortedDeals.OrderByDescending(key).ThenBy(deal => deal.ItemName).ToList();
             }
-            void Cell(string text, string help, bool alert = false, bool unknownHistory = false, bool slowSales = false)
+            void Cell(string text, string help, bool alert = false, bool unknownHistory = false, bool slowSales = false, bool healthySales = false, bool strongSales = false)
             {
                 ImGui.TableNextColumn();
-                if (slowSales) ImGui.TextColored(new Vector4(1f, 0.55f, 0.1f, 1f), text);
+                if (strongSales) ImGui.TextColored(new Vector4(0.15f, 0.9f, 0.25f, 1f), text);
+                else if (healthySales) ImGui.TextColored(new Vector4(0.6f, 1f, 0.65f, 1f), text);
+                else if (slowSales) ImGui.TextColored(new Vector4(1f, 0.55f, 0.1f, 1f), text);
                 else if (unknownHistory) ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), text);
                 else if (alert) ImGui.TextColored(new Vector4(1f, 0.35f, 0.25f, 1f), text);
                 else ImGui.TextWrapped(text);
@@ -1396,10 +1404,16 @@ internal sealed class MainWindow : Window
                         + (!deal.HasSalesPerDayEstimate ? " Not enough dated sales to estimate a daily rate." : "")
                         + (deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1 ? " Orange warning: fewer than one estimated sale per day. Resale may be slow and the price estimate less dependable." : deal.HasSalesPerDayEstimate && deal.SalesPerDay <= 3 ? " Yellow warning: one to three estimated sales per day. Resale may be slow." : "") : missing,
                     unknownHistory: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 1 && deal.SalesPerDay <= 3,
-                    slowSales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1);
+                    slowSales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay < 1,
+                    healthySales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 15 && deal.SalesPerDay < 30,
+                    strongSales: hasMedian && deal.HasSalesPerDayEstimate && deal.SalesPerDay >= 30);
+                var saleAgeDays = deal.LastSaleAt is { } latestSale ? (DateTimeOffset.UtcNow - latestSale).TotalDays : 0;
+                var veryOldSale = deal.HistoryDays == 0 && saleAgeDays > 30;
                 Cell(deal.LastSaleAt is { } lastAt ? Age(lastAt) : "—", deal.LastSaleAt is { } saleAt
                     ? $"Most recent same-quality sale in the sample: {saleAt.ToLocalTime():g}. Older sales can mean a less current value estimate." : missing,
-                    deal.HistoryDays == 0 && deal.LastSaleAt is { } recordedSaleAt && DateTimeOffset.UtcNow - recordedSaleAt > TimeSpan.FromDays(30));
+                    alert: veryOldSale,
+                    unknownHistory: !veryOldSale && saleAgeDays > 1 && saleAgeDays <= 7,
+                    slowSales: !veryOldSale && saleAgeDays > 7);
                 Cell(hasMedian ? decimal.Floor(unitProfit).ToString("N0") : "—", hasMedian
                     ? $"Estimated resale profit per item:\n{deal.MedianSalePrice:N0} median × (1 − {config.SniperResaleTaxPercent:0.##}% resale tax) − {deal.PricePerUnit:N0} asking price × (1 + {config.SniperPurchaseFeePercent:0.##}% purchase fee).\nWhole stack ({deal.Quantity:N0} items): {decimal.Floor(unitProfit * deal.Quantity):N0} gil estimated profit. Rounded down; real prices and fees vary." : missing);
                 Cell(hasMedian ? decimal.Floor(unitSaving).ToString("N0") : "—", hasMedian

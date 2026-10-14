@@ -1,5 +1,5 @@
-## 0.5.0.27
+## 0.5.0.28
 
-- Added Skip 1 gil lookup under Scan options, off by default. It skips targeted startup lookups for existing 1-gil offers; new live 1-gil alerts still appear normally. Applies when watching starts.
-- Existing 1-gil listing lookups now request up to 100 flagged items together, with sales history disabled. Successful item responses are retained; only missing or failed items stay pending for retry. Confirmed offers still receive history verification afterward.
-- Sniper deals-table default widths now fit complete column headings and sort arrows at the current font size. Updated the layout identifier so old narrow saved widths do not carry over. Columns remain resizable and the table scrolls horizontally when necessary.
+- Last sale age is yellow when over 1 day and orange when over 7 days. In 0-day history mode, the existing red warning over 30 days takes priority.
+- Estimated sales/day is light green from 15 up to (but not including) 30, and green at 30 or more. Existing warnings remain orange below 1 and yellow from 1 through 3.
+- Added Hide 1gil deals under Scan options, off by default. It can be changed while watching and hides only 1-gil rows from the table. Alerts are still collected and reappear when the toggle is disabled; it does not skip listing lookups.

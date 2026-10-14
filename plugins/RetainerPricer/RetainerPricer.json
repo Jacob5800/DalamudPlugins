@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.27",
+  "AssemblyVersion": "0.5.0.28",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.27\n\n- Added Skip 1 gil lookup under Scan options, off by default. It skips targeted startup lookups for existing 1-gil offers; new live 1-gil alerts still appear normally. Applies when watching starts.\n- Existing 1-gil listing lookups now request up to 100 flagged items together, with sales history disabled. Successful item responses are retained; only missing or failed items stay pending for retry. Confirmed offers still receive history verification afterward.\n- Sniper deals-table default widths now fit complete column headings and sort arrows at the current font size. Updated the layout identifier so old narrow saved widths do not carry over. Columns remain resizable and the table scrolls horizontally when necessary.\n",
+  "Changelog": "## 0.5.0.28\n\n- Last sale age is yellow when over 1 day and orange when over 7 days. In 0-day history mode, the existing red warning over 30 days takes priority.\n- Estimated sales/day is light green from 15 up to (but not including) 30, and green at 30 or more. Existing warnings remain orange below 1 and yellow from 1 through 3.\n- Added Hide 1gil deals under Scan options, off by default. It can be changed while watching and hides only 1-gil rows from the table. Alerts are still collected and reappear when the toggle is disabled; it does not skip listing lookups.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

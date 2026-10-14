@@ -45,6 +45,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public double SniperThresholdFraction { get; set; } = 0.910;
     public int SniperMinimumSales14Days { get; set; } = 5;
     public int UndercutMarketScope { get; set; }
+    public bool SniperHideOneGilDeals { get; set; } = false;
     public bool SniperSkipOneGilLookup { get; set; } = false;
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
