@@ -32,6 +32,12 @@ jobs:
           if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion must match project version $projectVersion." }
       - name: Build and package
         run: dotnet build .\plugins\RetainerPricer\RetainerPricer.csproj --configuration Release -p:RestoreLockedMode=true
+      - name: Include tooltip attribution license
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::Open('plugins/RetainerPricer/dist/Release/RetainerPricer/latest.zip', [IO.Compression.ZipArchiveMode]::Update)
+          try { [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, 'plugins/RetainerPricer/third-party/PriceInsight-LICENSE.txt', 'PriceInsight-LICENSE.txt') | Out-Null } finally { $archive.Dispose() }
       - name: Stamp packaged publication date
         shell: pwsh
         run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/RetainerPricer/dist/Release/RetainerPricer' -InternalName 'RetainerPricer'

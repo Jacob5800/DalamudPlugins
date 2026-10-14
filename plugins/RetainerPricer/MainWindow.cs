@@ -681,7 +681,7 @@ internal sealed class MainWindow : Window
             ImGui.TextWrapped("Price Insight is loaded. Both plugins can show item-tooltip prices; enabling this option may display duplicate price panels. Disable one plugin's tooltip prices if desired.");
         var tooltipPrices = config.ShowItemTooltipPrices;
         if (ImGui.Checkbox("Show home prices in item tooltips", ref tooltipPrices)) { config.ShowItemTooltipPrices = tooltipPrices; save(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show home-world NQ/HQ listings, recent purchases and cached four-day sales velocity below item tooltips. Hover briefly to fetch; results are cached for five minutes.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show home-world NQ/HQ listings, recent purchases and cached four-day sales velocity inside item tooltips. Marketable inventory items are prefetched in batches of up to 50; results are cached for 90 minutes.");
         var showInventoryMenu = config.ShowInventoryContextMenu;
         if (ImGui.Checkbox("Show inventory right-click list options", ref showInventoryMenu))
         {

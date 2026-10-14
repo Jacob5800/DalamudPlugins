@@ -113,7 +113,7 @@ New listings with materia require a Proceed or Skip decision before plugin prici
 
 ### Item tooltip prices
 
-Enable **Show home prices in item tooltips** in Settings to show a panel beneath hovered item tooltips (above if space is limited). It shows home-world NQ/HQ asking prices and latest purchases with separate ages, plus Universalis cached four-day daily sale velocity. Values are cached for five minutes; unavailable values show a dash.
+Enable **Show home prices in item tooltips** in Settings to append prices inside the native item tooltip. It shows home-world NQ/HQ asking prices and latest purchases with separate ages, plus Universalis cached four-day daily sale velocity. Tooltip data comes from batched aggregate requests (up to 50 items), is cached for 90 minutes, and is prefetched from loaded inventory, saddlebag and retainer inventory before hovering. Unavailable values show a dash.
 
 ### Marketboard ROI
 

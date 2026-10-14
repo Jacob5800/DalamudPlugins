@@ -1,12 +1,5 @@
-## 0.5.1.3
-- Warns when Price Insight is loaded, since enabling both tooltip price displays may show duplicate panels.
+## 0.5.1.4
 
-- Optional marketboard ROI column follows visible search-result rows, comparing each offer against matching home-world HQ/NQ prices with configured fees.
-
-- Optional item-tooltip panel shows home-world NQ/HQ listings, latest purchases, ages, and cached four-day sales/day. Enable Show home prices in item tooltips in Settings.
-
-- Added Copy price beside the suggested lookup price, copying a plain gil amount without separators.
-
-- Failed price lookups now offer Retry on the Retrieved price tab, preserving the item and HQ/NQ quality.
-
-- Listing items with melded materia now pauses for a Proceed or Skip warning. Normal pricing does not match materia and may compare against unmelded items. Batch listing continues past skipped items. An optional Don't ask again during current listing checkbox suppresses further warnings after Proceed for that batch only.
+- Home prices now appear inside the native item tooltip instead of a separate panel.
+- Tooltip prices, recent purchases and sales/day use one cached aggregate request per batch, with up to 50 items and a 90-minute local cache.
+- Prefetches marketable items in loaded inventory, saddlebags and retainer inventory before hovering.

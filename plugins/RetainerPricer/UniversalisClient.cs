@@ -193,21 +193,36 @@ public sealed class UniversalisClient : IDisposable
             worldIds, worldDataCenterNames);
     }
 
-    internal async Task<(decimal? Nq, decimal? Hq)> FetchTooltipVelocityAsync(uint worldId, uint itemId, CancellationToken ct)
+    internal async Task<IReadOnlyDictionary<uint, TooltipMarketData>> FetchTooltipBatchAsync(uint worldId, IReadOnlyList<uint> ids, CancellationToken ct)
     {
+        if (ids.Count is < 1 or > 50) throw new ArgumentException("Tooltip batches require 1–50 items.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(RequestTimeout);
-        var json = await RequestJsonAsync($"aggregated/{worldId}/{itemId}", worldId.ToString(), deadline.Token).ConfigureAwait(false);
+        var json = await RequestJsonAsync($"aggregated/{worldId}/{string.Join(',', ids)}", worldId.ToString(), deadline.Token).ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
-        decimal? Read(string quality)
+        if (!doc.RootElement.TryGetProperty("results", out var rows) || rows.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Invalid tooltip aggregate response.");
+        var result = new Dictionary<uint, TooltipMarketData>();
+        foreach (var row in rows.EnumerateArray())
         {
-            if (!doc.RootElement.TryGetProperty("results", out var rows)) return null;
-            foreach (var row in rows.EnumerateArray())
-                if (row.TryGetProperty(quality, out var q) && q.TryGetProperty("dailySaleVelocity", out var v) &&
-                    v.TryGetProperty("world", out var world) && world.TryGetProperty("quantity", out var quantity) && quantity.TryGetDecimal(out var value)) return value;
-            return null;
+            if (!row.TryGetProperty("itemId", out var id) || !id.TryGetUInt32(out var itemId) || !ids.Contains(itemId)) continue;
+            DateTimeOffset? upload = null;
+            if (row.TryGetProperty("worldUploadTimes", out var uploads) && uploads.ValueKind == JsonValueKind.Array)
+                foreach (var entry in uploads.EnumerateArray())
+                    if (entry.TryGetProperty("worldId", out var world) && world.GetUInt32() == worldId && entry.TryGetProperty("timestamp", out var stamp) && stamp.TryGetInt64(out var ms) && ms > 0)
+                        upload = DateTimeOffset.FromUnixTimeMilliseconds(ms);
+            TooltipQuality Read(string name)
+            {
+                if (!row.TryGetProperty(name, out var quality)) return new(null, null, null, null, null);
+                JsonElement? Market(string field) => quality.TryGetProperty(field, out var data) && data.TryGetProperty("world", out var market) && market.ValueKind == JsonValueKind.Object ? market : null;
+                decimal? Number(JsonElement? value, string field) => value is { } v && v.TryGetProperty(field, out var n) && n.TryGetDecimal(out var amount) ? amount : null;
+                var last = Market("recentPurchase");
+                DateTimeOffset? sold = last is { } sale && sale.TryGetProperty("timestamp", out var time) && time.TryGetInt64(out var stamp) && stamp > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(stamp) : null;
+                return new(Number(Market("minListing"), "price"), upload, Number(last, "price"), sold, Number(Market("dailySaleVelocity"), "quantity"));
+            }
+            result[itemId] = new(Read("nq"), Read("hq"));
         }
-        return (Read("nq"), Read("hq"));
+        return result;
     }
 
     internal async Task<IReadOnlyDictionary<(uint ItemId, bool IsHq), decimal>> FetchSniperCachedPricesAsync(
