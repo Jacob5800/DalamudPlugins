@@ -202,16 +202,16 @@ public sealed class UniversalisClient : IDisposable
         {
             return await FetchSniperSalesBatchCoreAsync(scope, itemIds, historyDays, homeWorldId, ct).ConfigureAwait(false);
         }
-        catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && itemIds.Count > 25 &&
+        catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && itemIds.Count > 50 &&
             (ex.InnerException is OperationCanceledException or IOException ||
              ex.InnerException is HttpRequestException http && IsTransientHistoryFailure(http)))
         {
             // Retry smaller groups sequentially, retaining the outer scan's concurrency bound.
             // Every new catalog batch still starts at 100; reductions affect only this failed batch.
-            DiagnosticLog?.Invoke($"Sniper history fallback: scope={scope.Name}; items={itemIds.Count}; splitting to {(itemIds.Count > 50 ? 50 : 25)}; error={ex.Message}");
+            DiagnosticLog?.Invoke($"Sniper history fallback: scope={scope.Name}; items={itemIds.Count}; splitting to 50; error={ex.Message}");
             await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
             var results = new Dictionary<uint, SniperSalesSnapshot>();
-            var smallerSize = itemIds.Count > 50 ? 50 : 25;
+            const int smallerSize = 50;
             foreach (var group in itemIds.Chunk(smallerSize))
                 foreach (var pair in await FetchSniperSalesBatchAsync(scope, group, historyDays, homeWorldId, ct).ConfigureAwait(false))
                     results[pair.Key] = pair.Value;

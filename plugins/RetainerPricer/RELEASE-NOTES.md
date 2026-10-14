@@ -1,4 +1,4 @@
-### 0.5.0.14
+## 0.5.0.15
 
-- Added Backup / export settings in Settings. Export pricing, Sniper, venture settings and all item lists to a JSON file. Market caches and retainer listing snapshots are excluded; venture assignments retain their retainer IDs.
-- Preview a backup before importing, then merge lists or replace included settings. Merge adds missing list/dictionary entries while preserving existing entries; included scalar settings are applied. A timestamped backup of your previous settings is saved beside the imported file first. Stop active operations and watching before import.
+- Sniper estimated sales/day is orange below 1 and yellow from 1 through 3, warning about slower resale.
+- Removed the 25-item history fallback to reduce time spent retrying failed batches. Failed 100-item batches can still split into 50-item groups; unresolved items are retried automatically after the full scan.
