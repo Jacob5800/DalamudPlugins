@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.36",
+  "AssemblyVersion": "0.5.0.37",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.36\n\n- Added a Paste clipboard and search button directly above the game's open Item Search marketboard menu. It follows the menu position and disappears when the menu closes; opening Buy list is no longer required.\n- The button resolves an exact marketable item name from your clipboard and uses the existing marketboard search helper on your current world. It is disabled while pricing is busy. Invalid clipboard text displays an explanation. Purchases remain manual.\n",
+  "Changelog": "## 0.5.0.37\n\n- Remove item from buy list now removes only the clicked offer row. Other saved offers for the same item remain intact.\n- Add to buy list continues to move all currently captured Sniper offers with that item name, preserving each offer's data. The item stays suppressed in Sniper while any of its rows remain in Buy list.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

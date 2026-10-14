@@ -1450,7 +1450,7 @@ internal sealed class MainWindow : Window
                         }
                         ImGui.EndDisabled();
                     }
-                    if (buyList && ImGui.MenuItem("Remove item from buy list")) { config.SniperBuyList.RemoveAll(row => row.ItemName == deal.ItemName); save(); }
+                    if (buyList && ImGui.MenuItem("Remove item from buy list")) { config.SniperBuyList.Remove(deal); save(); }
                     ImGui.EndPopup();
                 }
                 Cell(deal.DataCenterName ?? "—", "Data Center containing the listing's server. A dash means its Data Center could not be resolved.");
