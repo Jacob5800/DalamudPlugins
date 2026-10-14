@@ -89,3 +89,8 @@ Undercut notifier has its own World (default), Data Center and Region (home regi
 Est. sales/day uses the configured days for uncapped fixed-window scans, or the oldest returned sale-to-history-check span for capped or any-age samples. Hover for sample count and coverage.
 
 History days 0 uses one history batch at a time with at least one second between request starts, including retry and smaller fallback requests. Fixed-window scans use the same slower pacing. Both keep 100-item starting batches and the 50/25-item fallback.
+
+### Sniper cached discovery and verification
+Sniper reads cached four-day HQ/NQ average references in 100-item batches with up to six requests at once. New live candidates receive sequential detailed-history verification using the configured window and minimum sales; cached averages never become displayed verified medians. Pending history verification lists queued or failed items. Failed candidates get deferred retries after 15/30 seconds (three verification passes maximum), with manual retry available. Successful history is kept and 1-gil alerts remain immediate.
+
+The screen allows the selected threshold plus 25 percentage points, capped at 125% of the cached average. Unknown references are verified rather than discarded. Cache refresh age is unavailable; source upload times are not cache-refresh times. Screening can miss opportunities compared with a full history scan. Purchases remain manual.

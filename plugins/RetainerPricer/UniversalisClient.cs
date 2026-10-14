@@ -185,6 +185,29 @@ public sealed class UniversalisClient : IDisposable
             worldIds, worldDataCenterNames);
     }
 
+    internal async Task<IReadOnlyDictionary<(uint ItemId, bool IsHq), decimal>> FetchSniperCachedPricesAsync(
+        SniperHistoryScope scope, IReadOnlyList<uint> ids, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(RequestTimeout);
+        var json = await RequestJsonAsync($"aggregated/{Uri.EscapeDataString(scope.Name)}/{string.Join(',', ids)}", scope.Name, deadline.Token).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("results", out var rows) || rows.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Universalis returned malformed cached aggregates.");
+        var result = new Dictionary<(uint, bool), decimal>();
+        var scopeKey = scope.Kind == SniperHistoryScopeKind.World ? "world" : scope.Kind == SniperHistoryScopeKind.DataCenter ? "dc" : "region";
+        foreach (var row in rows.EnumerateArray())
+        {
+            if (!row.TryGetProperty("itemId", out var id) || !id.TryGetUInt32(out var itemId) || !ids.Contains(itemId)) continue;
+            foreach (var quality in new[] { (Name: "nq", Hq: false), (Name: "hq", Hq: true) })
+                if (row.TryGetProperty(quality.Name, out var q) && q.TryGetProperty("averageSalePrice", out var avg) &&
+                    avg.TryGetProperty(scopeKey, out var market) && market.TryGetProperty("price", out var price) &&
+                    price.TryGetDecimal(out var value) && value > 0)
+                    result[(itemId, quality.Hq)] = value;
+        }
+        return result;
+    }
+
     internal async Task<PriceSnapshot> FetchUndercutAsync(MarketWorld world, uint itemId, int marketScope, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -307,7 +330,11 @@ public sealed class UniversalisClient : IDisposable
             }
             return buffer.ToArray();
         }
-        finally { RequestConcurrencyGate.Release(); }
+        finally
+        {
+            Interlocked.Exchange(ref nextHistoryBatchTimestamp, Stopwatch.GetTimestamp() + Stopwatch.Frequency + Stopwatch.Frequency / 100);
+            RequestConcurrencyGate.Release();
+        }
     }
 
     private static IReadOnlyDictionary<uint, SniperSalesSnapshot> ParseSniperSalesBatch(

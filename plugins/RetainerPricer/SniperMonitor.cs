@@ -15,6 +15,13 @@ internal sealed class SniperMonitor : IDisposable
         public Dictionary<string, UniversalisListing> PendingLiveListings { get; } = new(StringComparer.Ordinal);
         public HashSet<uint> WatchedItemIds { get; init; } = [];
         public HashSet<uint> FailedItemIds { get; } = [];
+        public Dictionary<(uint ItemId, bool IsHq), decimal> CachedPrices { get; } = [];
+        public HashSet<uint> CachedItems { get; } = [];
+        public bool DiscoveryComplete { get; set; }
+        public HashSet<uint> CandidateIds { get; } = [];
+        public Dictionary<uint, DateTimeOffset> NextCandidateCheck { get; } = [];
+        public Dictionary<uint, int> CandidateAttempts { get; } = [];
+
         public HistoryScanSummary? Summary { get; set; }
         public int DroppedPendingListings { get; set; }
     }
@@ -23,6 +30,12 @@ internal sealed class SniperMonitor : IDisposable
         string? FatalError = null, int FailedItems = 0);
 
     private readonly object gate = new();
+    private readonly SemaphoreSlim historyVerificationGate = new(1, 1);
+    private bool verifyingCandidate;
+    private RunState? activeState;
+    public bool IsVerifyingCandidate { get { lock (gate) return verifyingCandidate; } }
+    public IReadOnlyList<string> PendingVerificationItems { get { lock (gate) return activeState is null ? [] : activeState.CandidateIds.Concat(activeState.FailedItemIds).Distinct().Select(id => itemNames.GetValueOrDefault(id, $"Item {id}")).ToArray(); } }
+
     private readonly UniversalisClient universalis;
     private readonly PluginConfig config;
     private readonly IReadOnlyList<ItemChoice> marketableItems;
@@ -69,6 +82,7 @@ internal sealed class SniperMonitor : IDisposable
     public string Status { get { lock (gate) return status; } }
     public IReadOnlyList<SniperDeal> Deals { get { lock (gate) return deals.ToArray(); } }
     public int MarketableItemCount => marketableItems.Count;
+    public string DiscoveryHelp => "Cached four-day averages screen live candidates; detailed history verifies your selected window. Candidates within threshold + 25 percentage points (capped at 125% of average) are checked. Unknown cache values are checked too. Cache refresh age is not provided; source upload timestamps do not prove aggregate refresh time. This screen can miss deals versus a full history scan.";
     public IReadOnlyList<ItemChoice> MarketableItems => marketableItems;
 
     public void Start(MarketWorld? world, bool useDataCenter, bool useRegion, IReadOnlyCollection<uint>? selectedItemIds = null)
@@ -126,6 +140,7 @@ internal sealed class SniperMonitor : IDisposable
             var runState = new RunState { WatchedItemIds = watchedItems.Select(item => item.ItemId).ToHashSet() };
             lock (gate)
             {
+                activeState = runState;
                 retryFailedHistory = async () =>
                 {
                     ItemChoice[] failedItems;
@@ -141,8 +156,8 @@ internal sealed class SniperMonitor : IDisposable
 
             // Start listening before the catalog scan completes. Live listings for unscanned
             // items are held until their history batch supplies a usable HQ/NQ baseline.
-            var historyScanTask = ScanHistoryAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
-                threshold, historyDays, minimumItemPrice, runState, cancellationToken, autoRetry: true);
+            var historyScanTask = ScanCachedCatalogAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
+                threshold, historyDays, minimumItemPrice, runState, cancellationToken);
             HistoryScanSummary? historySummary = null;
 
             var backoffSeconds = 2;
@@ -236,7 +251,100 @@ internal sealed class SniperMonitor : IDisposable
         }
     }
 
+    private async Task<HistoryScanSummary> ScanCachedCatalogAsync(SniperMarketScope scope,
+        IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
+        int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState state, CancellationToken ct)
+    {
+        var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var done = 0;
+        await Parallel.ForEachAsync(watchedItems.Chunk(100), new ParallelOptions { MaxDegreeOfParallelism = 6, CancellationToken = ct }, async (batch, token) =>
+        {
+            try
+            {
+                var prices = await universalis.FetchSniperCachedPricesAsync(scope.HistoryScopes.Single(), batch.Select(item => item.ItemId).ToArray(), token).ConfigureAwait(false);
+                lock (gate)
+                {
+                    foreach (var pair in prices) state.CachedPrices[pair.Key] = pair.Value;
+                    foreach (var item in batch) state.CachedItems.Add(item.ItemId);
+                    foreach (var listing in state.PendingLiveListings.Values.ToArray()) QueueCandidateLocked(listing, state, threshold, minimumItemPrice);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) { errors.Add(ex.Message); }
+            lock (gate)
+            {
+                done += batch.Length;
+                initialScanProgress = $"Cached discovery · {done:N0}/{watchedItems.Count:N0} items attempted · {errors.Count} cache batch failures · detailed history is fetched only for live candidates";
+                RefreshInitialScanStatusAndGetLocked(state);
+            }
+        }).ConfigureAwait(false);
+        var summary = new HistoryScanSummary(0, errors.ToArray());
+        lock (gate)
+        {
+            state.DiscoveryComplete = true;
+            foreach (var listing in state.PendingLiveListings.Values.ToArray()) QueueCandidateLocked(listing, state, threshold, minimumItemPrice);
+            state.Summary = summary;
+            initialScanRunning = false;
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    ItemChoice? item;
+                    lock (gate)
+                    {
+                        var id = state.CandidateIds.FirstOrDefault(id => !state.NextCandidateCheck.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow);
+                        item = watchedItems.FirstOrDefault(item => item.ItemId == id);
+                        if (item is not null) state.CandidateIds.Remove(item.ItemId);
+                    }
+                    if (item is null) { await Task.Delay(1000, ct).ConfigureAwait(false); continue; }
+                    await ScanHistoryAsync(scope, new[] { item }, world, watchedWorlds, minimumSales, threshold, historyDays, minimumItemPrice, state, ct).ConfigureAwait(false);
+                    lock (gate)
+                    {
+                        if (state.FailedItemIds.Contains(item.ItemId))
+                        {
+                            var attempts = state.CandidateAttempts.GetValueOrDefault(item.ItemId) + 1;
+                            state.CandidateAttempts[item.ItemId] = attempts;
+                            if (attempts < 3)
+                            {
+                                state.NextCandidateCheck[item.ItemId] = DateTimeOffset.UtcNow.AddSeconds(15 * attempts);
+                                state.CandidateIds.Add(item.ItemId);
+                            }
+                        }
+                    }
+                    await Task.Delay(5000, ct).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex) { universalis.DiagnosticLog?.Invoke($"Sniper candidate verification stopped: {ex.Message}"); }
+        }, ct);
+        return summary;
+    }
+
+    private static void QueueCandidateLocked(UniversalisListing listing, RunState state, double threshold, int minimumPrice)
+    {
+        if (listing.PricePerUnit != 1 && !state.DiscoveryComplete && !state.CachedItems.Contains(listing.ItemId)) return;
+        if (state.CompletedHistoryItemIds.Contains(listing.ItemId) || state.CandidateAttempts.GetValueOrDefault(listing.ItemId) >= 3) return;
+        if (listing.PricePerUnit == 1 || listing.PricePerUnit >= minimumPrice &&
+            (!state.CachedPrices.TryGetValue((listing.ItemId, listing.IsHq), out var average) ||
+                listing.PricePerUnit <= average * (decimal)Math.Min(1.25, threshold + 0.25)))
+            state.CandidateIds.Add(listing.ItemId);
+    }
+
     private async Task<HistoryScanSummary> ScanHistoryAsync(SniperMarketScope scope,
+        IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
+        int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
+        CancellationToken cancellationToken, bool autoRetry = false, bool slowRescan = false)
+    {
+        await historyVerificationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        lock (gate) verifyingCandidate = true;
+        try { return await ScanHistoryCoreAsync(scope, watchedItems, world, watchedWorlds, minimumSales, threshold, historyDays, minimumItemPrice, runState, cancellationToken, slowRescan: slowRescan).ConfigureAwait(false); }
+        finally { lock (gate) verifyingCandidate = false; historyVerificationGate.Release(); }
+    }
+
+    private async Task<HistoryScanSummary> ScanHistoryCoreAsync(SniperMarketScope scope,
         IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
         int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
         CancellationToken cancellationToken, bool autoRetry = false, bool slowRescan = false)
@@ -336,7 +444,7 @@ internal sealed class SniperMonitor : IDisposable
                     }
                     failedHistoryItemCount = runState.FailedItemIds.Count;
                     foreach (var pending in runState.PendingLiveListings
-                                 .Where(pair => batchItemIds.Contains(pair.Value.ItemId)).ToArray())
+                                 .Where(pair => batchItemIds.Contains(pair.Value.ItemId) && successfulItemIds.Contains(pair.Value.ItemId)).ToArray())
                     {
                         runState.PendingLiveListings.Remove(pending.Key);
                         ProcessLiveListingLocked(pending.Value, world, scope, watchedWorlds, runState, threshold, minimumItemPrice);
@@ -411,6 +519,7 @@ internal sealed class SniperMonitor : IDisposable
     {
         if (!runState.WatchedItemIds.Contains(listing.ItemId)) return;
         var eventKey = ListingEventKey(listing);
+        if (!listing.IsRemoved) QueueCandidateLocked(listing, runState, threshold, minimumItemPrice);
         if (listing.IsRemoved)
         {
             runState.PendingLiveListings.Remove(eventKey);
@@ -510,8 +619,9 @@ internal sealed class SniperMonitor : IDisposable
     private string BuildListeningStatus(SniperMarketScope scope, int watchedWorldCount, int watchedItemCount,
         int historyDays, int minimumSales, HistoryScanSummary summary)
     {
-        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · {watchedItemCount:N0} watched items · {(summary.FailedItems > 0 || summary.FatalError is not null ? "Scan incomplete" : "History scan complete")}, {summary.EligibleItems:N0} with usable {(historyDays == 0 ? "any-age history" : $"{historyDays}-day history")} · 1-gil alerts cover the watched items. Purchases are manual.";
-        status += " " + BuildHistorySummary(summary, watchedItemCount, minimumSales, historyDays);
+        var pending = activeState?.CandidateIds.Count ?? 0;
+        var status = $"Listening on {scope.Label} across {watchedWorldCount:N0} world(s) · {watchedItemCount:N0} watched items · cached discovery finished · {summary.EligibleItems:N0} items with verified usable history · {pending:N0} pending verification · {summary.FailedItems:N0} history failures. 1-gil alerts are immediate; ordinary deals require verified history. Purchases are manual.";
+        if (summary.FatalError is not null) status += $" Verification error: {summary.FatalError}";
         return status;
     }
 

@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.21",
+  "AssemblyVersion": "0.5.0.22",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.21\n\n- Restored up to 100 items per Sniper history batch in every scope and history mode.\n- The automatic failed-item rescan now starts after a 15-second cooldown. Automatic and manual failed-item rescans wait 5 seconds after each history request finishes, including the retry of a temporarily failed request.\n- Initial scans keep their normal one-second minimum between request starts and one retry for temporary errors. Rescans request only unresolved items; successful history and live watching are preserved. Smaller-batch fallbacks remain disabled.\n",
+  "Changelog": "## 0.5.0.22\n\n- Sniper now starts with cached aggregate discovery for all marketable items or your selected list: 100 items per batch, up to six concurrent cached requests. It no longer downloads detailed sales history for the entire catalog at startup.\n- New live listings are screened against separate HQ/NQ cached four-day averages. To allow extra margin, candidates priced at or below your threshold plus 25 percentage points (capped at 125% of the cached average) enter history verification. Missing cached references are checked too; 1-gil alerts remain immediate.\n- Ordinary deals appear only after detailed history verifies your chosen history window, minimum sales and pricing rules. The displayed median, latest sale, sales estimate and profit still come from detailed history, not the cached average.\n- Added Pending history verification so you can see items waiting for checks or retry. Verification runs one request at a time, preserves successful history, and retries failed candidates after 15 and 30 seconds, up to three verification passes. Manual retry remains available. No smaller-batch fallback was added.\n- Cache freshness is not guaranteed: the aggregate endpoint does not provide a cache-refresh timestamp. Four days describes its sales calculation window, not cache age. A generous screening margin reduces but cannot eliminate missed deals compared with downloading every item's history.\n- RP shows scanning while candidate history is being verified. History request pacing now guarantees at least 1.01 seconds after the previous history request finishes.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

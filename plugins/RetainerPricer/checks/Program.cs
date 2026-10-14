@@ -84,7 +84,7 @@ async Task RejectFetch(Func<Task<PriceSnapshot>> fetch, string expectedMessage, 
 
 var fetched = await Fetch((request, _) =>
 {
-    Assert(request.Method == HttpMethod.Get && request.RequestUri!.AbsoluteUri == "https://universalis.app/api/v2/74/5333?entries=100&entriesWithin=1728000",
+    Assert(request.Method == HttpMethod.Get && request.RequestUri!.AbsoluteUri == "https://universalis.app/api/v2/74/5333?entries=100&entriesWithin=2592000",
         "Single-world read-only request uses documented limits");
     Assert(request.Headers.UserAgent.ToString().StartsWith("RetainerPricer/"), "Identify application to API");
     return Task.FromResult(JsonResponse(Body()));
@@ -103,6 +103,17 @@ Reject(Calculate(await FetchBody(truncated)), "Truncated HTTP snapshot is never 
 var empty = Body(); empty["listings"] = new JsonArray(); empty["listingsCount"] = 0;
 var emptySnapshot = await FetchBody(empty);
 Assert(emptySnapshot.IsComplete && emptySnapshot.Listings.Count == 0, "An empty complete market is distinct from truncated data");
+
+using (var http = new HttpClient(new StubHandler((request, _) =>
+{
+    Assert(request.RequestUri!.AbsolutePath.Contains("/aggregated/Light/4000"), "Cached discovery uses the aggregate endpoint");
+    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"results\":[{\"itemId\":4000,\"nq\":{\"averageSalePrice\":{\"dc\":{\"price\":120}}},\"hq\":{\"averageSalePrice\":{\"dc\":{\"price\":240}}}}],\"failedItems\":[]}") });
+})))
+using (var client = new UniversalisClient(http))
+{
+    var cached = await client.FetchSniperCachedPricesAsync(new SniperHistoryScope("Light", SniperHistoryScopeKind.DataCenter), new uint[] { 4000 }, CancellationToken.None);
+    Assert(cached[(4000, false)] == 120 && cached[(4000, true)] == 240, "Keep cached HQ/NQ reference prices separate");
+}
 
 var sniperItemIds = Enumerable.Range(4_000, UniversalisClient.SniperHistoryBatchSize).Select(id => (uint)id).ToArray();
 var sniperItems = new JsonObject();
@@ -124,7 +135,7 @@ using (var http = new HttpClient(new StubHandler((request, _) =>
            var requestedIds = uri.AbsolutePath.Split('/').Last().Split(',');
            Assert(request.Method == HttpMethod.Get && requestedIds.Length == UniversalisClient.SniperHistoryBatchSize,
                "Sniper sends 100 item IDs in one history request");
-           Assert(uri.Query.Contains("entriesToReturn=1800", StringComparison.Ordinal) &&
+           Assert(uri.Query.Contains("entriesToReturn=500", StringComparison.Ordinal) &&
                   uri.Query.Contains("entriesWithin=604800", StringComparison.Ordinal),
                "Sniper history request uses the configured lookback and per-item history limit");
            return Task.FromResult(JsonResponse((JsonObject)sniperBatchBody.DeepClone()));
@@ -203,3 +214,5 @@ sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpRe
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         handler(request, cancellationToken);
 }
+
+

@@ -141,7 +141,7 @@ public sealed class Plugin : IDalamudPlugin
                 chat.Print(new XivChatEntry { Type = XivChatType.Echo,
                     Message = new SeStringBuilder().AddText($"[Retainer Pricer] Undercut: {name} ({(row.Listing.IsHq ? "HQ" : "NQ")}) on {row.Retainer}: your saved price {row.Listing.Price:N0} gil, competitor {row.LowestPrice:N0} gil.").Build() });
             });
-            var scanning = sniper.IsInitialScanRunning || undercuts.Checking;
+            var scanning = sniper.IsInitialScanRunning || sniper.IsVerifyingCandidate || undercuts.Checking;
             if (DateTimeOffset.UtcNow >= nextServerBarUpdate)
             {
                 nextServerBarUpdate = DateTimeOffset.UtcNow.AddSeconds(1);
