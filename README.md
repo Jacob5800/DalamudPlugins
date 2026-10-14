@@ -11,6 +11,7 @@ A single custom Dalamud repository for separately built API 15 plugins.
 | Retainer Pricer | Prices and manages retainer listings using Universalis. | [Source](plugins/RetainerPricer) |
 | Housing Timeout Reminder | Reminds you to visit configured housing plots across your saved characters. | [Source](https://github.com/Jacob5800/HousingTimeoutReminder) |
 | Workshoppa | Automates company workshop material turn-ins and retainer deposits. | [Source](plugins/Workshoppa) |
+| Tug of War | Tracks team scores from /random rolls, with optional party announcements. | [Source](plugins/TugOfWar) |
 
 ## Install
 

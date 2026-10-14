@@ -1,0 +1,24 @@
+{
+  "Author": "Jacob5800",
+  "Name": "Tug of War",
+  "InternalName": "TugOfWar",
+  "AssemblyVersion": "0.2.0.1",
+  "Description": "Track Tug of War scores from /random 100 rolls and import current party members into teams.",
+  "ApplicableVersion": "any",
+  "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+  "Tags": [
+    "random",
+    "roll",
+    "score",
+    "party",
+    "game"
+  ],
+  "DalamudApiLevel": 15,
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": false,
+  "LoadPriority": 0,
+  "Punchline": "Track team scores from FFXIV /random rolls.",
+  "AcceptsFeedback": true,
+  "Changelog": "### 0.2.0.1\n\n- Tug of War is now available through Jacob5800's combined Dalamud plugin repository. Existing team settings and opt-in party announcements remain supported."
+}

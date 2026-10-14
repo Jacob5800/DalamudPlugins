@@ -1,0 +1,24 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.2.0.1</Version>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Authors>Jacob5800</Authors>
+    <Name>Tug of War</Name>
+    <Punchline>Track team scores from FFXIV /random rolls.</Punchline>
+    <Description>Track a Tug of War match by reading /random 100 results from chat and scoring each team.</Description>
+    <PackageProjectUrl>https://github.com/Jacob5800/DalamudPlugins</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Jacob5800/DalamudPlugins</RepositoryUrl>
+    <Tags>random;roll;score;party;game</Tags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OutputPath>$(MSBuildProjectDirectory)\dist\dev\</OutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ECommons" Version="3.2.0.15" />
+  </ItemGroup>
+</Project>
