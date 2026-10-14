@@ -42,7 +42,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: plugins/Workshoppa/RELEASE-NOTES.md
           files: Workshoppa.zip
       - name: Update combined feed
         shell: pwsh

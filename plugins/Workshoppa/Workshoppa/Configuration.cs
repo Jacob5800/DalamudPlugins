@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dalamud.Configuration;
@@ -13,6 +13,7 @@ internal sealed class Configuration : IPluginConfiguration
 
     public CurrentItem? CurrentlyCraftedItem { get; set; }
     public List<QueuedItem> ItemQueue { get; set; } = new();
+    public bool AutoOpenRetainerDeposit { get; set; }
     public bool EnableRepairKitCalculator { get; set; } = true;
     public bool EnableCeruleumTankCalculator { get; set; } = true;
     public List<uint> RetainerDepositExcludedItemIds { get; set; } = new();

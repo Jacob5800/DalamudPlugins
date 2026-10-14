@@ -45,7 +45,6 @@ internal sealed unsafe class RetainerDepositWindow : LWindow
     private uint _selectedKeepItemId;
     private bool _hasInventoryScan;
     private bool _wasRetainerWindowOpen;
-    private bool _autoOpened;
     private bool _transferActive;
     private ulong _transferRetainerId;
     private PendingMove? _pendingMove;
@@ -94,25 +93,16 @@ internal sealed unsafe class RetainerDepositWindow : LWindow
         else
         {
             IsOpenAndUncollapsed = true;
-            _autoOpened = false;
         }
     }
 
     public void UpdateRetainerWindowState()
     {
         bool isOpen = IsRetainerTransferWindowOpen();
-        if (isOpen && !_wasRetainerWindowOpen)
-        {
+        if (isOpen && !_wasRetainerWindowOpen && _configuration.AutoOpenRetainerDeposit)
             IsOpenAndUncollapsed = true;
-            _autoOpened = true;
-        }
-        else if (!isOpen && _wasRetainerWindowOpen)
-        {
+        if (!isOpen && _wasRetainerWindowOpen)
             StopTransfer();
-            if (_autoOpened)
-                IsOpen = false;
-            _autoOpened = false;
-        }
 
         _wasRetainerWindowOpen = isOpen;
     }
@@ -280,7 +270,7 @@ internal sealed unsafe class RetainerDepositWindow : LWindow
         Snapshot snapshot = GetSnapshot();
         ImGui.Text("1. Open the retainer screen");
         if (!retainerWindowOpen)
-            ImGui.TextWrapped("At a Summoning Bell, speak to your retainer and choose “Entrust or withdraw items.” Workshoppa opens this window automatically. If needed, type /ws, then choose Retainer Deposit from Workshoppa’s top menu. Keep the retainer screen open while depositing.");
+            ImGui.TextWrapped("At a Summoning Bell, speak to your retainer and choose “Entrust or withdraw items.” Type /ws and choose Retainer Deposit from the top menu. This menu does not open automatically. Keep the retainer screen open while depositing.");
         else if (!retainerSelected)
             ImGui.TextWrapped("The retainer window is open. Waiting for the active retainer to finish loading.");
         else
@@ -335,6 +325,22 @@ internal sealed unsafe class RetainerDepositWindow : LWindow
         ImGui.SameLine();
         ImGui.TextDisabled(_inventoryScanStatus);
         ImGui.TextDisabled("Scanning only lists items; it does not move them.");
+        ImGui.BeginDisabled(_transferActive);
+        if (ImGui.Button("Add all inventory items to keep list"))
+        {
+            ScanInventory();
+            if (_hasInventoryScan)
+            {
+                int added = 0;
+                foreach (var item in _inventoryItems)
+                    if (!_configuration.RetainerDepositExcludedItemIds.Contains(item.Id))
+                    { _configuration.RetainerDepositExcludedItemIds.Add(item.Id); added++; }
+                _pluginInterface.SavePluginConfig(_configuration);
+                _status = $"Added {added:N0} item types to the keep list. These items will not be deposited.";
+            }
+        }
+        ImGui.EndDisabled();
+        ImGui.TextWrapped("Adds every item type currently in your four inventory bags to the keep list. Both HQ and NQ stacks of those types will stay in your inventory. This button does not move items.");
         ImGui.TextDisabled("Filter if needed, choose an item, then add it to the keep list.");
 
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);

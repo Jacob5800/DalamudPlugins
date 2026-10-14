@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -93,7 +93,7 @@ internal sealed class MainWindow : LWindow, IPersistableWindowConfig
                 _retainerDepositWindow.ToggleFromMenu();
 
             ImGui.SameLine(ImGui.GetWindowWidth() - ImGui.GetFrameHeightWithSpacing());
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.Comments))
+            if (DiscordJoinButton.Draw(iconOnly: true))
                 Util.OpenLink("https://discord.gg/TTPZ82xaUd");
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Join the Workshoppa Discord");
