@@ -131,7 +131,7 @@ internal sealed class SniperMonitor : IDisposable
                     ItemChoice[] failedItems;
                     lock (gate) failedItems = watchedItems.Where(item => runState.FailedItemIds.Contains(item.ItemId)).ToArray();
                     await ScanHistoryAsync(scope, failedItems, world, watchedWorlds, minimumSales,
-                        threshold, historyDays, minimumItemPrice, runState, cancellationToken).ConfigureAwait(false);
+                        threshold, historyDays, minimumItemPrice, runState, cancellationToken, slowRescan: true).ConfigureAwait(false);
                 };
                 initialScanRunning = true;
                 initialScanProgress = "Initial scan is starting";
@@ -239,11 +239,10 @@ internal sealed class SniperMonitor : IDisposable
     private async Task<HistoryScanSummary> ScanHistoryAsync(SniperMarketScope scope,
         IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
         int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState runState,
-        CancellationToken cancellationToken, bool autoRetry = false)
+        CancellationToken cancellationToken, bool autoRetry = false, bool slowRescan = false)
     {
         var failed = new System.Collections.Concurrent.ConcurrentBag<string>();
-        var batchSize = historyDays == 0 && scope.HistoryScopes.Any(query => query.Kind != SniperHistoryScopeKind.World)
-            ? 90 : UniversalisClient.SniperHistoryBatchSize;
+        var batchSize = UniversalisClient.SniperHistoryBatchSize;
         var batchCount = (watchedItems.Count + batchSize - 1) / batchSize;
         var scanStartedAt = Stopwatch.GetTimestamp();
         universalis.DiagnosticLog?.Invoke($"Sniper scan started: scope={scope.Label}; items={watchedItems.Count}; historyDays={historyDays}; minimumSales={minimumSales}; concurrentBatches=1; maxBatchItems={batchSize}; maxSalesPerItem=500");
@@ -268,7 +267,7 @@ internal sealed class SniperMonitor : IDisposable
                     foreach (var historyScope in scope.HistoryScopes)
                     {
                         var snapshots = await universalis.FetchSniperSalesBatchAsync(historyScope,
-                                batch.Select(item => item.ItemId).ToArray(), historyDays, world.WorldId, cancellationToken)
+                                batch.Select(item => item.ItemId).ToArray(), historyDays, world.WorldId, cancellationToken, slowRescan)
                             .ConfigureAwait(false);
                         returnedInEveryScope.IntersectWith(snapshots.Keys);
                         foreach (var snapshot in snapshots.Values)
@@ -357,12 +356,12 @@ internal sealed class SniperMonitor : IDisposable
                 lock (gate)
                 {
                     retryItems = watchedItems.Where(item => runState.FailedItemIds.Contains(item.ItemId)).ToArray();
-                    initialScanProgress = $"Full scan attempted · automatically retrying {retryItems.Length:N0} failed items after a 5-second cooldown…";
+                    initialScanProgress = $"Full scan attempted · automatically retrying {retryItems.Length:N0} failed items after a 15-second cooldown…";
                     RefreshInitialScanStatusAndGetLocked(runState);
                 }
-                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
                 return await ScanHistoryAsync(scope, retryItems, world, watchedWorlds, minimumSales,
-                    threshold, historyDays, minimumItemPrice, runState, cancellationToken).ConfigureAwait(false);
+                    threshold, historyDays, minimumItemPrice, runState, cancellationToken, slowRescan: true).ConfigureAwait(false);
             }
             var eligible = runState.Baselines.Keys.Select(key => key.ItemId).Distinct().Count();
             var summary = new HistoryScanSummary(eligible, failed.ToArray(), FailedItems: runState.FailedItemIds.Count);

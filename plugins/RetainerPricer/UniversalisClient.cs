@@ -196,13 +196,13 @@ public sealed class UniversalisClient : IDisposable
     }
     internal async Task<IReadOnlyDictionary<uint, SniperSalesSnapshot>> FetchSniperSalesBatchAsync(
         SniperHistoryScope scope, IReadOnlyList<uint> itemIds, int historyDays, uint homeWorldId,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool slowRescan = false)
     {
-        return await FetchSniperSalesBatchCoreAsync(scope, itemIds, historyDays, homeWorldId, ct).ConfigureAwait(false);
+        return await FetchSniperSalesBatchCoreAsync(scope, itemIds, historyDays, homeWorldId, ct, slowRescan).ConfigureAwait(false);
     }
     private async Task<IReadOnlyDictionary<uint, SniperSalesSnapshot>> FetchSniperSalesBatchCoreAsync(
         SniperHistoryScope scope, IReadOnlyList<uint> itemIds, int historyDays, uint homeWorldId,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool slowRescan = false)
     {
         if (string.IsNullOrWhiteSpace(scope.Name) || itemIds.Count is 0 or > SniperHistoryBatchSize ||
             itemIds.Any(itemId => itemId == 0) || homeWorldId == 0)
@@ -261,7 +261,11 @@ public sealed class UniversalisClient : IDisposable
                 throw new InvalidOperationException("The Universalis sales-history response was interrupted after a retry.", ex);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(attempt), ct).ConfigureAwait(false);
+            finally
+            {
+                if (slowRescan) await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+            }
+            if (!slowRescan) await Task.Delay(TimeSpan.FromSeconds(attempt), ct).ConfigureAwait(false);
         }
     }
 

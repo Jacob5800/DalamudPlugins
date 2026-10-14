@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.0.20",
+  "AssemblyVersion": "0.5.0.21",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.0.20\n\n- Sniper uses up to 90 items per history request only for Data Center or Region scope with history days set to 0. World scope and history days 1\u201314 keep 100-item requests. Automatic and manual retries use the same conditional limit; the 500-sale sample limit is unchanged.\n- Fixed the selected-item search offering unmarketable items. It now uses the same marketable-item catalog as the full scan.\n- All marketable items (default) now has a clear green label with its explanation underneath. Selected-item scope remains orange.\n",
+  "Changelog": "## 0.5.0.21\n\n- Restored up to 100 items per Sniper history batch in every scope and history mode.\n- The automatic failed-item rescan now starts after a 15-second cooldown. Automatic and manual failed-item rescans wait 5 seconds after each history request finishes, including the retry of a temporarily failed request.\n- Initial scans keep their normal one-second minimum between request starts and one retry for temporary errors. Rescans request only unresolved items; successful history and live watching are preserved. Smaller-batch fallbacks remain disabled.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
