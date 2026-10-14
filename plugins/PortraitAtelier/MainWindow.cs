@@ -65,6 +65,8 @@ internal sealed class MainWindow : Window
         DrawGenerator();
         ImGui.Separator();
         DrawOutput();
+        ImGui.Separator();
+        if (DiscordJoinButton.Draw()) Dalamud.Utility.Util.OpenLink("https://discord.gg/TTPZ82xaUd");
     }
 
     public override void OnOpen()
