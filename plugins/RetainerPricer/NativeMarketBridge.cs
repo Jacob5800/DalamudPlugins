@@ -783,7 +783,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private readonly HashSet<ulong> availableVentureRetainers = [];
 
     private readonly Dictionary<ulong, (string Name, ushort Venture, long EndsAt, DateTimeOffset ChangedAt)> knownVentureTimers = [];
-    public IReadOnlyList<string> GetCompletedVentureNames(IReadOnlyDictionary<ulong, RetainerListingCache> saved)
+    public string VentureReadinessStatus { get; private set; } = "Waiting for retainer data.";
+    public IReadOnlyList<string> GetCompletedVentureNames()
     {
         if (!player.IsLoaded || ventureAvailabilityCharacter != player.ContentId)
         {
@@ -791,37 +792,33 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             knownVentureTimers.Clear();
             ventureAvailabilityCharacter = player.IsLoaded ? player.ContentId : 0;
         }
-        if (!player.IsLoaded) return [];
-        if (TryGetOwnRetainers(out var roster))
+        if (!player.IsLoaded) { VentureReadinessStatus = "Waiting for character data."; return []; }
+        var live = false;
+        // Only refresh ownership/timers on the home world; otherwise retain this character's last observed data.
+        if (player.CurrentWorld.RowId == player.HomeWorld.RowId && TryGetOwnRetainers(out var roster))
         {
-            if (TryReadRetainerPickerEntries(out var entries, out _))
-            {
-                availableVentureRetainers.Clear();
-                foreach (var entry in entries.Where(entry => entry.IsAvailable)) availableVentureRetainers.Add(entry.Retainer.RetainerId);
-            }
             var manager = RetainerManager.Instance();
+            availableVentureRetainers.Clear();
+            var present = new HashSet<ulong>();
             for (uint index = 0; index < roster.Count; index++)
             {
                 var retainer = manager->GetRetainerBySortedIndex(index);
-                if (retainer == null) continue;
-                if (!knownVentureTimers.TryGetValue(retainer->RetainerId, out var previous) || previous.Venture != retainer->VentureId || previous.EndsAt != retainer->VentureComplete)
-                    knownVentureTimers[retainer->RetainerId] = (retainer->NameString, retainer->VentureId, retainer->VentureComplete, DateTimeOffset.UtcNow);
+                if (retainer == null || retainer->RetainerId == 0) continue;
+                present.Add(retainer->RetainerId);
+                // The native Available flag excludes inactive extra retainers without requiring an open picker.
+                if (retainer->Available && retainer->ClassJob != 0) availableVentureRetainers.Add(retainer->RetainerId);
+                knownVentureTimers[retainer->RetainerId] = (retainer->NameString, retainer->VentureId, retainer->VentureComplete, DateTimeOffset.UtcNow);
             }
+            foreach (var id in knownVentureTimers.Keys.Where(id => !present.Contains(id)).ToArray()) knownVentureTimers.Remove(id);
+            live = true;
         }
-        var names = new List<string>();
-        foreach (var id in availableVentureRetainers)
-        {
-            if (!knownVentureTimers.TryGetValue(id, out var timer)) continue;
-            var venture = timer.Venture;
-            var endsAt = timer.EndsAt;
-            if (saved.TryGetValue(id, out var snapshot) && snapshot.RefreshedAt > timer.ChangedAt && snapshot.VentureId is { } savedVenture)
-            {
-                venture = savedVenture;
-                endsAt = snapshot.VentureCompletesAt?.ToUnixTimeSeconds() ?? 0;
-            }
-            if (venture != 0 && endsAt > 0 && endsAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()) names.Add(timer.Name);
-        }
-        return names;
+        VentureReadinessStatus = live ? "Readiness uses live retainer availability and venture timers." :
+            knownVentureTimers.Count > 0 ? "Readiness uses this character's last observed retainer timers. Open the bell on your home world to refresh." :
+            "Retainer data is not loaded yet. Open the bell on your home world once to load it.";
+        var serverTime = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.GetServerTime();
+        var now = serverTime > 0 ? serverTime : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return availableVentureRetainers.Where(id => knownVentureTimers.TryGetValue(id, out var timer) &&
+            timer.Venture != 0 && timer.EndsAt > 0 && timer.EndsAt <= now).Select(id => knownVentureTimers[id].Name).ToArray();
     }
 
     public bool TryGetOwnRetainers(out IReadOnlyList<RetainerIdentity> retainers)

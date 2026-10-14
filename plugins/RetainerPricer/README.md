@@ -118,3 +118,7 @@ Enable **Show home prices in item tooltips** in Settings to append prices inside
 ### Marketboard ROI
 
 Enable **Show ROI beside marketboard search results** in Settings. A column beside the result window follows visible offers and estimates resale at the cheapest matching HQ/NQ home-world listing minus 1 gil, using Sniper purchase fee and resale tax assumptions. Prices are cached for five minutes. Missing home prices show a dash; melds are not matched.
+
+### Venture readiness indicator
+
+The RP server-bar label turns green when an available retainer has an active venture whose completion time has passed. It uses the game server clock and native availability flags, excluding inactive extra retainers. Live home-world data takes priority; while unavailable, this character's last observed timers continue counting down. The tooltip reports the data source. Open the summoning bell on your home world once if retainer data has not loaded.

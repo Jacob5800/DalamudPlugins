@@ -102,6 +102,7 @@ public sealed class Plugin : IDalamudPlugin
             log.Warning("Retainer Pricer: {Error}", retainerCompatibilityError);
         if (bridge.ItemSelectorAvailabilityError is { } selectorCompatibilityError)
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
+        window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
         pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
@@ -157,7 +158,7 @@ public sealed class Plugin : IDalamudPlugin
                     (string.Equals(plugin.InternalName.Replace(" ", ""), "PriceInsight", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(plugin.Name, "Price Insight", StringComparison.OrdinalIgnoreCase)));
                 nextServerBarUpdate = DateTimeOffset.UtcNow.AddSeconds(1);
-                var completed = bridge.GetCompletedVentureNames(config.UniversalisRetainerListings);
+                var completed = bridge.GetCompletedVentureNames();
                 var text = new SeStringBuilder();
                 if (completed.Count > 0) text.AddUiForeground(45);
                 text.AddText(scanning ? "RP (scanning…)" : "RP");
@@ -165,9 +166,9 @@ public sealed class Plugin : IDalamudPlugin
                 serverInfoBarEntry.Text = text.Build();
                 serverInfoBarEntry.Tooltip = (completed.Count > 0
                     ? $"Completed ventures on available retainers ({completed.Count}): {string.Join(", ", completed)}.\n"
-                    : "No completed ventures on retainers confirmed available. Open the summoning bell to refresh availability.\n")
+                    : "No completed ventures on available retainers.\n")
                     + (scanning ? "Fetching Sniper history or checking undercuts.\n" : "")
-                    + "Click to open Retainer Pricer. Readiness uses last observed venture timers and newer saved Universalis lookup snapshots; open the bell to refresh.";
+                    + "Click to open Retainer Pricer. " + bridge.VentureReadinessStatus;
             }
             var open = controller.HasRetainer;
             if (config.OpenWithRetainer && open && !wasOpen) window.IsOpen = true;

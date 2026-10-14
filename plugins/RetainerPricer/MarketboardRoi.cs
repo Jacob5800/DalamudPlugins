@@ -15,6 +15,7 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
     private PriceSnapshot? snapshot;
     private DateTimeOffset nextRequest;
     private string status = "Loading home prices...";
+    public string Diagnostics { get; private set; } = "Open marketboard search results to inspect ROI.";
 
     public unsafe void Draw()
     {
@@ -24,15 +25,16 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
             else { _ = request.Exception; snapshot = null; status = "Home price unavailable"; }
             request = null;
         }
-        if (!config.ShowMarketboardRoi) return;
+        if (!config.ShowMarketboardRoi) { Diagnostics = "Marketboard ROI disabled."; return; }
         var world = bridge.GetHomeWorld();
         var addon = (AddonItemSearchResult*)gameGui.GetAddonByName("ItemSearchResult").Address;
         var agent = AgentItemSearch.Instance();
         var proxy = InfoProxyItemSearch.Instance();
-        if (world is null || addon == null || !addon->IsVisible || addon->Results == null || agent == null || proxy == null || proxy->WaitingForListings) return;
+        if (world is null || addon == null || !addon->IsVisible || addon->Results == null || agent == null || proxy == null || proxy->WaitingForListings)
+        { Diagnostics = $"ROI: home={world is not null}; result window={addon != null && addon->IsVisible}; list={addon != null && addon->Results != null}; agent={agent != null}; proxy={proxy != null}; loading={proxy != null && proxy->WaitingForListings}"; return; }
         var raw = agent->ResultItemId;
         var id = raw >= 1_000_000 ? raw - 1_000_000 : raw;
-        if (id == 0 || proxy->SearchItemId != id) return;
+        if (id == 0 || proxy->SearchItemId != id) { Diagnostics = $"ROI: result item={id}; proxy item={proxy->SearchItemId}; waiting for matching result data."; return; }
         var key = (world.WorldId, id);
         var now = DateTimeOffset.UtcNow;
         if (request is null && now >= nextRequest && (requested != key || snapshot is null || now - snapshot.RetrievedAt > TimeSpan.FromMinutes(5)))
@@ -45,13 +47,15 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
         }
         var matching = requested == key && snapshot?.ItemId == id && snapshot.WorldId == world.WorldId;
         var list = addon->Results;
-        if (list->ItemRendererList == null || list->AllocatedItemRendererListLength is < 1 or > 100) return;
-        for (var i = 0; i < list->AllocatedItemRendererListLength; i++)
+        var rowCount = Math.Min(Math.Min(list->ListLength, proxy->ListingCount), 100);
+        var visible = 0;
+        var shown = 0;
+        for (var index = 0; index < rowCount; index++)
         {
-            var renderer = list->ItemRendererList[i].AtkComponentListItemRenderer;
-            if (renderer == null || renderer->OwnerNode == null || !renderer->OwnerNode->IsVisible()) continue;
-            var index = renderer->ListItemIndex;
-            if (index < 0 || index >= proxy->ListingCount || index >= 100) continue;
+            if (!list->IsItemVisible(index)) continue;
+            var renderer = list->GetItemRenderer(index);
+            if (renderer == null || renderer->OwnerNode == null) continue;
+            visible++;
             var offer = proxy->Listings[index];
             if (offer.ItemId != id || offer.UnitPrice == 0 || offer.IsMannequin) continue;
             var node = renderer->OwnerNode;
@@ -84,7 +88,9 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
             }
             ImGui.End();
             ImGui.PopStyleVar();
+            shown++;
         }
+        Diagnostics = $"ROI: item={id}; list rows={list->ListLength}; listings={proxy->ListingCount}; visible={visible}; labels={shown}; home prices={(matching ? "ready" : status)}";
     }
     public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
 }

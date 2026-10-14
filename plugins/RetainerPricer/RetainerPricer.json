@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.4",
+  "AssemblyVersion": "0.5.1.5",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.4\n\n- Home prices now appear inside the native item tooltip instead of a separate panel.\n- Tooltip prices, recent purchases and sales/day use one cached aggregate request per batch, with up to 50 items and a 90-minute local cache.\n- Prefetches marketable items in loaded inventory, saddlebags and retainer inventory before hovering.\n",
+  "Changelog": "## 0.5.1.5\n\n- Venture readiness uses native retainer availability and the server clock; live venture timers take priority over old lookup snapshots. Tooltip explains live versus last-observed data.\n- Marketboard ROI reads visible rows through the native list API and shows diagnostic status in Settings.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

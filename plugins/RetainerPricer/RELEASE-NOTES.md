@@ -1,5 +1,4 @@
-## 0.5.1.4
+## 0.5.1.5
 
-- Home prices now appear inside the native item tooltip instead of a separate panel.
-- Tooltip prices, recent purchases and sales/day use one cached aggregate request per batch, with up to 50 items and a 90-minute local cache.
-- Prefetches marketable items in loaded inventory, saddlebags and retainer inventory before hovering.
+- Venture readiness uses native retainer availability and the server clock; live venture timers take priority over old lookup snapshots. Tooltip explains live versus last-observed data.
+- Marketboard ROI reads visible rows through the native list API and shows diagnostic status in Settings.

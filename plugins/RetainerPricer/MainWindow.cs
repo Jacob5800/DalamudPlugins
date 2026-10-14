@@ -79,6 +79,7 @@ internal sealed class MainWindow : Window
     private bool feedbackSending;
     private Action? pendingEmptyExceptionsListingStart;
 
+    public Func<string>? MarketboardRoiDiagnostics { get; set; }
     public bool PriceInsightLoaded { get; set; }
 
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
@@ -679,6 +680,7 @@ internal sealed class MainWindow : Window
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show estimated per-offer ROI using matching home-world HQ/NQ listings minus 1 gil and your Sniper fee assumptions.");
         if (PriceInsightLoaded)
             ImGui.TextWrapped("Price Insight is loaded. Both plugins can show item-tooltip prices; enabling this option may display duplicate price panels. Disable one plugin's tooltip prices if desired.");
+        if (marketRoi && MarketboardRoiDiagnostics is not null) ImGui.TextWrapped(MarketboardRoiDiagnostics());
         var tooltipPrices = config.ShowItemTooltipPrices;
         if (ImGui.Checkbox("Show home prices in item tooltips", ref tooltipPrices)) { config.ShowItemTooltipPrices = tooltipPrices; save(); }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show home-world NQ/HQ listings, recent purchases and cached four-day sales velocity inside item tooltips. Marketable inventory items are prefetched in batches of up to 50; results are cached for 90 minutes.");
