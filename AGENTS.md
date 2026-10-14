@@ -23,3 +23,10 @@
 
 - Plugins from separate repositories (including Housing Timeout Reminder) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
 
+
+## Publication dates in Dalamud
+- Every stable and testing package must contain a numeric, positive Unix timestamp in seconds in its manifest `LastUpdate`. A missing or zero value displays as 1970 in Dalamud.
+- Run `scripts/Stamp-PackageDate.ps1` after packaging and before copying/uploading the release ZIP. It must update both the loose manifest and the manifest inside the ZIP.
+- Before declaring publication complete, inspect the downloaded release ZIP and verify its manifest version, changelog and nonzero `LastUpdate`; verify the root feed version, links and publication date too. Preserve the stable changelog/version/links when publishing testing builds.
+- New or changed release workflows, including external plugin workflows, must include this timestamp step. Do not assume a valid feed date repairs an installed package with a zero date.
+- If an older installed release still shows 1970, identify its version and explain that the correction applies to newly packaged updates; do not modify user-installed files to disguise the old metadata.

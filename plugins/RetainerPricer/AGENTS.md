@@ -8,3 +8,5 @@
 - Review the plugin's `?` tab in `MainWindow.DrawHelp()` for every release and check the version label at the bottom-left of the menu.
 
 - Publish future Retainer Pricer changes to the testing channel first. Keep the stable feed version and download links unchanged until the user confirms the testing build works and authorizes promotion. Testing tags use `RetainerPricer-testing-v<version>`; public tags retain `RetainerPricer-v<version>`.
+
+- For stable and testing releases, stamp `LastUpdate` with `scripts/Stamp-PackageDate.ps1` before uploading. Inspect the downloaded ZIP to confirm the packaged manifest has a positive numeric Unix timestamp in seconds. Missing/zero timestamps cause Dalamud changelogs to display 1970; a correct root feed timestamp alone does not repair that.
