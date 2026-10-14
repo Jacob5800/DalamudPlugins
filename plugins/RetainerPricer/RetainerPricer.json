@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.9",
+  "AssemblyVersion": "0.5.1.10",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.9\n\n- Fixed marketboard ROI being hidden when the native loading flag remains set after results are displayed. Visible listing rows are checked directly.\n\n- Added Retainer vendor items beside Start listing items in the Markets header, using the existing retainer-sales lists and protections. Shifted the picker header shortcuts slightly right.\n\n- Hovering marketable items retries incomplete tooltip data at most once per minute per item while keeping available cached values visible. HQ data is only required for items that support HQ.\n\n- Retainer sales skip items with no NPC selling price, including unsellable starter equipment, even when whitelisted or Universalis reports a low market price.\n",
+  "Changelog": "## 0.5.1.10\n\n- Shifted retainer and Markets header shortcuts right while preserving space for close controls.\n- Removed the redundant On-screen price check source selector.\n\n- Marketboard ROI labels now sit inside Search Results, to the right of retainer names and before the scrollbar.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

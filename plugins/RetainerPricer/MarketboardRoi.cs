@@ -76,13 +76,12 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
                 color = roi < 0 ? new Vector4(1, 0.35f, 0.35f, 1) : roi >= 100 ? new Vector4(0.2f, 1, 0.3f, 1) : roi >= 25 ? new Vector4(0.6f, 0.9f, 0.6f, 1) : Vector4.One;
             }
             // Use each live renderer's screen position so virtualized rows follow scrolling.
-            var roiX = addon->X + addon->GetScaledWidth(true) + 3;
-            var viewport = ImGui.GetMainViewport();
-            if (roiX + 125 > viewport.WorkPos.X + viewport.WorkSize.X) roiX = Math.Max(viewport.WorkPos.X, addon->X - 125);
+            var labelWidth = Math.Max(ImGui.CalcTextSize(label).X, ImGui.CalcTextSize("ROI: -100.0%").X) + 8;
+            var roiX = addon->X + addon->GetScaledWidth(true) - 28 * addon->Scale - labelWidth;
             ImGui.SetNextWindowPos(new Vector2(roiX, top));
-            ImGui.SetNextWindowBgAlpha(0.9f);
+            ImGui.SetNextWindowBgAlpha(0f);
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(4, 1));
-            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoFocusOnAppearing;
+            var flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoBackground;
             if (ImGui.Begin($"ROI##RPMarketRow{index}", flags))
             {
                 ImGui.TextColored(color, label);

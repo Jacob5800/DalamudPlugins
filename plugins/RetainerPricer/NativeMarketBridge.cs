@@ -95,7 +95,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         position = default;
         var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerSellList").Address;
         if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
-        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 195 * addon->Scale, addon->Y + 8 * addon->Scale);
+        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 170 * addon->Scale, addon->Y + 8 * addon->Scale);
         return true;
     }
 
@@ -104,7 +104,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         position = default;
         var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerList").Address;
         if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
-        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 330 * addon->Scale, addon->Y + 8 * addon->Scale);
+        position = new System.Numerics.Vector2(addon->X + addon->GetScaledWidth(true) - 290 * addon->Scale, addon->Y + 8 * addon->Scale);
         return true;
     }
 

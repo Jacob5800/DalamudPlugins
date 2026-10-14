@@ -267,9 +267,6 @@ internal sealed class MainWindow : Window
         var automatic = config.AutoPriceNewListings;
         if (ImGui.Checkbox("Automatically price and confirm new listings", ref automatic)) { config.AutoPriceNewListings = automatic; save(); }
         ImGui.TextDisabled("This checkbox auto-prices only the currently opened sale item. Use Start listing items to process all eligible inventory and continue through the list automatically.");
-        var source = (int)PriceSource.Universalis;
-        ImGui.SetNextItemWidth(250);
-        ImGui.Combo("On-screen price check source", ref source, "Universalis\0");
         ImGui.TextWrapped(config.UseMaximumPriceAge
             ? $"Check price again uses Universalis. Upload data older than {config.MaximumAgeMinutes} minutes is skipped. Automatic pricing uses current listings first; new listings can fall back to 30-day sales."
             : "Check price again uses Universalis. Upload age is not filtered; automatic pricing uses current listings first; new listings can fall back to 30-day sales.");
