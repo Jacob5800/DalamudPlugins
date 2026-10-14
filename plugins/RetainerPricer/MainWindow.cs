@@ -30,6 +30,9 @@ internal sealed class MainWindow : Window
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string sniperItemSearch = "";
     private ItemChoice? sniperItemSelection;
+    private string backupPath = "";
+    private string backupStatus = "";
+    private System.Text.Json.Nodes.JsonObject? backupPreview;
     private string lookupSearch = "";
     private string lookupSearchCache = "";
     private List<ItemChoice> lookupMatches = [];
@@ -588,8 +591,55 @@ internal sealed class MainWindow : Window
         ImGui.EndPopup();
     }
 
+    private void DrawSettingsBackup()
+    {
+        if (!ImGui.CollapsingHeader("Backup / export settings")) return;
+        ImGui.TextWrapped("Includes settings, item lists, batch quantities and retainer venture assignments. Excludes market caches and retainer listing snapshots. Venture assignments retain their retainer IDs.");
+        ImGui.InputText("Backup JSON path", ref backupPath, 1024);
+        void ExportTo(string path) => File.WriteAllText(path, SettingsBackup.Export(config).ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        var busy = controller.Busy || ventures.IsRunning || vendor.IsRunning || sniper.IsRunning || undercuts.Running;
+        if (ImGui.Button("Export settings"))
+        {
+            try { ExportTo(backupPath.Trim().Trim('"')); backupStatus = "Settings exported."; }
+            catch (Exception ex) { backupStatus = ex.Message; }
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Preview import"))
+        {
+            try { backupPreview = SettingsBackup.Read(backupPath); backupStatus = "Backup validated. Review the included settings below."; }
+            catch (Exception ex) { backupPreview = null; backupStatus = ex.Message; }
+        }
+        if (backupPreview is { } preview)
+        {
+            ImGui.TextWrapped($"Includes: {string.Join(", ", preview.Select(pair => pair.Key))}");
+            ImGui.TextWrapped("Merge preserves existing list entries and dictionary values, adding missing entries; included scalar settings are applied. Replace replaces included settings and lists. Both preserve your market caches and listing snapshots.");
+            ImGui.BeginDisabled(busy);
+            void Import(bool merge)
+            {
+                try
+                {
+                    var original = Path.GetFullPath(backupPath.Trim().Trim('"'));
+                    var safetyPath = Path.Combine(Path.GetDirectoryName(original)!, $"RetainerPricer-before-import-{DateTime.Now:yyyyMMdd-HHmmssfff}.json");
+                    ExportTo(safetyPath);
+                    SettingsBackup.Apply(config, preview, merge);
+                    setServerInfoBarShown(config.ShowServerInfoBarButton);
+                    save();
+                    backupStatus = $"Import completed. Previous settings backed up to {safetyPath}";
+                    backupPreview = null;
+                }
+                catch (Exception ex) { backupStatus = $"Import failed: {ex.Message}"; }
+            }
+            if (ImGui.Button("Merge lists and apply settings")) Import(true);
+            ImGui.SameLine();
+            if (ImGui.Button("Replace included settings")) Import(false);
+            ImGui.EndDisabled();
+            if (busy) ImGui.TextDisabled("Stop watching and active operations before importing.");
+        }
+        if (!string.IsNullOrEmpty(backupStatus)) ImGui.TextWrapped(backupStatus);
+    }
     private void DrawSettings()
     {
+        DrawSettingsBackup();
         var showInventoryMenu = config.ShowInventoryContextMenu;
         if (ImGui.Checkbox("Show inventory right-click list options", ref showInventoryMenu))
         {
