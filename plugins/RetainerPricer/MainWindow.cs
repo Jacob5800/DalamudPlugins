@@ -1134,6 +1134,10 @@ internal sealed class MainWindow : Window
             ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.55f, 1f), "All marketable items (default)");
             ImGui.TextDisabled("Add items above only to limit the scan, for example when testing.");
         }
+        var skipOneGilLookup = config.SniperSkipOneGilLookup;
+        if (ImGui.Checkbox("Skip 1 gil lookup", ref skipOneGilLookup))
+        { config.SniperSkipOneGilLookup = skipOneGilLookup; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skip targeted startup lookups for existing 1-gil offers. New live 1-gil alerts still appear normally. Applies when you start watching.");
         ImGui.TextUnformatted("Market scope");
         var worldScope = !config.SniperUseDataCenterPrices && !config.SniperUseRegionPrices;
         if (ImGui.RadioButton("World", worldScope))
@@ -1295,25 +1299,30 @@ internal sealed class MainWindow : Window
                 : "No qualifying new listings received yet.");
             return;
         }
-        if (ImGui.BeginTable("##sniperDealsLayoutV4", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+        if (ImGui.BeginTable("##sniperDealsLayoutV5", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
                 new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 25))))
         {
-            ImGui.TableSetupColumn("Type of alert", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 220);
-            ImGui.TableSetupColumn("Data Center", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Server", ImGuiTableColumnFlags.WidthFixed, 110);
-            ImGui.TableSetupColumn("Quality", ImGuiTableColumnFlags.WidthFixed, 58);
-            ImGui.TableSetupColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 70);
-            ImGui.TableSetupColumn("Listing price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 100);
-            ImGui.TableSetupColumn(config.SniperHistoryDays == 0 ? "Any-age median" : $"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
-            ImGui.TableSetupColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
-            ImGui.TableSetupColumn("Est. sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
-            ImGui.TableSetupColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
-            ImGui.TableSetupColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
-            ImGui.TableSetupColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
-            ImGui.TableSetupColumn("Last sale price", ImGuiTableColumnFlags.WidthFixed, 105);
+            void SetupDealColumn(string heading, ImGuiTableColumnFlags flags, float width)
+            {
+                var headerWidth = ImGui.CalcTextSize(heading).X + ImGui.GetStyle().CellPadding.X * 2 + ImGui.GetFontSize() * 1.5f;
+                ImGui.TableSetupColumn(heading, flags, Math.Max(width, headerWidth));
+            }
+            SetupDealColumn("Type of alert", ImGuiTableColumnFlags.WidthFixed, 100);
+            SetupDealColumn("Item", ImGuiTableColumnFlags.WidthStretch, 220);
+            SetupDealColumn("Data Center", ImGuiTableColumnFlags.WidthFixed, 100);
+            SetupDealColumn("Server", ImGuiTableColumnFlags.WidthFixed, 110);
+            SetupDealColumn("Quality", ImGuiTableColumnFlags.WidthFixed, 58);
+            SetupDealColumn("Quantity", ImGuiTableColumnFlags.WidthFixed, 70);
+            SetupDealColumn("Listing price", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.PreferSortDescending, 100);
+            SetupDealColumn(config.SniperHistoryDays == 0 ? "Any-age median" : $"{config.SniperHistoryDays}d median", ImGuiTableColumnFlags.WidthFixed, 88);
+            SetupDealColumn("Discount", ImGuiTableColumnFlags.WidthFixed, 90);
+            SetupDealColumn("Est. sales/day", ImGuiTableColumnFlags.WidthFixed, 80);
+            SetupDealColumn("Last sale age", ImGuiTableColumnFlags.WidthFixed, 100);
+            SetupDealColumn("Est. profit/item", ImGuiTableColumnFlags.WidthFixed, 105);
+            SetupDealColumn("Savings/item", ImGuiTableColumnFlags.WidthFixed, 95);
+            SetupDealColumn("Last sale price", ImGuiTableColumnFlags.WidthFixed, 105);
             ImGui.TableSetColumnEnabled(13, config.SniperHistoryDays == 0);
             ImGui.TableSetColumnEnabled(2, config.SniperUseRegionPrices);
             ImGui.TableSetColumnEnabled(11, config.SniperShowProfitEstimates);

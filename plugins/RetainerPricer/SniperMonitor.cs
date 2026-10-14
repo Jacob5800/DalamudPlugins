@@ -105,7 +105,7 @@ internal sealed class SniperMonitor : IDisposable
                     : ready > 0 ? $"Processing verification queue ({ready} ready)"
                     : deferred > 0 ? $"Waiting to retry failed candidates; next attempt in {Math.Max(0, Math.Ceiling((state.CandidateIds.Select(id => state.NextCandidateCheck.GetValueOrDefault(id, now)).Min() - now).TotalSeconds)):N0}s"
                     : "Watching live listings — waiting for new candidates";
-                return $"{activity} · {liveFeedStatus} · {state.LiveListingsSeen:N0} new listings received · {ready:N0} ready / {deferred:N0} deferred · {state.CompletedHistoryItemIds.Count:N0} items checked ({state.Baselines.Keys.Select(key => key.ItemId).Distinct().Count():N0} with usable history) · {state.FailedItemIds.Count:N0} pending history failures · {state.CacheFailedBatches:N0} cache batch failures · {state.ExistingOneGilItems.Count:N0} existing 1-gil lookups pending. Cached discovery is complete; existing 1-gil offers are checked once, ordinary deals watch new listings.";
+                return $"{activity} · {liveFeedStatus} · {state.LiveListingsSeen:N0} new listings received · {ready:N0} ready / {deferred:N0} deferred · {state.CompletedHistoryItemIds.Count:N0} items checked ({state.Baselines.Keys.Select(key => key.ItemId).Distinct().Count():N0} with usable history) · {state.FailedItemIds.Count:N0} pending history failures · {state.CacheFailedBatches:N0} cache batch failures · {state.ExistingOneGilItems.Count:N0} existing 1-gil lookups pending. Cached discovery is complete; {(config.SniperSkipOneGilLookup ? "existing 1-gil lookup skipped" : "existing 1-gil offers checked once")}, live alerts remain active.";
             }
         }
     }
@@ -290,7 +290,7 @@ internal sealed class SniperMonitor : IDisposable
         {
             try
             {
-                var prices = await universalis.FetchSniperCachedPricesAsync(scope.HistoryScopes.Single(), batch.Select(item => item.ItemId).ToArray(), token, id => { lock (gate) state.ExistingOneGilItems.Add(id); }).ConfigureAwait(false);
+                var prices = await universalis.FetchSniperCachedPricesAsync(scope.HistoryScopes.Single(), batch.Select(item => item.ItemId).ToArray(), token, id => { lock (gate) { if (!config.SniperSkipOneGilLookup) state.ExistingOneGilItems.Add(id); } }).ConfigureAwait(false);
                 lock (gate)
                 {
                     foreach (var pair in prices) state.CachedPrices[pair.Key] = pair.Value;
@@ -322,24 +322,25 @@ internal sealed class SniperMonitor : IDisposable
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    uint existingId;
-                    lock (gate) existingId = state.ExistingOneGilItems.FirstOrDefault(id => !state.ExistingOneGilNext.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow);
-                    if (existingId != 0)
+                    uint[] existingIds;
+                    lock (gate) existingIds = state.ExistingOneGilItems.Where(id => !state.ExistingOneGilNext.TryGetValue(id, out var next) || next <= DateTimeOffset.UtcNow).Take(100).ToArray();
+                    if (existingIds.Length > 0)
                     {
-                        lock (gate) { verifyingCandidate = true; verifyingItemName = $"existing 1-gil listings for {itemNames.GetValueOrDefault(existingId, $"Item {existingId}")}"; }
+                        lock (gate) { verifyingCandidate = true; verifyingItemName = $"existing 1-gil listings: {existingIds.Length} items"; }
                         try
                         {
-                            var listings = await universalis.FetchExistingOneGilAsync(scope.HistoryScopes.Single(), existingId, world.WorldId, ct).ConfigureAwait(false);
+                            var listings = await universalis.FetchExistingOneGilAsync(scope.HistoryScopes.Single(), existingIds, world.WorldId, ct).ConfigureAwait(false);
                             lock (gate)
                             {
-                                foreach (var listing in listings.Where(listing => watchedWorlds.Contains(listing.WorldId)))
+                                foreach (var listing in listings.Values.SelectMany(offers => offers).Where(listing => watchedWorlds.Contains(listing.WorldId)))
                                     ProcessLiveListingLocked(new UniversalisListing(listing.ItemId, listing.WorldId, listing.IsHq, 1, listing.Quantity, null), world, scope, watchedWorlds, state, threshold, minimumItemPrice);
-                                state.ExistingOneGilItems.Remove(existingId);
-                                state.ExistingOneGilNext.Remove(existingId);
+                                foreach (var id in existingIds)
+                                    if (listings.ContainsKey(id)) { state.ExistingOneGilItems.Remove(id); state.ExistingOneGilNext.Remove(id); }
+                                    else state.ExistingOneGilNext[id] = DateTimeOffset.UtcNow.AddSeconds(30);
                             }
                         }
                         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                        catch (Exception) { lock (gate) state.ExistingOneGilNext[existingId] = DateTimeOffset.UtcNow.AddSeconds(30); }
+                        catch (Exception) { lock (gate) foreach (var id in existingIds) state.ExistingOneGilNext[id] = DateTimeOffset.UtcNow.AddSeconds(30); }
                         finally { lock (gate) verifyingCandidate = false; }
                         await Task.Delay(1000, ct).ConfigureAwait(false);
                         continue;

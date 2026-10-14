@@ -98,3 +98,5 @@ The screen allows the selected threshold plus 25 percentage points, capped at 12
 Cached one-gil minima also trigger targeted startup listing lookups. Only offers still present in the current API response become alerts; failed lookups retry after 30 seconds. Candidate history requests up to 750 sales shared across HQ/NQ. In history-days 0 mode the Last sale price column shows the latest dated same-quality unit price, separately from the median. Scan options can be collapsed while controls, status and results remain visible.
 
 Search the Sniper deals table by item name, 1 gil for 1-gil alerts, or deal/deals for ordinary deals. Clear restores the view; search does not change watched items.
+
+Skip 1 gil lookup (off by default) disables existing-offer startup checks while keeping live alerts. Startup checks batch up to 100 flagged items without history; successful results are kept and unresolved IDs retry. Deal headers start wide enough for full names and sort arrows.
