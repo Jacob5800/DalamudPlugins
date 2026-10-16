@@ -82,6 +82,8 @@ internal sealed class MainWindow : Window
     public void RequestListingFromMarketMenu() { IsOpen = true; startListingFromShortcut = true; }
 
     public Func<string>? MarketboardRoiDiagnostics { get; set; }
+    public StatusHistory? OperationHistory { get; set; }
+    private bool statusFailuresOnly = true;
     public bool PriceInsightLoaded { get; set; }
 
     public MainWindow(PluginConfig config, PricingController controller, IReadOnlyList<ItemChoice> itemChoices,
@@ -275,17 +277,17 @@ internal sealed class MainWindow : Window
 
         var operation = ventures.IsRunning ? "Ventures" : vendor.IsRunning ? "Retainer sales" : "Pricing";
         var status = ventures.IsRunning ? ventures.Status : vendor.IsRunning ? vendor.Status : controller.Status;
-        var failed = new[] { "failed", "error", "timed out", "timeout", "could not", "cannot", "unavailable", "try again", "stopped", "HTTP" }
-            .Any(word => status.Contains(word, StringComparison.OrdinalIgnoreCase));
+        var completed = StatusHistory.IsComplete(status);
+        var failed = StatusHistory.IsFailure(status);
         var awaiting = controller.MateriaWarningItem is not null || status.Contains("Review", StringComparison.OrdinalIgnoreCase) || status.Contains("choose", StringComparison.OrdinalIgnoreCase);
-        var statusColor = failed ? new Vector4(1f, 0.4f, 0.35f, 1f) : awaiting ? new Vector4(1f, 0.82f, 0.25f, 1f) : new Vector4(0.45f, 0.85f, 1f, 1f);
+        var statusColor = completed ? new Vector4(0.4f, 0.9f, 0.55f, 1f) : failed ? new Vector4(1f, 0.4f, 0.35f, 1f) : awaiting ? new Vector4(1f, 0.82f, 0.25f, 1f) : new Vector4(0.45f, 0.85f, 1f, 1f);
         ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.08f, 0.10f, 0.13f, 0.94f));
         var statusWidth = Math.Max(100, ImGui.GetContentRegionAvail().X - 24);
         var statusHeight = ImGui.GetFrameHeightWithSpacing() + ImGui.CalcTextSize(status, false, statusWidth).Y + 24;
         if (controller.Busy) statusHeight += ImGui.CalcTextSize(controller.Progress, false, statusWidth).Y;
         if (ImGui.BeginChild("Operation status##RetainerPricer", new Vector2(0, statusHeight), true))
         {
-            ImGui.TextColored(statusColor, $"STATUS · {operation}{(failed ? " · ATTENTION" : awaiting ? " · ACTION REQUIRED" : "")}");
+            ImGui.TextColored(statusColor, $"STATUS · {operation}{(completed ? " · COMPLETE" : failed ? " · ATTENTION" : awaiting ? " · ACTION REQUIRED" : "")}");
             ImGui.SameLine();
             if (ImGui.SmallButton("Copy status"))
                 ImGui.SetClipboardText($"Retainer Pricer {typeof(MainWindow).Assembly.GetName().Version}\n{operation}: {status}\n{controller.Progress}");
@@ -311,6 +313,7 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Ventures")) { DrawVentures(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
             ImGui.EndTabBar();
@@ -1040,6 +1043,36 @@ internal sealed class MainWindow : Window
             }
             ImGui.EndTable();
         }
+    }
+
+    private void DrawStatusHistory()
+    {
+        ImGui.TextWrapped("Recent operation messages and failures. The latest 300 entries are kept for this plugin session; entries are also written to Dalamud's log.");
+        ImGui.Checkbox("Failures only", ref statusFailuresOnly);
+        var entries = OperationHistory?.Snapshot() ?? [];
+        var shown = entries.Where(entry => !statusFailuresOnly || entry.Level == "Warning").ToArray();
+        if (ImGui.Button("Copy shown messages") && OperationHistory is not null) ImGui.SetClipboardText(OperationHistory.Export(shown));
+        ImGui.SameLine();
+        if (ImGui.Button("Copy all messages") && OperationHistory is not null) ImGui.SetClipboardText(OperationHistory.Export(entries));
+        ImGui.SameLine();
+        if (ImGui.Button("Clear history")) OperationHistory?.Clear();
+        if (shown.Length == 0) ImGui.TextDisabled("No matching messages recorded.");
+        if (ImGui.BeginChild("Status history", new Vector2(0, 0), true))
+        {
+            foreach (var entry in shown.Reverse())
+            {
+                ImGui.PushID(entry.Time.ToUnixTimeMilliseconds().ToString() + entry.Source + entry.Message);
+                var color = entry.Level == "Warning" ? new Vector4(1f, 0.4f, 0.35f, 1f) : entry.Level == "Complete" ? new Vector4(0.4f, 0.9f, 0.55f, 1f) : new Vector4(0.45f, 0.85f, 1f, 1f);
+                ImGui.TextColored(color, $"{entry.Time:HH:mm:ss} · {entry.Source} · {entry.Level}");
+                ImGui.SameLine();
+                if (ImGui.SmallButton("Copy") && OperationHistory is not null) ImGui.SetClipboardText(OperationHistory.Export([entry]));
+                ImGui.TextWrapped(entry.Message);
+                if (!string.IsNullOrWhiteSpace(entry.Progress)) ImGui.TextWrapped(entry.Progress);
+                ImGui.Separator();
+                ImGui.PopID();
+            }
+        }
+        ImGui.EndChild();
     }
 
     private void DrawHelp()

@@ -122,3 +122,7 @@ Enable **Show ROI beside marketboard search results** in Settings. A column besi
 ### Venture readiness indicator
 
 The RP server-bar label turns green when an available retainer has an active venture whose completion time has passed. It uses the game server clock and native availability flags, excluding inactive extra retainers. Live home-world data takes priority; while unavailable, this character's last observed timers continue counting down. The tooltip reports the data source. Open the summoning bell on your home world once if retainer data has not loaded.
+
+### Troubleshooting status
+
+The Status tab keeps the latest 300 messages for the current plugin session, including pricing, retainer sales, ventures, individual listing failures and Universalis diagnostics. Use Failures only, Copy shown messages, Copy all messages or a row's Copy button to report an issue with its timestamp and plugin version. Messages are also written to Dalamud's normal log. Clearing the tab does not delete log entries. Completed auto-update summaries are green even when inactive retainers were skipped.

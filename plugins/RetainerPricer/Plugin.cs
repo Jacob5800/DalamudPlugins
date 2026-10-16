@@ -17,6 +17,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commands;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly StatusHistory statusHistory;
     private readonly IDtrBarEntry serverInfoBarEntry;
     private DateTimeOffset nextServerBarUpdate;
     private readonly WindowSystem windows = new("RetainerPricer");
@@ -45,6 +46,7 @@ public sealed class Plugin : IDalamudPlugin
         IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
+        statusHistory = new StatusHistory(log);
         (this.condition, this.chat) = (condition, chat);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
         var migrateConfig = config.Version < 14;
@@ -80,7 +82,7 @@ public sealed class Plugin : IDalamudPlugin
             .GroupBy(world => world.RowId)
             .ToDictionary(group => group.Key, group => group.First().Name.ToString());
         controller = new PricingController(bridge, universalis, config, marketableItemIds, Save);
-        universalis.DiagnosticLog = message => log.Warning("{Diagnostic}", message);
+        universalis.DiagnosticLog = message => statusHistory.Add("Universalis", message);
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);
@@ -102,6 +104,7 @@ public sealed class Plugin : IDalamudPlugin
             log.Warning("Retainer Pricer: {Error}", retainerCompatibilityError);
         if (bridge.ItemSelectorAvailabilityError is { } selectorCompatibilityError)
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
+        window.OperationHistory = statusHistory;
         window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
@@ -146,6 +149,11 @@ public sealed class Plugin : IDalamudPlugin
             if (controller.MateriaWarningItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
+            statusHistory.Observe("Pricing", controller.Status, controller.Progress);
+            statusHistory.Observe("Retainer sales", vendor.Status);
+            statusHistory.Observe("Ventures", ventures.Status);
+            foreach (var row in controller.Rows.Where(row => StatusHistory.IsFailure(row.Status)))
+                statusHistory.Observe($"Listing {row.Item.Session.RetainerId}/{row.Item.Slot}/{row.Item.ItemId}", $"{row.Item.Name} ({(row.Item.IsHq ? "HQ" : "NQ")}): {row.Status}");
             undercuts.SetSniperWatching(sniper.WatchingMarketScope == config.UndercutMarketScope);
             undercuts.Update(bridge.GetHomeWorld(), UndercutsPaused(), row =>
             {
