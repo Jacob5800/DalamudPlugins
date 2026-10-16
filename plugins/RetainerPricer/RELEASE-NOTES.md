@@ -1,3 +1,3 @@
-## 0.5.1.12
+## 0.5.1.13
 
-- Shortened the marketboard ROI hover explanation to two lines. Sniper tooltips are unchanged.
+- Operation status now appears in a prominent colored panel with Copy status, including the plugin version and progress for troubleshooting.

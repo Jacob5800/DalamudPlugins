@@ -273,11 +273,29 @@ internal sealed class MainWindow : Window
         ImGui.EndDisabled();
         ImGui.Separator();
 
-        ImGui.TextWrapped(ventures.IsRunning ? ventures.Status : vendor.IsRunning ? vendor.Status : controller.Status);
-        if (controller.Busy)
+        var operation = ventures.IsRunning ? "Ventures" : vendor.IsRunning ? "Retainer sales" : "Pricing";
+        var status = ventures.IsRunning ? ventures.Status : vendor.IsRunning ? vendor.Status : controller.Status;
+        var failed = new[] { "failed", "error", "timed out", "timeout", "could not", "cannot", "unavailable", "try again", "stopped", "HTTP" }
+            .Any(word => status.Contains(word, StringComparison.OrdinalIgnoreCase));
+        var awaiting = controller.MateriaWarningItem is not null || status.Contains("Review", StringComparison.OrdinalIgnoreCase) || status.Contains("choose", StringComparison.OrdinalIgnoreCase);
+        var statusColor = failed ? new Vector4(1f, 0.4f, 0.35f, 1f) : awaiting ? new Vector4(1f, 0.82f, 0.25f, 1f) : new Vector4(0.45f, 0.85f, 1f, 1f);
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.08f, 0.10f, 0.13f, 0.94f));
+        var statusWidth = Math.Max(100, ImGui.GetContentRegionAvail().X - 24);
+        var statusHeight = ImGui.GetFrameHeightWithSpacing() + ImGui.CalcTextSize(status, false, statusWidth).Y + 24;
+        if (controller.Busy) statusHeight += ImGui.CalcTextSize(controller.Progress, false, statusWidth).Y;
+        if (ImGui.BeginChild("Operation status##RetainerPricer", new Vector2(0, statusHeight), true))
         {
-            if (!string.IsNullOrEmpty(controller.Progress)) ImGui.TextUnformatted(controller.Progress);
+            ImGui.TextColored(statusColor, $"STATUS · {operation}{(failed ? " · ATTENTION" : awaiting ? " · ACTION REQUIRED" : "")}");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Copy status"))
+                ImGui.SetClipboardText($"Retainer Pricer {typeof(MainWindow).Assembly.GetName().Version}\n{operation}: {status}\n{controller.Progress}");
+            ImGui.PushStyleColor(ImGuiCol.Text, statusColor);
+            ImGui.TextWrapped(status);
+            ImGui.PopStyleColor();
+            if (controller.Busy && !string.IsNullOrEmpty(controller.Progress)) ImGui.TextWrapped(controller.Progress);
         }
+        ImGui.EndChild();
+        ImGui.PopStyleColor();
         DrawMarketboardPrompt();
         DrawPriceDropReviewPopup();
         if (ImGui.BeginTabBar("##pricingTabs"))
