@@ -56,3 +56,7 @@ Open the in-game Portrait Editor to automatically populate Prefer Frame, Prefer 
 ## Featured look references
 
 The bundled gallery now contains 30 original lighting/composition recipes. Community inspiration and reception evidence are documented in [LOOK-REFERENCES.md](LOOK-REFERENCES.md). These are adaptable styles rather than copied preset codes; screenshot framing, backgrounds and equipment effects may need manual adjustment.
+
+## Locks and saved presets
+
+Open **Locks and saved presets** to preserve camera, lighting, pose or expression independently while generating and applying looks. **Undo last apply** restores the previous editor preview. Save the current editor under a unique name to keep up to 100 local presets; each can be applied, copied as a share code or deleted. Loading a named preset restores its full design, independently of generation locks. Saved presets and locks are included in settings backups. Applying and undoing still require the game's Save button to persist the result.

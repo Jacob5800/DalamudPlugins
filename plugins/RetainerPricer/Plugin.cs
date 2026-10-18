@@ -171,6 +171,7 @@ public sealed class Plugin : IDalamudPlugin
                 var completed = bridge.GetCompletedVentureNames();
                 var text = new SeStringBuilder();
                 if (completed.Count > 0) text.AddUiForeground(45);
+                text.AddText("\uE049 ");
                 text.AddText(scanning ? "RP (scanning…)" : "RP");
                 if (completed.Count > 0) text.AddUiForegroundOff();
                 serverInfoBarEntry.Text = text.Build();

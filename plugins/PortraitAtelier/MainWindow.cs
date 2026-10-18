@@ -29,6 +29,8 @@ internal sealed class MainWindow : Window
     private int variation;
     private bool favoritesOnly;
     private bool randomLook;
+    private PortraitPreset? undoPreset;
+    private string presetName = "";
     private DateTimeOffset nextOwnedDesignRefresh;
     private List<PortraitCharacterOption> ownedBackgrounds = [];
     private List<PortraitCharacterOption> ownedFrames = [];
@@ -51,6 +53,7 @@ internal sealed class MainWindow : Window
     {
         CompleteCatalogRefresh();
         DrawSettingsBackup();
+        DrawLocksAndPresets();
         DrawDesignPreferences();
         ImGui.TextWrapped("Build a portrait look using lighting, framing and your unlocked poses, expressions and designs.");
         var styleCharacter = config.StylePoseAndExpression;
@@ -97,6 +100,67 @@ internal sealed class MainWindow : Window
         var windowSize = ImGui.GetWindowSize();
         var versionSize = ImGui.CalcTextSize(version);
         ImGui.GetWindowDrawList().AddText(new Vector2(windowPos.X + windowSize.X - versionSize.X - 18, windowPos.Y + windowSize.Y - versionSize.Y - 8), ImGui.GetColorU32(ImGuiCol.TextDisabled), version);
+    }
+
+    private void DrawLocksAndPresets()
+    {
+        if (!ImGui.CollapsingHeader("Locks and saved presets")) return;
+        void Toggle(string label, bool value, Action<bool> apply) { if (ImGui.Checkbox(label, ref value)) { apply(value); saveConfig(); } }
+        Toggle("Lock camera", config.LockCamera, value => config.LockCamera = value); ImGui.SameLine();
+        Toggle("Lock lighting", config.LockLighting, value => config.LockLighting = value); ImGui.SameLine();
+        Toggle("Lock pose", config.LockPose, value => config.LockPose = value); ImGui.SameLine();
+        Toggle("Lock expression", config.LockExpression, value => config.LockExpression = value);
+        ImGui.TextWrapped("Locks preserve the corresponding values from the current editor when applying, or the captured base when generating. Explicitly loading a saved preset restores its full design.");
+        ImGui.BeginDisabled(undoPreset is null);
+        if (ImGui.Button("Undo last apply") && undoPreset is { } previous)
+        {
+            if (editorBridge.TryApply(previous, out var error))
+            { undoPreset = null; automaticSession.Reset(); status = AppendApplyWarning("Restored the portrait before the last apply. Use the game's Save to keep it.", error); }
+            else status = error;
+        }
+        ImGui.EndDisabled();
+        ImGui.InputText("Preset name", ref presetName, 80);
+        config.NamedPresets ??= [];
+        if (ImGui.Button("Save current editor as preset"))
+        {
+            var name = presetName.Trim();
+            if (name.Length == 0) status = "Enter a preset name first.";
+            else if (config.NamedPresets.ContainsKey(name)) status = "That name already exists. Choose another name or delete the existing preset.";
+            else if (config.NamedPresets.Count >= 100) status = "Maximum 100 saved presets reached.";
+            else if (editorBridge.TryCapture(out var captured, out var error) && captured is not null)
+            { config.NamedPresets[name] = captured.ToShareCode(); saveConfig(); status = $"Saved {name}."; }
+            else status = error;
+        }
+        foreach (var pair in config.NamedPresets.ToArray())
+        {
+            ImGui.PushID(pair.Key);
+            ImGui.TextUnformatted(pair.Key); ImGui.SameLine();
+            if (ImGui.SmallButton("Load and apply"))
+            {
+                if (PortraitPreset.TryParse(pair.Value, out var saved, out var parseError) && saved is not null)
+                {
+                    if (!editorBridge.TryCapture(out var before, out var captureError) || before is null) status = captureError;
+                    else if (editorBridge.TryApply(saved, out var applyError))
+                    { undoPreset = before; generatedPreset = saved; generatedCode = saved.ToShareCode(); automaticSession.Reset(); status = AppendApplyWarning($"Loaded {pair.Key} into the editor.", applyError); }
+                    else status = applyError;
+                }
+                else status = parseError;
+            }
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Copy code")) ImGui.SetClipboardText(pair.Value);
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Delete")) { config.NamedPresets.Remove(pair.Key); saveConfig(); }
+            ImGui.PopID();
+        }
+    }
+
+    private PortraitPreset PreserveLocks(PortraitPreset generated, PortraitPreset current)
+    {
+        if (config.LockCamera) generated = generated with { CameraPosition = current.CameraPosition, CameraTarget = current.CameraTarget, CameraZoom = current.CameraZoom, ImageRotation = current.ImageRotation };
+        if (config.LockPose) generated = generated with { BannerTimeline = current.BannerTimeline, AnimationProgress = current.AnimationProgress };
+        if (config.LockExpression) generated = generated with { Expression = current.Expression, HeadDirection = current.HeadDirection, EyeDirection = current.EyeDirection };
+        if (config.LockLighting) generated = generated with { DirectionalRed = current.DirectionalRed, DirectionalGreen = current.DirectionalGreen, DirectionalBlue = current.DirectionalBlue, DirectionalBrightness = current.DirectionalBrightness, DirectionalVerticalAngle = current.DirectionalVerticalAngle, DirectionalHorizontalAngle = current.DirectionalHorizontalAngle, AmbientRed = current.AmbientRed, AmbientGreen = current.AmbientGreen, AmbientBlue = current.AmbientBlue, AmbientBrightness = current.AmbientBrightness };
+        return generated;
     }
 
     private void DrawDesignPreferences()
@@ -164,6 +228,8 @@ internal sealed class MainWindow : Window
                     throw new InvalidOperationException("Unsupported Portrait Atelier settings backup.");
                 if (backup.Settings.FavoriteStyleIds is null || backup.Settings.FavoriteStyleIds.Count > 5000 || backup.Settings.FavoriteStyleIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 200) || backup.Settings.NextAutomaticStyleIndex < 0)
                     throw new InvalidOperationException("Invalid favorite styles or automatic-style position.");
+                if (backup.Settings.NamedPresets is { } presets && (presets.Count > 100 || presets.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Key.Length > 80 || !PortraitPreset.TryParse(pair.Value, out _, out _))))
+                    throw new InvalidOperationException("Invalid saved portrait presets.");
                 settingsPreview = backup;
                 settingsStatus = "Preview ready. Nothing imported yet.";
             }
@@ -187,6 +253,11 @@ internal sealed class MainWindow : Window
                     config.PreferredAccentIds = (preview.Settings.PreferredAccentIds ?? []).Distinct().Take(4096).ToList();
                     config.StylePoseAndExpression = preview.Settings.StylePoseAndExpression;
                     config.StyleOwnedDesign = preview.Settings.StyleOwnedDesign;
+                    config.LockCamera = preview.Settings.LockCamera;
+                    config.LockLighting = preview.Settings.LockLighting;
+                    config.LockPose = preview.Settings.LockPose;
+                    config.LockExpression = preview.Settings.LockExpression;
+                    config.NamedPresets = new Dictionary<string, string>(preview.Settings.NamedPresets ?? []);
                     config.StyleBackground = preview.Settings.StyleBackground;
                     config.StyleFrame = preview.Settings.StyleFrame;
                     config.StyleAccent = preview.Settings.StyleAccent;
@@ -388,14 +459,15 @@ internal sealed class MainWindow : Window
 
     private void ApplyGenerated()
     {
-        if (generatedPreset is not null && editorBridge.TryCapture(out var current, out _) && current is not null)
-            generatedPreset = PreserveDisabledDesigns(generatedPreset, current);
+        if (!editorBridge.TryCapture(out var current, out var captureError) || current is null) { status = captureError; return; }
+        if (generatedPreset is not null) generatedPreset = PreserveLocks(PreserveDisabledDesigns(generatedPreset, current), current);
             if (generatedPreset is null)
             {
                 status = "Generate a look before applying it.";
             }
-            else if (editorBridge.TryApply(generatedPreset, out var error, config.StylePoseAndExpression))
+            else if (editorBridge.TryApply(generatedPreset, out var error, config.StylePoseAndExpression && !config.LockCamera))
             {
+                undoPreset = current;
                 if (editorBridge.TryCapture(out var actual, out _) && actual is not null)
                 {
                     generatedPreset = actual;
@@ -424,8 +496,8 @@ internal sealed class MainWindow : Window
         var styled = basePreset.WithStyle(selectedStyle, strength, variation);
         if (strength > 0)
             styled = editorBridge.StyleOptions(styled, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign, config);
-        generatedPreset = styled;
-        generatedCode = styled.ToShareCode();
+        generatedPreset = PreserveLocks(styled, basePreset);
+        generatedCode = generatedPreset.ToShareCode();
         variation++;
         status = $"Generated {selectedStyle.Name}. Enabled character and design choices use unlocked options from the open editor.";
         return true;
@@ -449,16 +521,17 @@ internal sealed class MainWindow : Window
         generatedPreset = editorBridge.StyleOptions(generatedPreset, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign, config);
         if (!config.StylePoseAndExpression)
             generatedPreset = generatedPreset with { BannerTimeline = captured.BannerTimeline, Expression = captured.Expression, AnimationProgress = captured.AnimationProgress };
-        generatedPreset = PreserveDisabledDesigns(generatedPreset, captured);
+        generatedPreset = PreserveLocks(PreserveDisabledDesigns(generatedPreset, captured), captured);
         generatedCode = generatedPreset.ToShareCode();
         variation++;
 
-        if (!editorBridge.TryApply(generatedPreset, out var applyError, config.StylePoseAndExpression))
+        if (!editorBridge.TryApply(generatedPreset, out var applyError, config.StylePoseAndExpression && !config.LockCamera))
         {
             status = $"Generated {selectedStyle.Name}, but could not apply it: {applyError}";
             return;
         }
 
+        undoPreset = captured;
         config.NextAutomaticStyleIndex = (index + 1) % automaticStyles.Count;
         if (editorBridge.TryCapture(out var actual, out _) && actual is not null)
         {

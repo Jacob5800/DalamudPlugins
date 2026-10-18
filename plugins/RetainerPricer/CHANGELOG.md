@@ -1,3 +1,7 @@
+## 0.5.1.15
+
+- Added a gil symbol beside the RP server-bar entry.
+
 ## 0.5.1.14
 
 - Added a Status tab with timestamped messages, a failures-only filter, and copy controls. Operation changes, listing failures and Universalis diagnostics are also written to Dalamud logs. History keeps the latest 300 messages for the current session.
