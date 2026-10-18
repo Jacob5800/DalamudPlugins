@@ -7,8 +7,16 @@
       "name": "Seamless Showcase",
       "category": "Community-inspired",
       "description": "Clean, balanced light and an open crop inspired by uncluttered portrait layouts.",
-      "directionalColor": { "red": 250, "green": 244, "blue": 232 },
-      "ambientColor": { "red": 145, "green": 153, "blue": 166 },
+      "directionalColor": {
+        "red": 250,
+        "green": 244,
+        "blue": 232
+      },
+      "ambientColor": {
+        "red": 145,
+        "green": 153,
+        "blue": 166
+      },
       "directionalBrightness": 0.98,
       "ambientBrightness": 1.05,
       "cameraDistance": 1.06,
@@ -20,11 +28,19 @@
       "name": "Weapon Showcase",
       "category": "Community-inspired",
       "description": "A wider crop and clear neutral light keep the captured pose and equipment visible.",
-      "directionalColor": { "red": 255, "green": 225, "blue": 190 },
-      "ambientColor": { "red": 125, "green": 137, "blue": 157 },
+      "directionalColor": {
+        "red": 255,
+        "green": 225,
+        "blue": 190
+      },
+      "ambientColor": {
+        "red": 125,
+        "green": 137,
+        "blue": 157
+      },
       "directionalBrightness": 1.02,
-      "ambientBrightness": 1.00,
-      "cameraDistance": 1.20,
+      "ambientBrightness": 1.0,
+      "cameraDistance": 1.2,
       "cameraTargetOffset": -0.02
     },
     {
@@ -33,8 +49,16 @@
       "name": "Golden Hour",
       "category": "Warm",
       "description": "Warm side light with soft amber fill and a modest portrait crop.",
-      "directionalColor": { "red": 255, "green": 192, "blue": 126 },
-      "ambientColor": { "red": 112, "green": 77, "blue": 61 },
+      "directionalColor": {
+        "red": 255,
+        "green": 192,
+        "blue": 126
+      },
+      "ambientColor": {
+        "red": 112,
+        "green": 77,
+        "blue": 61
+      },
       "directionalBrightness": 1.04,
       "ambientBrightness": 0.98,
       "cameraDistance": 0.92,
@@ -46,8 +70,16 @@
       "name": "Moonlit",
       "category": "Cool",
       "description": "Cool blue highlights with a deeper, calm fill.",
-      "directionalColor": { "red": 150, "green": 190, "blue": 255 },
-      "ambientColor": { "red": 62, "green": 80, "blue": 129 },
+      "directionalColor": {
+        "red": 150,
+        "green": 190,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 62,
+        "green": 80,
+        "blue": 129
+      },
       "directionalBrightness": 1.06,
       "ambientBrightness": 0.94,
       "cameraDistance": 0.94,
@@ -59,8 +91,16 @@
       "name": "Soft Studio",
       "category": "Clean",
       "description": "Balanced neutral light designed to keep equipment colors readable.",
-      "directionalColor": { "red": 248, "green": 240, "blue": 222 },
-      "ambientColor": { "red": 156, "green": 162, "blue": 176 },
+      "directionalColor": {
+        "red": 248,
+        "green": 240,
+        "blue": 222
+      },
+      "ambientColor": {
+        "red": 156,
+        "green": 162,
+        "blue": 176
+      },
       "directionalBrightness": 0.94,
       "ambientBrightness": 1.08,
       "cameraDistance": 1.02,
@@ -72,8 +112,16 @@
       "name": "Rose Bloom",
       "category": "Soft",
       "description": "Blush key light and muted mauve fill for a gentle look.",
-      "directionalColor": { "red": 255, "green": 180, "blue": 205 },
-      "ambientColor": { "red": 128, "green": 91, "blue": 126 },
+      "directionalColor": {
+        "red": 255,
+        "green": 180,
+        "blue": 205
+      },
+      "ambientColor": {
+        "red": 128,
+        "green": 91,
+        "blue": 126
+      },
       "directionalBrightness": 0.98,
       "ambientBrightness": 1.02,
       "cameraDistance": 0.96,
@@ -85,11 +133,19 @@
       "name": "Ember Drama",
       "category": "Dramatic",
       "description": "Warm red-orange highlights against a darker shadow tone.",
-      "directionalColor": { "red": 255, "green": 132, "blue": 91 },
-      "ambientColor": { "red": 83, "green": 48, "blue": 52 },
+      "directionalColor": {
+        "red": 255,
+        "green": 132,
+        "blue": 91
+      },
+      "ambientColor": {
+        "red": 83,
+        "green": 48,
+        "blue": 52
+      },
       "directionalBrightness": 1.12,
       "ambientBrightness": 0.92,
-      "cameraDistance": 0.90,
+      "cameraDistance": 0.9,
       "cameraTargetOffset": 0
     },
     {
@@ -98,8 +154,16 @@
       "name": "Arcane Violet",
       "category": "Fantasy",
       "description": "Violet highlights and blue-purple ambient fill.",
-      "directionalColor": { "red": 206, "green": 163, "blue": 255 },
-      "ambientColor": { "red": 78, "green": 70, "blue": 131 },
+      "directionalColor": {
+        "red": 206,
+        "green": 163,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 78,
+        "green": 70,
+        "blue": 131
+      },
       "directionalBrightness": 1.04,
       "ambientBrightness": 0.96,
       "cameraDistance": 0.94,
@@ -111,10 +175,18 @@
       "name": "Verdant Glow",
       "category": "Fantasy",
       "description": "Fresh green highlights with a restrained forest fill.",
-      "directionalColor": { "red": 167, "green": 236, "blue": 190 },
-      "ambientColor": { "red": 74, "green": 112, "blue": 89 },
+      "directionalColor": {
+        "red": 167,
+        "green": 236,
+        "blue": 190
+      },
+      "ambientColor": {
+        "red": 74,
+        "green": 112,
+        "blue": 89
+      },
       "directionalBrightness": 1.02,
-      "ambientBrightness": 1.00,
+      "ambientBrightness": 1.0,
       "cameraDistance": 0.98,
       "cameraTargetOffset": 0
     },
@@ -124,12 +196,456 @@
       "name": "Hero Frame",
       "category": "Composition",
       "description": "Slightly wider camera distance for a more open, full-character composition.",
-      "directionalColor": { "red": 247, "green": 220, "blue": 186 },
-      "ambientColor": { "red": 111, "green": 120, "blue": 143 },
-      "directionalBrightness": 1.00,
+      "directionalColor": {
+        "red": 247,
+        "green": 220,
+        "blue": 186
+      },
+      "ambientColor": {
+        "red": 111,
+        "green": 120,
+        "blue": 143
+      },
+      "directionalBrightness": 1.0,
       "ambientBrightness": 1.02,
       "cameraDistance": 1.16,
       "cameraTargetOffset": 0
+    },
+    {
+      "seed": 11,
+      "id": "shoreline-daydream",
+      "name": "Shoreline Daydream",
+      "category": "Relaxed",
+      "description": "Sunlit cream highlights, sea-blue fill and a wider crop inspired by relaxed beach portraits.",
+      "directionalColor": {
+        "red": 255,
+        "green": 237,
+        "blue": 195
+      },
+      "ambientColor": {
+        "red": 123,
+        "green": 177,
+        "blue": 185
+      },
+      "directionalBrightness": 1.02,
+      "ambientBrightness": 1.08,
+      "cameraDistance": 1.2,
+      "cameraTargetOffset": -0.025
+    },
+    {
+      "seed": 12,
+      "id": "starlight-performer",
+      "name": "Starlight Performer",
+      "category": "Fantasy",
+      "description": "A close performer portrait with cool starlight and a soft gold glow; owned performance poses are favored.",
+      "directionalColor": {
+        "red": 225,
+        "green": 232,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 89,
+        "green": 76,
+        "blue": 132
+      },
+      "directionalBrightness": 1.1,
+      "ambientBrightness": 0.88,
+      "cameraDistance": 0.91,
+      "cameraTargetOffset": 0.025
+    },
+    {
+      "seed": 13,
+      "id": "playful-selfie",
+      "name": "Playful Selfie",
+      "category": "Playful",
+      "description": "Bright face lighting and a friendly close crop, favoring owned selfie, wave and peace poses.",
+      "directionalColor": {
+        "red": 255,
+        "green": 228,
+        "blue": 210
+      },
+      "ambientColor": {
+        "red": 145,
+        "green": 151,
+        "blue": 164
+      },
+      "directionalBrightness": 1.03,
+      "ambientBrightness": 1.08,
+      "cameraDistance": 0.89,
+      "cameraTargetOffset": 0.035
+    },
+    {
+      "seed": 14,
+      "id": "silver-wink",
+      "name": "Silver Wink",
+      "category": "Close-up",
+      "description": "Soft silver highlights and restrained shadows frame a playful close-up with owned wink expressions.",
+      "directionalColor": {
+        "red": 243,
+        "green": 246,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 143,
+        "green": 140,
+        "blue": 153
+      },
+      "directionalBrightness": 0.98,
+      "ambientBrightness": 1.02,
+      "cameraDistance": 0.82,
+      "cameraTargetOffset": 0.04
+    },
+    {
+      "seed": 15,
+      "id": "gilded-muse",
+      "name": "Gilded Muse",
+      "category": "Elegant",
+      "description": "Warm ivory light and muted burgundy shadows inspired by expressive portraits in ornate frames.",
+      "directionalColor": {
+        "red": 255,
+        "green": 221,
+        "blue": 173
+      },
+      "ambientColor": {
+        "red": 120,
+        "green": 71,
+        "blue": 83
+      },
+      "directionalBrightness": 1.08,
+      "ambientBrightness": 0.94,
+      "cameraDistance": 0.88,
+      "cameraTargetOffset": 0.025
+    },
+    {
+      "seed": 16,
+      "id": "tea-break",
+      "name": "Tea Break",
+      "category": "Relaxed",
+      "description": "Warm porcelain light with cool blue fill for a cozy close portrait; tea and drink poses are favored when owned.",
+      "directionalColor": {
+        "red": 255,
+        "green": 235,
+        "blue": 216
+      },
+      "ambientColor": {
+        "red": 117,
+        "green": 149,
+        "blue": 177
+      },
+      "directionalBrightness": 1.0,
+      "ambientBrightness": 1.04,
+      "cameraDistance": 0.87,
+      "cameraTargetOffset": 0.025
+    },
+    {
+      "seed": 17,
+      "id": "noir-blade",
+      "name": "Noir Blade",
+      "category": "Dramatic",
+      "description": "Cool restrained face light and deep fill leave room for a captured glowing weapon in a wider crop.",
+      "directionalColor": {
+        "red": 164,
+        "green": 187,
+        "blue": 215
+      },
+      "ambientColor": {
+        "red": 42,
+        "green": 49,
+        "blue": 64
+      },
+      "directionalBrightness": 0.84,
+      "ambientBrightness": 0.66,
+      "cameraDistance": 1.17,
+      "cameraTargetOffset": -0.025
+    },
+    {
+      "seed": 18,
+      "id": "sunset-confidence",
+      "name": "Sunset Confidence",
+      "category": "Warm",
+      "description": "Peach-gold light and warm shadows for an open smile and a relaxed upper-body composition.",
+      "directionalColor": {
+        "red": 255,
+        "green": 183,
+        "blue": 137
+      },
+      "ambientColor": {
+        "red": 133,
+        "green": 81,
+        "blue": 76
+      },
+      "directionalBrightness": 1.08,
+      "ambientBrightness": 0.97,
+      "cameraDistance": 0.94,
+      "cameraTargetOffset": 0.015
+    },
+    {
+      "seed": 19,
+      "id": "aether-duelist",
+      "name": "Aether Duelist",
+      "category": "Fantasy",
+      "description": "Bright cyan-white light with blue ambient tones and wider framing for an owned battle pose.",
+      "directionalColor": {
+        "red": 206,
+        "green": 246,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 86,
+        "green": 139,
+        "blue": 181
+      },
+      "directionalBrightness": 1.14,
+      "ambientBrightness": 0.95,
+      "cameraDistance": 1.14,
+      "cameraTargetOffset": -0.015
+    },
+    {
+      "seed": 20,
+      "id": "candlelit-study",
+      "name": "Candlelit Study",
+      "category": "Elegant",
+      "description": "Amber key light and muted violet fill for a quiet portrait with readable face detail.",
+      "directionalColor": {
+        "red": 255,
+        "green": 203,
+        "blue": 139
+      },
+      "ambientColor": {
+        "red": 104,
+        "green": 83,
+        "blue": 121
+      },
+      "directionalBrightness": 1.06,
+      "ambientBrightness": 0.9,
+      "cameraDistance": 0.93,
+      "cameraTargetOffset": 0.02
+    },
+    {
+      "seed": 21,
+      "id": "ice-crystal",
+      "name": "Ice Crystal",
+      "category": "Cool",
+      "description": "Crisp white-blue highlights and soft teal shadows for a clean winter-toned portrait.",
+      "directionalColor": {
+        "red": 203,
+        "green": 230,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 86,
+        "green": 134,
+        "blue": 147
+      },
+      "directionalBrightness": 1.08,
+      "ambientBrightness": 0.96,
+      "cameraDistance": 0.96,
+      "cameraTargetOffset": 0.015
+    },
+    {
+      "seed": 22,
+      "id": "orchid-afterglow",
+      "name": "Orchid Afterglow",
+      "category": "Fantasy",
+      "description": "Pink-violet light with blue fill adds color contrast while keeping a comfortable upper-body crop.",
+      "directionalColor": {
+        "red": 255,
+        "green": 173,
+        "blue": 224
+      },
+      "ambientColor": {
+        "red": 80,
+        "green": 104,
+        "blue": 166
+      },
+      "directionalBrightness": 1.06,
+      "ambientBrightness": 0.94,
+      "cameraDistance": 1.03,
+      "cameraTargetOffset": 0.015
+    },
+    {
+      "seed": 23,
+      "id": "crimson-spotlight",
+      "name": "Crimson Spotlight",
+      "category": "Dramatic",
+      "description": "Saturated red directional light with a dark violet fill and close framing, inspired by bold community lighting experiments.",
+      "directionalColor": {
+        "red": 255,
+        "green": 62,
+        "blue": 65
+      },
+      "ambientColor": {
+        "red": 66,
+        "green": 40,
+        "blue": 82
+      },
+      "directionalBrightness": 1.22,
+      "ambientBrightness": 0.74,
+      "cameraDistance": 0.86,
+      "cameraTargetOffset": 0.035,
+      "directionalVerticalAngle": 25,
+      "directionalHorizontalAngle": 65
+    },
+    {
+      "seed": 24,
+      "id": "azure-contour",
+      "name": "Azure Contour",
+      "category": "Cool",
+      "description": "Blue side light with a restrained warm fill shapes the face without washing out the equipment.",
+      "directionalColor": {
+        "red": 99,
+        "green": 171,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 118,
+        "green": 77,
+        "blue": 59
+      },
+      "directionalBrightness": 1.12,
+      "ambientBrightness": 0.82,
+      "cameraDistance": 0.93,
+      "cameraTargetOffset": 0.02,
+      "directionalVerticalAngle": 15,
+      "directionalHorizontalAngle": -70
+    },
+    {
+      "seed": 25,
+      "id": "scarlet-and-cobalt",
+      "name": "Scarlet and Cobalt",
+      "category": "Dramatic",
+      "description": "Red highlights and cobalt ambient color create a strong warm-cool contrast for battle or victory poses.",
+      "directionalColor": {
+        "red": 255,
+        "green": 85,
+        "blue": 98
+      },
+      "ambientColor": {
+        "red": 57,
+        "green": 89,
+        "blue": 183
+      },
+      "directionalBrightness": 1.18,
+      "ambientBrightness": 0.86,
+      "cameraDistance": 1.05,
+      "cameraTargetOffset": 0,
+      "directionalVerticalAngle": 20,
+      "directionalHorizontalAngle": 55
+    },
+    {
+      "seed": 26,
+      "id": "shadow-outline",
+      "name": "Shadow Outline",
+      "category": "Dramatic",
+      "description": "Low-color face lighting and a wider crop favor a silhouette-like outline; the result depends on your owned background and gear.",
+      "directionalColor": {
+        "red": 46,
+        "green": 55,
+        "blue": 74
+      },
+      "ambientColor": {
+        "red": 23,
+        "green": 28,
+        "blue": 42
+      },
+      "directionalBrightness": 0.65,
+      "ambientBrightness": 0.65,
+      "cameraDistance": 1.16,
+      "cameraTargetOffset": -0.02,
+      "directionalVerticalAngle": 30,
+      "directionalHorizontalAngle": 120
+    },
+    {
+      "seed": 27,
+      "id": "pale-blue-minimal",
+      "name": "Pale Blue Minimal",
+      "category": "Clean",
+      "description": "Soft pale-blue light and an open neutral crop complement uncluttered, seamless-style plates using your owned designs.",
+      "directionalColor": {
+        "red": 225,
+        "green": 241,
+        "blue": 255
+      },
+      "ambientColor": {
+        "red": 164,
+        "green": 184,
+        "blue": 203
+      },
+      "directionalBrightness": 0.98,
+      "ambientBrightness": 1.12,
+      "cameraDistance": 1.07,
+      "cameraTargetOffset": 0.015,
+      "directionalVerticalAngle": 20,
+      "directionalHorizontalAngle": -15
+    },
+    {
+      "seed": 28,
+      "id": "smoke-and-silver",
+      "name": "Smoke and Silver",
+      "category": "Dramatic",
+      "description": "Cool silver face light over muted charcoal fill leaves space for a smoke accent if you choose one you own.",
+      "directionalColor": {
+        "red": 221,
+        "green": 231,
+        "blue": 244
+      },
+      "ambientColor": {
+        "red": 68,
+        "green": 76,
+        "blue": 91
+      },
+      "directionalBrightness": 1.1,
+      "ambientBrightness": 0.8,
+      "cameraDistance": 0.92,
+      "cameraTargetOffset": 0.02,
+      "directionalVerticalAngle": 35,
+      "directionalHorizontalAngle": 50
+    },
+    {
+      "seed": 29,
+      "id": "victory-cut",
+      "name": "Victory Cut",
+      "category": "Composition",
+      "description": "A wider equipment-focused composition with clear directional light, favoring owned victory and battle poses.",
+      "directionalColor": {
+        "red": 255,
+        "green": 225,
+        "blue": 184
+      },
+      "ambientColor": {
+        "red": 113,
+        "green": 135,
+        "blue": 163
+      },
+      "directionalBrightness": 1.13,
+      "ambientBrightness": 0.98,
+      "cameraDistance": 1.24,
+      "cameraTargetOffset": -0.035,
+      "directionalVerticalAngle": 20,
+      "directionalHorizontalAngle": -40
+    },
+    {
+      "seed": 30,
+      "id": "gallery-closeup",
+      "name": "Gallery Close-up",
+      "category": "Close-up",
+      "description": "A deliberate tight crop and clean neutral highlights favor expressive, face-focused character portraits.",
+      "directionalColor": {
+        "red": 255,
+        "green": 239,
+        "blue": 220
+      },
+      "ambientColor": {
+        "red": 131,
+        "green": 137,
+        "blue": 153
+      },
+      "directionalBrightness": 1.02,
+      "ambientBrightness": 1.02,
+      "cameraDistance": 0.79,
+      "cameraTargetOffset": 0.045,
+      "directionalVerticalAngle": 10,
+      "directionalHorizontalAngle": 20
     }
   ]
 }

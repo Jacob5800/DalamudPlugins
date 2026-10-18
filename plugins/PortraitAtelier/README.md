@@ -51,4 +51,8 @@ All rights reserved. See [LICENSE](LICENSE).
 
 Enable the optional PA server-bar button under Settings / import and export. Export settings to the clipboard or paste a backup and preview it before importing; imports save a local safety backup.
 
-Open the in-game Portrait Editor and use Load owned designs to populate Prefer Frame, Prefer background and Prefer accent. Select multiple owned designs and remove preferences with X. With owned-design styling enabled, preferred choices are favored on three out of four draws; other owned choices remain possible. Unowned preferences imported from another character are ignored when generating. Random in Choose a featured look picks a featured style for each generation.
+Open the in-game Portrait Editor to automatically populate Prefer Frame, Prefer background and Prefer accent. Select multiple owned designs and remove preferences with X. With owned-design styling enabled, preferred choices are favored on three out of four draws; other owned choices remain possible. Unowned preferences imported from another character are ignored when generating. Random in Choose a featured look picks a featured style for each generation.
+
+## Featured look references
+
+The bundled gallery now contains 30 original lighting/composition recipes. Community inspiration and reception evidence are documented in [LOOK-REFERENCES.md](LOOK-REFERENCES.md). These are adaptable styles rather than copied preset codes; screenshot framing, backgrounds and equipment effects may need manual adjustment.

@@ -29,6 +29,7 @@ internal sealed class MainWindow : Window
     private int variation;
     private bool favoritesOnly;
     private bool randomLook;
+    private DateTimeOffset nextOwnedDesignRefresh;
     private List<PortraitCharacterOption> ownedBackgrounds = [];
     private List<PortraitCharacterOption> ownedFrames = [];
     private List<PortraitCharacterOption> ownedAccents = [];
@@ -64,6 +65,16 @@ internal sealed class MainWindow : Window
             config.StyleOwnedDesign = styleDesign;
             saveConfig();
         }
+        ImGui.BeginDisabled(!config.StyleOwnedDesign);
+        var changeBackground = config.StyleBackground;
+        if (ImGui.Checkbox("Change background", ref changeBackground)) { config.StyleBackground = changeBackground; saveConfig(); }
+        ImGui.SameLine();
+        var changeFrame = config.StyleFrame;
+        if (ImGui.Checkbox("Change frame", ref changeFrame)) { config.StyleFrame = changeFrame; saveConfig(); }
+        ImGui.SameLine();
+        var changeAccent = config.StyleAccent;
+        if (ImGui.Checkbox("Change accent", ref changeAccent)) { config.StyleAccent = changeAccent; saveConfig(); }
+        ImGui.EndDisabled();
         if (ImGui.Button("Make a portrait for me"))
             CreateAndApplyRecommended();
         ImGui.TextWrapped("Open the game's Portrait Editor and wait for the character preview. This button applies a full-strength look. Review it, then use the game's Save button to keep it.");
@@ -80,13 +91,25 @@ internal sealed class MainWindow : Window
         DrawOutput();
         ImGui.Separator();
         if (DiscordJoinButton.Draw()) Dalamud.Utility.Util.OpenLink("https://discord.gg/TTPZ82xaUd");
+        ImGui.Dummy(new Vector2(0, ImGui.GetTextLineHeightWithSpacing()));
+        var version = $"v{typeof(MainWindow).Assembly.GetName().Version}";
+        var windowPos = ImGui.GetWindowPos();
+        var windowSize = ImGui.GetWindowSize();
+        var versionSize = ImGui.CalcTextSize(version);
+        ImGui.GetWindowDrawList().AddText(new Vector2(windowPos.X + windowSize.X - versionSize.X - 18, windowPos.Y + windowSize.Y - versionSize.Y - 8), ImGui.GetColorU32(ImGuiCol.TextDisabled), version);
     }
 
     private void DrawDesignPreferences()
     {
         if (!ImGui.CollapsingHeader("Preferred frames, backgrounds and accents")) return;
         config.PreferredFrameIds ??= []; config.PreferredBackgroundIds ??= []; config.PreferredAccentIds ??= [];
-        ImGui.TextWrapped("Open the Portrait Editor and load owned designs. Preferences are favored on about three out of four draws; all owned choices remain possible when Choose owned background, frame and decoration is enabled.");
+        if (DateTimeOffset.UtcNow >= nextOwnedDesignRefresh)
+        {
+            nextOwnedDesignRefresh = DateTimeOffset.UtcNow.AddSeconds(1);
+            if (!editorBridge.TryGetOwnedDesigns(out ownedBackgrounds, out ownedFrames, out ownedAccents))
+            { ownedBackgrounds = []; ownedFrames = []; ownedAccents = []; }
+        }
+        ImGui.TextWrapped("Owned designs load automatically while the Portrait Editor is open. Preferences are favored on about three out of four draws; with no preferences, a random owned design is used.");
         if (ImGui.Button("Load owned designs"))
             status = editorBridge.TryGetOwnedDesigns(out ownedBackgrounds, out ownedFrames, out ownedAccents) ? "Owned design choices loaded." : "Open the Portrait Editor first.";
         void List(string label, List<ushort> preferred, List<PortraitCharacterOption> owned)
@@ -99,7 +122,7 @@ internal sealed class MainWindow : Window
                     if (ImGui.Selectable($"{option.Name} (#{option.Id})", chosen, ImGuiSelectableFlags.DontClosePopups))
                     { if (chosen) preferred.Remove(option.Id); else preferred.Add(option.Id); saveConfig(); }
                 }
-                if (owned.Count == 0) ImGui.TextDisabled("Load owned designs from the open editor.");
+                if (owned.Count == 0) ImGui.TextDisabled("Open the Portrait Editor to see owned designs.");
                 ImGui.EndCombo();
             }
             foreach (var id in preferred.ToArray())
@@ -107,7 +130,7 @@ internal sealed class MainWindow : Window
                 ImGui.PushID(label + id);
                 if (ImGui.SmallButton("X")) { preferred.Remove(id); saveConfig(); }
                 ImGui.SameLine();
-                ImGui.TextUnformatted(owned.FirstOrDefault(option => option.Id == id)?.Name ?? $"Design #{id} (load owned designs for name)");
+                ImGui.TextUnformatted(owned.FirstOrDefault(option => option.Id == id)?.Name ?? $"Design #{id} (open the Portrait Editor for name)");
                 ImGui.PopID();
             }
         }
@@ -149,6 +172,7 @@ internal sealed class MainWindow : Window
         if (settingsPreview is { } preview)
         {
             ImGui.TextWrapped($"Replace settings: {preview.Settings.FavoriteStyleIds.Count} favorites; pose/expression {(preview.Settings.StylePoseAndExpression ? "on" : "off")}; owned designs {(preview.Settings.StyleOwnedDesign ? "on" : "off")}; PA button {(preview.Settings.ShowServerBar ? "on" : "off")}.");
+            ImGui.TextWrapped($"Change background: {preview.Settings.StyleBackground}; frame: {preview.Settings.StyleFrame}; accent: {preview.Settings.StyleAccent}.");
             ImGui.TextWrapped($"Preferred designs: {preview.Settings.PreferredFrameIds?.Count ?? 0} frames, {preview.Settings.PreferredBackgroundIds?.Count ?? 0} backgrounds, {preview.Settings.PreferredAccentIds?.Count ?? 0} accents.");
             if (ImGui.Button("Import previewed settings"))
             {
@@ -163,6 +187,9 @@ internal sealed class MainWindow : Window
                     config.PreferredAccentIds = (preview.Settings.PreferredAccentIds ?? []).Distinct().Take(4096).ToList();
                     config.StylePoseAndExpression = preview.Settings.StylePoseAndExpression;
                     config.StyleOwnedDesign = preview.Settings.StyleOwnedDesign;
+                    config.StyleBackground = preview.Settings.StyleBackground;
+                    config.StyleFrame = preview.Settings.StyleFrame;
+                    config.StyleAccent = preview.Settings.StyleAccent;
                     config.NextAutomaticStyleIndex = preview.Settings.NextAutomaticStyleIndex;
                     config.ShowServerBar = preview.Settings.ShowServerBar;
                     saveConfig();
@@ -324,8 +351,7 @@ internal sealed class MainWindow : Window
         ImGui.SameLine();
         if (ImGui.Button("Generate and apply"))
         {
-            if (basePreset is null) status = "Capture a portrait from the open editor before generating a look.";
-            else { GenerateNext(); ApplyGenerated(); }
+            if (GenerateNext()) ApplyGenerated();
         }
         ImGui.SameLine();
         ImGui.TextDisabled(variation == 0 ? "No take generated yet" : $"Take {variation}");
@@ -353,8 +379,17 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private PortraitPreset PreserveDisabledDesigns(PortraitPreset generated, PortraitPreset current) => generated with
+    {
+        BackgroundId = config.StyleOwnedDesign && config.StyleBackground ? generated.BackgroundId : current.BackgroundId,
+        FrameId = config.StyleOwnedDesign && config.StyleFrame ? generated.FrameId : current.FrameId,
+        DecorationId = config.StyleOwnedDesign && config.StyleAccent ? generated.DecorationId : current.DecorationId,
+    };
+
     private void ApplyGenerated()
     {
+        if (generatedPreset is not null && editorBridge.TryCapture(out var current, out _) && current is not null)
+            generatedPreset = PreserveDisabledDesigns(generatedPreset, current);
             if (generatedPreset is null)
             {
                 status = "Generate a look before applying it.";
@@ -374,12 +409,15 @@ internal sealed class MainWindow : Window
             }
     }
 
-    private void GenerateNext()
+    private bool GenerateNext()
     {
         if (basePreset is null)
         {
-            status = "Capture a portrait from the open editor before generating a look.";
-            return;
+            if (!editorBridge.TryCapture(out var captured, out var captureError) || captured is null)
+            { status = captureError; return false; }
+            basePreset = captured;
+            basePresetFromCode = false;
+            automaticSession.Reset();
         }
 
         if (randomLook && styles.Count > 0) selectedStyle = styles[Random.Shared.Next(styles.Count)];
@@ -390,6 +428,7 @@ internal sealed class MainWindow : Window
         generatedCode = styled.ToShareCode();
         variation++;
         status = $"Generated {selectedStyle.Name}. Enabled character and design choices use unlocked options from the open editor.";
+        return true;
     }
 
     private void CreateAndApplyRecommended()
@@ -410,8 +449,7 @@ internal sealed class MainWindow : Window
         generatedPreset = editorBridge.StyleOptions(generatedPreset, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign, config);
         if (!config.StylePoseAndExpression)
             generatedPreset = generatedPreset with { BannerTimeline = captured.BannerTimeline, Expression = captured.Expression, AnimationProgress = captured.AnimationProgress };
-        if (!config.StyleOwnedDesign)
-            generatedPreset = generatedPreset with { BackgroundId = captured.BackgroundId, FrameId = captured.FrameId, DecorationId = captured.DecorationId };
+        generatedPreset = PreserveDisabledDesigns(generatedPreset, captured);
         generatedCode = generatedPreset.ToShareCode();
         variation++;
 

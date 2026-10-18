@@ -72,6 +72,8 @@ internal static class StyleCatalogClient
         && style.Seed > 0
         && style.CameraDistance is >= 0.75f and <= 1.3f
         && style.CameraTargetOffset is >= -0.08f and <= 0.08f
+        && (style.DirectionalVerticalAngle is null or >= -180 and <= 180)
+        && (style.DirectionalHorizontalAngle is null or >= -180 and <= 180)
         && style.DirectionalBrightness is >= 0.6f and <= 1.4f
         && style.AmbientBrightness is >= 0.6f and <= 1.4f;
 }

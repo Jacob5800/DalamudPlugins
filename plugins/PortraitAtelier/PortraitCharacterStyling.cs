@@ -8,9 +8,9 @@ public static class PortraitCharacterStyling
         IReadOnlyList<PortraitCharacterOption> backgrounds, IReadOnlyList<PortraitCharacterOption> frames,
         IReadOnlyList<PortraitCharacterOption> decorations, PluginConfig? preferences = null) => preset with
     {
-        BackgroundId = PickDesign(backgrounds, preferences?.PreferredBackgroundIds, preset.BackgroundId, style.Seed, variation),
-        FrameId = PickDesign(frames, preferences?.PreferredFrameIds, preset.FrameId, style.Seed * 3, variation),
-        DecorationId = PickDesign(decorations, preferences?.PreferredAccentIds, preset.DecorationId, style.Seed * 7, variation),
+        BackgroundId = preferences?.StyleBackground == false ? preset.BackgroundId : PickDesign(backgrounds, preferences?.PreferredBackgroundIds, preset.BackgroundId, style.Seed, variation),
+        FrameId = preferences?.StyleFrame == false ? preset.FrameId : PickDesign(frames, preferences?.PreferredFrameIds, preset.FrameId, style.Seed * 3, variation),
+        DecorationId = preferences?.StyleAccent == false ? preset.DecorationId : PickDesign(decorations, preferences?.PreferredAccentIds, preset.DecorationId, style.Seed * 7, variation),
     };
 
     public static PortraitPreset Apply(PortraitPreset preset, PortraitStyle style, int variation,
@@ -24,6 +24,18 @@ public static class PortraitCharacterStyling
         var expressionTerms = dramatic ? new[] { "determined", "confident", "serious" }
             : soft ? new[] { "smile", "beam", "happy" }
             : new[] { "smirk", "smile", "neutral" };
+        (poseTerms, expressionTerms) = style.Id switch
+        {
+            "shoreline-daydream" => (["relax", "lean", "stretch", "hands"], ["smile", "content", "happy"]),
+            "starlight-performer" => (["song", "sing", "dance", "perform"], ["smile", "confident", "serious"]),
+            "playful-selfie" => (["selfie", "peace", "wave", "cheer"], ["smile", "beam", "happy"]),
+            "gallery-closeup" or "silver-wink" => (["pose", "salute", "wave"], ["wink", "smirk", "smile"]),
+            "gilded-muse" => (["pose", "think", "consider"], ["surprise", "confused", "smirk"]),
+            "tea-break" => (["tea", "drink", "toast"], ["content", "smile", "relaxed"]),
+            "noir-blade" or "aether-duelist" or "scarlet-and-cobalt" or "shadow-outline" or "victory-cut" => (["weapon", "battle", "victory", "draw"], ["serious", "determined", "confident"]),
+            "sunset-confidence" => (["stretch", "pose", "relax"], ["smile", "grin", "confident"]),
+            _ => (poseTerms, expressionTerms),
+        };
         var pose = Pick(poses, poseTerms, preset.BannerTimeline, style.Seed, variation);
         var expression = Pick(expressions.Where(x => x.Id <= byte.MaxValue).ToArray(), expressionTerms,
             preset.Expression, style.Seed, variation);
@@ -40,7 +52,9 @@ public static class PortraitCharacterStyling
         var preferred = owned.Where(option => preferences?.Contains(option.Id) == true).ToArray();
         // Three out of four draws favor preferences; other draws retain all owned choices.
         var candidates = preferred.Length > 0 && Random.Shared.Next(4) < 3 ? preferred : owned;
-        return Pick(candidates, [], current, seed, variation);
+        if (candidates.Count == 0) return current;
+        var different = candidates.Where(option => option.Id != current).ToArray();
+        return different.Length > 0 ? different[Random.Shared.Next(different.Length)].Id : candidates[Random.Shared.Next(candidates.Count)].Id;
     }
 
     private static ushort Pick(IReadOnlyList<PortraitCharacterOption> options, string[] terms,

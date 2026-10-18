@@ -67,4 +67,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool WindowOpen { get; set; } = true;
     public bool StylePoseAndExpression { get; set; } = true;
     public bool StyleOwnedDesign { get; set; } = true;
+    public bool StyleBackground { get; set; } = true;
+    public bool StyleFrame { get; set; } = true;
+    public bool StyleAccent { get; set; } = true;
 }

@@ -178,6 +178,8 @@ public sealed record PortraitPreset
             DirectionalRed = (byte)Blend(DirectionalRed, directional.Red, strength),
             DirectionalGreen = (byte)Blend(DirectionalGreen, directional.Green, strength),
             DirectionalBlue = (byte)Blend(DirectionalBlue, directional.Blue, strength),
+            DirectionalVerticalAngle = style.DirectionalVerticalAngle is { } vertical ? (short)Math.Clamp(MathF.Round(Lerp(DirectionalVerticalAngle, vertical, strength)), -180, 180) : DirectionalVerticalAngle,
+            DirectionalHorizontalAngle = style.DirectionalHorizontalAngle is { } horizontal ? (short)Math.Clamp(MathF.Round(Lerp(DirectionalHorizontalAngle, horizontal, strength)), -180, 180) : DirectionalHorizontalAngle,
             DirectionalBrightness = StyleBrightness(DirectionalBrightness, style.DirectionalBrightness, strength),
             AmbientRed = (byte)Blend(AmbientRed, ambient.Red, strength),
             AmbientGreen = (byte)Blend(AmbientGreen, ambient.Green, strength),

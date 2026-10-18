@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Portrait Atelier",
   "InternalName": "PortraitAtelier",
-  "AssemblyVersion": "0.1.5.0",
+  "AssemblyVersion": "0.1.5.1",
   "Description": "Create and apply curated portrait designs from your own character in one click.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -18,6 +18,6 @@
   "LoadPriority": 0,
   "Punchline": "Make and apply a portrait in one click.",
   "AcceptsFeedback": true,
-  "Changelog": "## 0.1.5.0\n\n- Added Generate and apply to create a variation and apply it to the open Portrait Editor in one click.\n\n- Added owned frame, background and accent preferences that are favored without excluding other owned designs. Preferences are included in settings backups.\n- Added Random under Choose a featured look, choosing a new featured style for each generation.\n\n- Added an optional PA server-bar button that opens Portrait Atelier, disabled by default.\n- Settings can be exported to the clipboard and imported with a preview. Import automatically saves a local safety backup.\n",
+  "Changelog": "## 0.1.5.1\n\n- Background, frame and accent changes can each be enabled or disabled independently, including in settings backups.\n\n- Expanded to 30 featured looks with eight additional community-inspired lighting/composition styles, including Crimson Spotlight, Azure Contour, Shadow Outline and Gallery Close-up. New styles also control directional-light angles.\n\n- Owned designs load automatically from the open editor. Generate captures the current portrait if no base is loaded, and uses random owned designs when no preferences are set.\n\n- Added the installed version in the bottom-right corner.\n- Added 12 featured looks inspired by community portrait compositions, with matching owned-pose and expression preferences. New looks are included in the refreshable catalog.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/PortraitAtelier/images/icon.png"
 }
