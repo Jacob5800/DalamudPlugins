@@ -46,3 +46,9 @@ Then install **Portrait Atelier** through the plugin installer. The feed points 
 ## License
 
 All rights reserved. See [LICENSE](LICENSE).
+
+## Preferences and settings backups
+
+Enable the optional PA server-bar button under Settings / import and export. Export settings to the clipboard or paste a backup and preview it before importing; imports save a local safety backup.
+
+Open the in-game Portrait Editor and use Load owned designs to populate Prefer Frame, Prefer background and Prefer accent. Select multiple owned designs and remove preferences with X. With owned-design styling enabled, preferred choices are favored on three out of four draws; other owned choices remain possible. Unowned preferences imported from another character are ignored when generating. Random in Choose a featured look picks a featured style for each generation.

@@ -24,7 +24,7 @@ internal sealed unsafe class PortraitEditorBridge
         this.dataManager = dataManager;
     }
 
-    public PortraitPreset StyleOptions(PortraitPreset preset, PortraitStyle style, int variation, bool character, bool design)
+    public PortraitPreset StyleOptions(PortraitPreset preset, PortraitStyle style, int variation, bool character, bool design, PluginConfig? preferences = null)
     {
         if (!condition[ConditionFlag.EditingPortrait]) return preset;
         var editor = AgentBannerEditor.Instance();
@@ -35,7 +35,7 @@ internal sealed unsafe class PortraitEditorBridge
                 ReadOptions(&state->Poses, true), ReadOptions(&state->Expressions, false));
         if (design)
             preset = PortraitCharacterStyling.ApplyDesign(preset, style, variation,
-                ReadDesignOptions(&state->Backgrounds), ReadDesignOptions(&state->Frames), ReadDesignOptions(&state->Accents));
+                ReadDesignOptions(&state->Backgrounds), ReadDesignOptions(&state->Frames), ReadDesignOptions(&state->Accents), preferences);
         return preset;
     }
 
@@ -67,6 +67,19 @@ internal sealed unsafe class PortraitEditorBridge
                 options.Add(new PortraitCharacterOption(entry->RowId, ""));
         }
         return options;
+    }
+
+    public bool TryGetOwnedDesigns(out List<PortraitCharacterOption> backgrounds, out List<PortraitCharacterOption> frames, out List<PortraitCharacterOption> accents)
+    {
+        backgrounds = []; frames = []; accents = [];
+        if (!condition[ConditionFlag.EditingPortrait]) return false;
+        var editor = AgentBannerEditor.Instance();
+        if (editor == null || editor->EditorState == null) return false;
+        var state = editor->EditorState;
+        backgrounds = ReadDesignOptions(&state->Backgrounds).Select(option => option with { Name = dataManager.GetExcelSheet<Lumina.Excel.Sheets.BannerBg>().GetRow(option.Id).Name.ToString() }).ToList();
+        frames = ReadDesignOptions(&state->Frames).Select(option => option with { Name = dataManager.GetExcelSheet<Lumina.Excel.Sheets.BannerFrame>().GetRow(option.Id).Name.ToString() }).ToList();
+        accents = ReadDesignOptions(&state->Accents).Select(option => option with { Name = dataManager.GetExcelSheet<Lumina.Excel.Sheets.BannerDecoration>().GetRow(option.Id).Name.ToString() }).ToList();
+        return true;
     }
 
     public bool TryCapture(out PortraitPreset? preset, out string error)

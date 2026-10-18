@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
@@ -8,6 +9,11 @@ internal sealed class MainWindow : Window
 {
     private readonly PluginConfig config;
     private readonly Action saveConfig;
+    private readonly string configDirectory;
+    private string settingsJson = "";
+    private string settingsStatus = "";
+    private SettingsBackup? settingsPreview;
+    private sealed record SettingsBackup(string Plugin, int FormatVersion, PluginConfig Settings);
     private IReadOnlyList<PortraitStyle> styles = PortraitStyle.Featured;
     private Task<StyleCatalogResult>? catalogRefreshTask;
     private string search = "";
@@ -22,13 +28,18 @@ internal sealed class MainWindow : Window
     private float strength = 0.85f;
     private int variation;
     private bool favoritesOnly;
+    private bool randomLook;
+    private List<PortraitCharacterOption> ownedBackgrounds = [];
+    private List<PortraitCharacterOption> ownedFrames = [];
+    private List<PortraitCharacterOption> ownedAccents = [];
     private readonly PortraitDesignSession automaticSession = new();
 
-    public MainWindow(PluginConfig config, Action saveConfig, PortraitEditorBridge editorBridge) : base("Portrait Atelier")
+    public MainWindow(PluginConfig config, Action saveConfig, PortraitEditorBridge editorBridge, string configDirectory) : base("Portrait Atelier")
     {
         this.config = config;
         this.saveConfig = saveConfig;
         this.editorBridge = editorBridge;
+        this.configDirectory = configDirectory;
         selectedStyle = PortraitStyle.Featured[0];
         Size = new Vector2(820, 710);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -38,6 +49,8 @@ internal sealed class MainWindow : Window
     public override void Draw()
     {
         CompleteCatalogRefresh();
+        DrawSettingsBackup();
+        DrawDesignPreferences();
         ImGui.TextWrapped("Build a portrait look using lighting, framing and your unlocked poses, expressions and designs.");
         var styleCharacter = config.StylePoseAndExpression;
         if (ImGui.Checkbox("Choose pose and expression", ref styleCharacter))
@@ -67,6 +80,102 @@ internal sealed class MainWindow : Window
         DrawOutput();
         ImGui.Separator();
         if (DiscordJoinButton.Draw()) Dalamud.Utility.Util.OpenLink("https://discord.gg/TTPZ82xaUd");
+    }
+
+    private void DrawDesignPreferences()
+    {
+        if (!ImGui.CollapsingHeader("Preferred frames, backgrounds and accents")) return;
+        config.PreferredFrameIds ??= []; config.PreferredBackgroundIds ??= []; config.PreferredAccentIds ??= [];
+        ImGui.TextWrapped("Open the Portrait Editor and load owned designs. Preferences are favored on about three out of four draws; all owned choices remain possible when Choose owned background, frame and decoration is enabled.");
+        if (ImGui.Button("Load owned designs"))
+            status = editorBridge.TryGetOwnedDesigns(out ownedBackgrounds, out ownedFrames, out ownedAccents) ? "Owned design choices loaded." : "Open the Portrait Editor first.";
+        void List(string label, List<ushort> preferred, List<PortraitCharacterOption> owned)
+        {
+            if (ImGui.BeginCombo(label, $"{preferred.Count} preferred"))
+            {
+                foreach (var option in owned)
+                {
+                    var chosen = preferred.Contains(option.Id);
+                    if (ImGui.Selectable($"{option.Name} (#{option.Id})", chosen, ImGuiSelectableFlags.DontClosePopups))
+                    { if (chosen) preferred.Remove(option.Id); else preferred.Add(option.Id); saveConfig(); }
+                }
+                if (owned.Count == 0) ImGui.TextDisabled("Load owned designs from the open editor.");
+                ImGui.EndCombo();
+            }
+            foreach (var id in preferred.ToArray())
+            {
+                ImGui.PushID(label + id);
+                if (ImGui.SmallButton("X")) { preferred.Remove(id); saveConfig(); }
+                ImGui.SameLine();
+                ImGui.TextUnformatted(owned.FirstOrDefault(option => option.Id == id)?.Name ?? $"Design #{id} (load owned designs for name)");
+                ImGui.PopID();
+            }
+        }
+        List("Prefer Frame", config.PreferredFrameIds, ownedFrames);
+        List("Prefer background", config.PreferredBackgroundIds, ownedBackgrounds);
+        List("Prefer accent", config.PreferredAccentIds, ownedAccents);
+    }
+
+    private void DrawSettingsBackup()
+    {
+        if (!ImGui.CollapsingHeader("Settings / import and export")) return;
+        var showBar = config.ShowServerBar;
+        if (ImGui.Checkbox("Show PA server-bar button", ref showBar)) { config.ShowServerBar = showBar; saveConfig(); }
+        ImGui.TextWrapped("Back up favorites, styling preferences, automatic-style position and the server-bar setting. Portrait share codes are separate.");
+        if (ImGui.Button("Export settings to clipboard"))
+        {
+            settingsJson = JsonSerializer.Serialize(new SettingsBackup("PortraitAtelier", 1, config), new JsonSerializerOptions { WriteIndented = true });
+            ImGui.SetClipboardText(settingsJson);
+            settingsStatus = "Settings copied to clipboard.";
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Paste settings")) { settingsJson = ImGui.GetClipboardText() ?? ""; settingsPreview = null; }
+        if (ImGui.InputTextMultiline("Settings JSON", ref settingsJson, 262144, new Vector2(-1, 100))) settingsPreview = null;
+        if (ImGui.Button("Preview import"))
+        {
+            try
+            {
+                if (settingsJson.Length > 250000) throw new InvalidOperationException("Settings are too large.");
+                var backup = JsonSerializer.Deserialize<SettingsBackup>(settingsJson) ?? throw new InvalidOperationException("Invalid settings JSON.");
+                if (backup.Plugin != "PortraitAtelier" || backup.FormatVersion != 1 || backup.Settings is null || backup.Settings.Version != config.Version)
+                    throw new InvalidOperationException("Unsupported Portrait Atelier settings backup.");
+                if (backup.Settings.FavoriteStyleIds is null || backup.Settings.FavoriteStyleIds.Count > 5000 || backup.Settings.FavoriteStyleIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 200) || backup.Settings.NextAutomaticStyleIndex < 0)
+                    throw new InvalidOperationException("Invalid favorite styles or automatic-style position.");
+                settingsPreview = backup;
+                settingsStatus = "Preview ready. Nothing imported yet.";
+            }
+            catch (Exception ex) { settingsPreview = null; settingsStatus = $"Import preview failed: {ex.Message}"; }
+        }
+        if (settingsPreview is { } preview)
+        {
+            ImGui.TextWrapped($"Replace settings: {preview.Settings.FavoriteStyleIds.Count} favorites; pose/expression {(preview.Settings.StylePoseAndExpression ? "on" : "off")}; owned designs {(preview.Settings.StyleOwnedDesign ? "on" : "off")}; PA button {(preview.Settings.ShowServerBar ? "on" : "off")}.");
+            ImGui.TextWrapped($"Preferred designs: {preview.Settings.PreferredFrameIds?.Count ?? 0} frames, {preview.Settings.PreferredBackgroundIds?.Count ?? 0} backgrounds, {preview.Settings.PreferredAccentIds?.Count ?? 0} accents.");
+            if (ImGui.Button("Import previewed settings"))
+            {
+                try
+                {
+                    System.IO.Directory.CreateDirectory(configDirectory);
+                    var backupPath = System.IO.Path.Combine(configDirectory, $"settings-before-import-{DateTime.Now:yyyyMMdd-HHmmssfff}.json");
+                    System.IO.File.WriteAllText(backupPath, JsonSerializer.Serialize(new SettingsBackup("PortraitAtelier", 1, config), new JsonSerializerOptions { WriteIndented = true }));
+                    config.FavoriteStyleIds = preview.Settings.FavoriteStyleIds.Distinct().ToList();
+                    config.PreferredFrameIds = (preview.Settings.PreferredFrameIds ?? []).Distinct().Take(4096).ToList();
+                    config.PreferredBackgroundIds = (preview.Settings.PreferredBackgroundIds ?? []).Distinct().Take(4096).ToList();
+                    config.PreferredAccentIds = (preview.Settings.PreferredAccentIds ?? []).Distinct().Take(4096).ToList();
+                    config.StylePoseAndExpression = preview.Settings.StylePoseAndExpression;
+                    config.StyleOwnedDesign = preview.Settings.StyleOwnedDesign;
+                    config.NextAutomaticStyleIndex = preview.Settings.NextAutomaticStyleIndex;
+                    config.ShowServerBar = preview.Settings.ShowServerBar;
+                    saveConfig();
+                    settingsPreview = null;
+                    settingsStatus = $"Settings imported. Safety backup: {backupPath}";
+                }
+                catch (Exception ex) { settingsStatus = $"Import failed: {ex.Message}"; }
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel import")) settingsPreview = null;
+        }
+        if (!string.IsNullOrEmpty(settingsStatus)) ImGui.TextWrapped(settingsStatus);
+        ImGui.Separator();
     }
 
     public override void OnOpen()
@@ -157,12 +266,13 @@ internal sealed class MainWindow : Window
         var leftWidth = Math.Clamp(availableWidth * 0.44f, 250f, 340f);
         if (ImGui.BeginChild("##stylePicker", new Vector2(leftWidth, 195f), true))
         {
+            if (ImGui.Selectable("Random##featuredLook", randomLook)) randomLook = true;
             foreach (var style in GetVisibleStyles())
             {
                 ImGui.PushID(style.Id);
                 var favorite = config.FavoriteStyleIds.Contains(style.Id);
-                if (ImGui.Selectable($"{(favorite ? "★ " : "☆ ")}{style.Name}##style", style.Id == selectedStyle.Id))
-                    selectedStyle = style;
+                if (ImGui.Selectable($"{(favorite ? "★ " : "☆ ")}{style.Name}##style", !randomLook && style.Id == selectedStyle.Id))
+                { selectedStyle = style; randomLook = false; }
                 ImGui.SameLine();
                 ImGui.TextDisabled(style.Category);
                 ImGui.PopID();
@@ -173,6 +283,7 @@ internal sealed class MainWindow : Window
         ImGui.SameLine();
         if (ImGui.BeginChild("##styleInfo", new Vector2(0, 195f), true))
         {
+            if (randomLook) ImGui.TextWrapped("Random: each generation chooses a featured look. Last/current choice:");
             ImGui.Text(selectedStyle.Name);
             ImGui.TextDisabled(selectedStyle.Category);
             ImGui.TextWrapped(selectedStyle.Description);
@@ -211,6 +322,12 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Generate another take"))
             GenerateNext();
         ImGui.SameLine();
+        if (ImGui.Button("Generate and apply"))
+        {
+            if (basePreset is null) status = "Capture a portrait from the open editor before generating a look.";
+            else { GenerateNext(); ApplyGenerated(); }
+        }
+        ImGui.SameLine();
         ImGui.TextDisabled(variation == 0 ? "No take generated yet" : $"Take {variation}");
     }
 
@@ -226,8 +343,18 @@ internal sealed class MainWindow : Window
             return;
         }
 
-        if (ImGui.Button("Apply to open Portrait Editor"))
+        if (ImGui.Button("Apply to open Portrait Editor")) ApplyGenerated();
+
+        ImGui.InputTextMultiline("##generatedCode", ref generatedCode, 2048, new Vector2(-1f, 72f), ImGuiInputTextFlags.ReadOnly);
+        if (ImGui.Button("Copy code"))
         {
+            ImGui.SetClipboardText(generatedCode);
+            status = "Copied a compatible Portrait Helper code. You can share it or import it with HaselTweaks.";
+        }
+    }
+
+    private void ApplyGenerated()
+    {
             if (generatedPreset is null)
             {
                 status = "Generate a look before applying it.";
@@ -245,14 +372,6 @@ internal sealed class MainWindow : Window
             {
                 status = error;
             }
-        }
-
-        ImGui.InputTextMultiline("##generatedCode", ref generatedCode, 2048, new Vector2(-1f, 72f), ImGuiInputTextFlags.ReadOnly);
-        if (ImGui.Button("Copy code"))
-        {
-            ImGui.SetClipboardText(generatedCode);
-            status = "Copied a compatible Portrait Helper code. You can share it or import it with HaselTweaks.";
-        }
     }
 
     private void GenerateNext()
@@ -263,9 +382,10 @@ internal sealed class MainWindow : Window
             return;
         }
 
+        if (randomLook && styles.Count > 0) selectedStyle = styles[Random.Shared.Next(styles.Count)];
         var styled = basePreset.WithStyle(selectedStyle, strength, variation);
         if (strength > 0)
-            styled = editorBridge.StyleOptions(styled, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign);
+            styled = editorBridge.StyleOptions(styled, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign, config);
         generatedPreset = styled;
         generatedCode = styled.ToShareCode();
         variation++;
@@ -284,10 +404,10 @@ internal sealed class MainWindow : Window
         basePresetFromCode = false;
         var automaticStyles = PortraitStyle.Featured;
         var index = (int)((uint)config.NextAutomaticStyleIndex % (uint)automaticStyles.Count);
-        selectedStyle = automaticStyles[index];
+        selectedStyle = randomLook ? automaticStyles[Random.Shared.Next(automaticStyles.Count)] : automaticStyles[index];
         variation = 0;
         generatedPreset = basePreset.WithStyle(selectedStyle, 1f, variation);
-        generatedPreset = editorBridge.StyleOptions(generatedPreset, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign);
+        generatedPreset = editorBridge.StyleOptions(generatedPreset, selectedStyle, variation, config.StylePoseAndExpression, config.StyleOwnedDesign, config);
         if (!config.StylePoseAndExpression)
             generatedPreset = generatedPreset with { BannerTimeline = captured.BannerTimeline, Expression = captured.Expression, AnimationProgress = captured.AnimationProgress };
         if (!config.StyleOwnedDesign)

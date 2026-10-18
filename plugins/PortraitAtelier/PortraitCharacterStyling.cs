@@ -6,11 +6,11 @@ public static class PortraitCharacterStyling
 {
     public static PortraitPreset ApplyDesign(PortraitPreset preset, PortraitStyle style, int variation,
         IReadOnlyList<PortraitCharacterOption> backgrounds, IReadOnlyList<PortraitCharacterOption> frames,
-        IReadOnlyList<PortraitCharacterOption> decorations) => preset with
+        IReadOnlyList<PortraitCharacterOption> decorations, PluginConfig? preferences = null) => preset with
     {
-        BackgroundId = Pick(backgrounds, [], preset.BackgroundId, style.Seed, variation),
-        FrameId = Pick(frames, [], preset.FrameId, style.Seed * 3, variation),
-        DecorationId = Pick(decorations, [], preset.DecorationId, style.Seed * 7, variation),
+        BackgroundId = PickDesign(backgrounds, preferences?.PreferredBackgroundIds, preset.BackgroundId, style.Seed, variation),
+        FrameId = PickDesign(frames, preferences?.PreferredFrameIds, preset.FrameId, style.Seed * 3, variation),
+        DecorationId = PickDesign(decorations, preferences?.PreferredAccentIds, preset.DecorationId, style.Seed * 7, variation),
     };
 
     public static PortraitPreset Apply(PortraitPreset preset, PortraitStyle style, int variation,
@@ -33,6 +33,14 @@ public static class PortraitCharacterStyling
             Expression = (byte)expression,
             AnimationProgress = pose == preset.BannerTimeline ? preset.AnimationProgress : 0f,
         };
+    }
+
+    private static ushort PickDesign(IReadOnlyList<PortraitCharacterOption> owned, IReadOnlyList<ushort>? preferences, ushort current, int seed, int variation)
+    {
+        var preferred = owned.Where(option => preferences?.Contains(option.Id) == true).ToArray();
+        // Three out of four draws favor preferences; other draws retain all owned choices.
+        var candidates = preferred.Length > 0 && Random.Shared.Next(4) < 3 ? preferred : owned;
+        return Pick(candidates, [], current, seed, variation);
     }
 
     private static ushort Pick(IReadOnlyList<PortraitCharacterOption> options, string[] terms,
