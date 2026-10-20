@@ -547,11 +547,25 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    private static readonly System.Reflection.PropertyInfo? LogicalDataCenterProperty =
+        typeof(World).GetProperty("LogicalDataCenter");
+    private static readonly System.Reflection.PropertyInfo? LegacyLogicalDataCenterProperty =
+        typeof(World).GetProperty("Unknown0");
+
     private string? GetHomeDataCenterName()
     {
         if (!player.IsLoaded || player.HomeWorld.RowId == 0) return null;
-        var dataCenter = player.HomeWorld.Value.DataCenter;
-        return dataCenter.RowId == 0 ? null : dataCenter.Value.Name.ToString();
+        // 7.57's physical DataCenter no longer identifies the Universalis pricing group.
+        // EXDSchema f3cacf3 -> a1e24a0 names the existing Unknown0 column
+        // LogicalDataCenter. Support both API15 schema snapshots without guessing offsets.
+        var world = player.HomeWorld.Value;
+        var logical = LogicalDataCenterProperty?.GetValue(world);
+        if (logical is Lumina.Excel.RowRef<WorldDCGroupType> reference)
+            return reference.RowId == 0 ? null : reference.Value.Name.ToString();
+        var legacy = LegacyLogicalDataCenterProperty?.GetValue(world);
+        uint rowId = legacy switch { byte v => v, ushort v => v, uint v => v, _ => 0 };
+        if (rowId == 0) return null;
+        return data.GetExcelSheet<WorldDCGroupType>().GetRowOrDefault(rowId)?.Name.ToString();
     }
 
     public bool TryReadSellItem(out SellItem item, out string error)

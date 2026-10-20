@@ -1,3 +1,7 @@
+## Unreleased
+
+- Use the home world's logical data center for Universalis data-center and regional pricing after the 7.57 hotfix.
+
 ## 0.5.1.15
 
 - Added a gil symbol beside the RP server-bar entry.
