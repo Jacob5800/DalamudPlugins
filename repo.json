@@ -80,7 +80,7 @@
     "AssemblyVersion": "1.0.5.14",
     "Description": "A plugin to remind you about your house on FFXIV just in case you forgot to visit it.",
     "ApplicableVersion": "any",
-    "RepoUrl": "https://github.com/Jacob5800/HousingTimeoutReminder",
+    "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
     "Tags": [
       "Utility"
     ],
@@ -89,7 +89,7 @@
     "LoadSync": false,
     "CanUnloadAsync": false,
     "LoadPriority": 0,
-    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/HousingTimeoutReminder/main/HousingTimeoutReminder/images/icon.png",
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/HousingTimeoutReminder/HousingTimeoutReminder/images/icon.png",
     "Punchline": "Remind you to visit your house just in case you forgot.",
     "Changelog": "## 1.0.5.14\n\n- Replaced the palm tree beside HT with the Ishgard building icon.\n",
     "AcceptsFeedback": true,
@@ -149,7 +149,7 @@
     "CanUnloadAsync": false,
     "LoadPriority": 0,
     "Punchline": "Track team scores from FFXIV /random rolls.",
-    "Changelog": "## 0.2.0.2\n\n- Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.\n- Winning score is configurable from 1â€“100, default 3. Team setup is locked during an active match.\n- Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.",
+    "Changelog": "## 0.2.0.2\n\n- Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.\n- Winning score is configurable from 1–100, default 3. Team setup is locked during an active match.\n- Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.",
     "AcceptsFeedback": true,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",

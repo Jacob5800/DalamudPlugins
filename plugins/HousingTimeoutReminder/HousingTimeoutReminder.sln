@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HousingTimeoutReminder", "HousingTimeoutReminder\HousingTimeoutReminder.csproj", "{13C812E9-0D42-4B95-8646-40EEBF30636F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".root", ".root", "{A92276CE-D399-40BC-95C3-FD79A5C6C0DB}"
+	ProjectSection(SolutionItems) = preProject
+		.\.github = .\.github
+		.\.vscode = .\.vscode
+		.\.editorconfig = .\.editorconfig
+		.\.gitattributes = .\.gitattributes
+		.\.gitignore = .\.gitignore
+		.\.gitmodules = .\.gitmodules
+		.\HousingTimeoutReminder.sln.DotSettings = .\HousingTimeoutReminder.sln.DotSettings
+		.\HousingTimeoutReminder.sln.DotSettings.user = .\HousingTimeoutReminder.sln.DotSettings.user
+		.\LICENSE = .\LICENSE
+		.\README.md = .\README.md
+		.\HousingTimeoutReminder\Dalamud.Plugin.Bootstrap.targets = .\HousingTimeoutReminder\Dalamud.Plugin.Bootstrap.targets
+		.\HousingTimeoutReminder\DalamudPackager.targets = .\HousingTimeoutReminder\DalamudPackager.targets
+		.\HousingTimeoutReminder\Directory.Build.props = .\HousingTimeoutReminder\Directory.Build.props
+		.\HousingTimeoutReminder\Directory.Build.targets = .\HousingTimeoutReminder\Directory.Build.targets
+		.\HousingTimeoutReminder\packages.lock.json = .\HousingTimeoutReminder\packages.lock.json
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		ILRepackTest|x64 = ILRepackTest|x64
+		PersonalRelease|x64 = PersonalRelease|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.Debug|x64.ActiveCfg = Debug|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.Debug|x64.Build.0 = Debug|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.ILRepackTest|x64.ActiveCfg = ILRepackTest|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.ILRepackTest|x64.Build.0 = ILRepackTest|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.PersonalRelease|x64.ActiveCfg = PersonalRelease|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.PersonalRelease|x64.Build.0 = PersonalRelease|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.Release|x64.ActiveCfg = Release|x64
+		{13C812E9-0D42-4B95-8646-40EEBF30636F}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B17E85B1-5F60-4440-9F9A-3DDE877E8CDF}
+	EndGlobalSection
+EndGlobal

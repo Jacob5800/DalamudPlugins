@@ -1,0 +1,72 @@
+name: Release Housing Timeout Reminder
+
+on:
+  push:
+    tags: ["HousingTimeoutReminder-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Dalamud API 15 SDK
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
+          $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/a44d77c7f7927aec7f706df3ab3cb6d4f45f2a59/stg/latest.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
+          "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Verify tag version
+        shell: pwsh
+        run: |
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^HousingTimeoutReminder-v', ''
+          [xml]$project = Get-Content 'plugins/HousingTimeoutReminder/HousingTimeoutReminder/HousingTimeoutReminder.csproj' -Raw
+          $projectVersion = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText
+          if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion must match project version $projectVersion." }
+      - name: Build and package
+        run: dotnet build .\plugins\HousingTimeoutReminder\HousingTimeoutReminder.sln --configuration Release -p:RestoreLockedMode=true
+      - name: Stamp packaged publication date
+        shell: pwsh
+        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/HousingTimeoutReminder/bin/Release/HousingTimeoutReminder' -InternalName 'HousingTimeoutReminder'
+      - name: Name release asset
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/HousingTimeoutReminder/bin/Release/HousingTimeoutReminder/latest.zip' -Destination 'HousingTimeoutReminder.zip' -Force
+      - name: Preserve packaged plugin manifest
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/HousingTimeoutReminder/bin/Release/HousingTimeoutReminder/HousingTimeoutReminder.json' -Destination (Join-Path $env:RUNNER_TEMP 'HousingTimeoutReminder.json') -Force
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          body_path: plugins/HousingTimeoutReminder/RELEASE-NOTES.md
+          files: HousingTimeoutReminder.zip
+      - name: Update combined feed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git switch --force-create feed-update --track origin/main
+          ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'HousingTimeoutReminder.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'HousingTimeoutReminder.zip'
+          git add repo.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: update feed for $env:GITHUB_REF_NAME"
+            git push origin HEAD:main
+          }
+      - name: Announce release changelog on Discord
+        shell: pwsh
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Send-DiscordRelease.ps1 -ReleaseTag $env:RELEASE_TAG

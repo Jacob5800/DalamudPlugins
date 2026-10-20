@@ -1,7 +1,7 @@
 # Consolidated Dalamud plugins
 
 ## Canonical source and scope
-- This repository is the canonical source and release location for Portrait Atelier, Strategy Board Library, Retainer Pricer, Workshoppa, and Tug of War.
+- This repository is the canonical source and release location for Portrait Atelier, Strategy Board Library, Retainer Pricer, Workshoppa, Housing Timeout Reminder, and Tug of War.
 - Make plugin code, version, metadata, changelog, and release changes only in the matching `plugins/<PluginName>/` folder here.
 - Do not update the old standalone repositories for these plugins. They are historical copies; keep their source, workflows, and releases unchanged except for their migration notices and repository-level `AGENTS.md` instructions.
 - Workshoppa source and releases belong in plugins/Workshoppa; Workshoppa-API15 is a historical copy.
@@ -18,10 +18,10 @@
 
 ## Version and release alignment
 - Keep each plugin's project version, JSON manifest `AssemblyVersion`, and its tag version aligned.
-- Release tags use `PortraitAtelier-v<version>`, `StrategyBoardLibrary-v<version>`, `RetainerPricer-v<version>`, `Workshoppa-v<version>`, and `TugOfWar-v<version>`.
+- Release tags use `PortraitAtelier-v<version>`, `StrategyBoardLibrary-v<version>`, `RetainerPricer-v<version>`, `Workshoppa-v<version>`, `HousingTimeoutReminder-v<version>`, and `TugOfWar-v<version>`.
 - Run the relevant build/validation workflow and inspect its result. Do not publish a version whose build failed.
 
-- Plugins from separate repositories (including Housing Timeout Reminder) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
+- Plugins from separate repositories (if any remain external) are announced by announce-external-plugin-feed.yml when their stable version changes in repo.json. The consolidated plugins retain their release-workflow announcements. Keep external feed changelogs populated; testing-only changes do not announce.
 
 
 ## Publication dates in Dalamud
@@ -30,3 +30,5 @@
 - Before declaring publication complete, inspect the downloaded release ZIP and verify its manifest version, changelog and nonzero `LastUpdate`; verify the root feed version, links and publication date too. Preserve the stable changelog/version/links when publishing testing builds.
 - New or changed release workflows, including external plugin workflows, must include this timestamp step. Do not assume a valid feed date repairs an installed package with a zero date.
 - If an older installed release still shows 1970, identify its version and explain that the correction applies to newly packaged updates; do not modify user-installed files to disguise the old metadata.
+
+- Housing Timeout Reminder canonical source is `plugins/HousingTimeoutReminder`, built using its nested solution. Preserve AGPL-1.0 and third-party notices. Existing standalone release links remain valid until the next consolidated release; do not rewrite them to nonexistent assets. InternalName and configuration identity remain HousingTimeoutReminder.

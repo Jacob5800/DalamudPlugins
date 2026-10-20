@@ -105,3 +105,22 @@ jobs:
       - name: Build
         run: dotnet build .\plugins\TugOfWar\TugOfWar.csproj --configuration Release
 
+
+  housing-timeout-reminder:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Dalamud API 15 SDK
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
+          $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
+          Invoke-WebRequest -Uri 'https://goatcorp.github.io/dalamud-distrib/stg/latest.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
+          "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build
+        run: dotnet build .\plugins\HousingTimeoutReminder\HousingTimeoutReminder.sln --configuration Release
+
