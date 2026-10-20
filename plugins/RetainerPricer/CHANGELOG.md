@@ -1,6 +1,6 @@
-## Unreleased
+## 0.5.1.16
 
-- Use the home world's logical data center for Universalis data-center and regional pricing after the 7.57 hotfix.
+- Fixed data-center and regional pricing to use your home world's logical data center after the FFXIV hotfix.
 
 ## 0.5.1.15
 
