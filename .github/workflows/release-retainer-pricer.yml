@@ -20,7 +20,7 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
           $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
-          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/a44d77c7f7927aec7f706df3ab3cb6d4f45f2a59/stg/latest.zip' -OutFile $archive
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/f9017cf1dd7c4d6351489b638e6a0a0ae5f0b45f/stg/latest.zip' -OutFile $archive
           Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
           "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Verify tag version
@@ -76,3 +76,4 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: ./scripts/Send-DiscordRelease.ps1 -ReleaseTag $env:RELEASE_TAG
+
