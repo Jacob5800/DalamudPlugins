@@ -40,11 +40,11 @@
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.5.1.15/RetainerPricer.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-v0.5.1.15/RetainerPricer.zip",
-    "LastUpdate": 1792354855,
-    "TestingAssemblyVersion": null,
-    "DownloadLinkTesting": null,
+    "LastUpdate": 1792515494,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png",
-    "TestingDalamudApiLevel": null
+    "TestingAssemblyVersion": "0.5.1.16",
+    "TestingDalamudApiLevel": 15,
+    "DownloadLinkTesting": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RetainerPricer-testing-v0.5.1.16/RetainerPricer.zip"
   },
   {
     "Author": "Jacob5800",
@@ -149,7 +149,7 @@
     "CanUnloadAsync": false,
     "LoadPriority": 0,
     "Punchline": "Track team scores from FFXIV /random rolls.",
-    "Changelog": "## 0.2.0.2\n\n- Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.\n- Winning score is configurable from 1–100, default 3. Team setup is locked during an active match.\n- Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.",
+    "Changelog": "## 0.2.0.2\n\n- Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.\n- Winning score is configurable from 1ï¿½100, default 3. Team setup is locked during an active match.\n- Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.",
     "AcceptsFeedback": true,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TugOfWar-v0.2.0.2/TugOfWar.zip",
