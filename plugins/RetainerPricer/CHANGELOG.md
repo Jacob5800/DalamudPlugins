@@ -1,3 +1,8 @@
+## Unreleased
+
+- Successful Sniper scans now appear as Complete in Status when failed batches and unresolved items are both zero.
+- The minimum-profit filter now applies to 1-gil alerts too. Alerts without a known profit estimate remain hidden while this filter is enabled.
+
 ## 0.5.1.16
 
 - Fixed data-center and regional pricing to use your home world's logical data center after the FFXIV hotfix.

@@ -13,10 +13,30 @@ internal sealed class StatusHistory(IPluginLog log)
     private readonly List<StatusEntry> entries = [];
     private readonly Dictionary<string, string> previous = [];
     private readonly string version = typeof(StatusHistory).Assembly.GetName().Version?.ToString() ?? "unknown";
-    public static bool IsComplete(string message) => message.StartsWith("Auto update complete:", StringComparison.OrdinalIgnoreCase);
-    public static bool IsFailure(string message) => !IsComplete(message) &&
+    public static bool IsComplete(string message) => message.StartsWith("Auto update complete:", StringComparison.OrdinalIgnoreCase) ||
+        (TryGetSniperScanFailure(message, out var failed) && !failed);
+    public static bool IsFailure(string message) => TryGetSniperScanFailure(message, out var failed) ? failed : !IsComplete(message) &&
         new[] { "failed", "error", "timed out", "timeout", "could not", "cannot", "try again", "stopped", "HTTP", "unavailable" }
             .Any(word => message.Contains(word, StringComparison.OrdinalIgnoreCase));
+
+    private static bool TryGetSniperScanFailure(string message, out bool failed)
+    {
+        failed = false;
+        if (!message.StartsWith("Sniper scan finished:", StringComparison.OrdinalIgnoreCase)) return false;
+        int? failedBatches = null;
+        int? unresolvedItems = null;
+        foreach (var field in message.Split(';'))
+        {
+            var parts = field.Trim().Split('=', 2);
+            if (parts.Length != 2 || !int.TryParse(parts[1], out var count) || count < 0) continue;
+            if (parts[0].Equals("failedBatches", StringComparison.OrdinalIgnoreCase)) failedBatches = count;
+            else if (parts[0].Equals("unresolvedItems", StringComparison.OrdinalIgnoreCase)) unresolvedItems = count;
+        }
+        // Incomplete or malformed summaries retain the normal warning classification.
+        if (failedBatches is null || unresolvedItems is null) return false;
+        failed = failedBatches > 0 || unresolvedItems > 0;
+        return true;
+    }
     public StatusEntry[] Snapshot() { lock (gate) return entries.ToArray(); }
     public void Clear() { lock (gate) entries.Clear(); }
     public void Observe(string source, string message, string progress = "")
