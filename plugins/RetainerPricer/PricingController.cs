@@ -584,12 +584,23 @@ internal sealed class PricingController : IDisposable
     }
 
     private bool runVenturesAfterPriceUpdate;
+    private bool listingTraversal;
+    public bool LastTraversalSucceeded { get; private set; }
 
-    public void AutoUpdateAllRetainers() => StartRetainerPriceUpdate(runVenturesAfter: true);
+    public void ListNewItemsAllRetainers()
+    {
+        if (Busy) return;
+        StartRetainerPriceUpdate(runVenturesAfter: false);
+        if (work == Work.AutoUpdateAllRetainers) listingTraversal = true;
+    }
+
+    public void AutoUpdateAllRetainers() => StartRetainerPriceUpdate(runVenturesAfter: false);
 
     private void StartRetainerPriceUpdate(bool runVenturesAfter)
     {
         if (Busy) return;
+        LastTraversalSucceeded = false;
+        listingTraversal = false;
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         if (bridge.TryReadSellItem(out _, out _))
         { Status = "Close the individual selling window first, leaving the retainer's selling list open."; return; }
@@ -946,6 +957,20 @@ internal sealed class PricingController : IDisposable
                         $"{operation} stopped because the open selling list did not match the queued retainer. No other retainer was changed.");
                     return;
                 }
+                if (listingTraversal)
+                {
+                    work = Work.Idle;
+                    StartListingItems();
+                    if (work == Work.Idle)
+                    {
+                        if (InventorySnapshotError is not null || InventoryCandidates.Count > 0)
+                        { Cancel($"Listing traversal stopped: {Status}"); return; }
+                        work = Work.AutoUpdateAllRetainers;
+                        step = Step.AutoCloseSellList;
+                        deadline = now.AddSeconds(10);
+                    }
+                    return;
+                }
                 if (IsSnapshotTraversal)
                 {
                     var listings = bridge.ReadExistingListings(out error);
@@ -1136,6 +1161,9 @@ internal sealed class PricingController : IDisposable
 
     private void FinishAutoUpdate()
     {
+        var wasListingTraversal = listingTraversal;
+        listingTraversal = false;
+        LastTraversalSucceeded = true;
         Rows.Clear();
         Rows.AddRange(completedRetainerRows);
         completedRetainerRows.Clear();
@@ -1146,6 +1174,7 @@ internal sealed class PricingController : IDisposable
         Finish(message);
         var startVentures = runVenturesAfterPriceUpdate;
         runVenturesAfterPriceUpdate = false;
+        if (wasListingTraversal) Status = "New-item listing pass complete across available retainers.";
         if (startVentures) AutoUpdateCompleted?.Invoke();
     }
 
@@ -1740,6 +1769,7 @@ internal sealed class PricingController : IDisposable
 
     private void FinishBatchListing(string message)
     {
+        var continueTraversal = listingTraversal;
         work = Work.Idle;
         batchSellingOnly = false;
         workingItem = null;
@@ -1749,6 +1779,12 @@ internal sealed class PricingController : IDisposable
         batchMaximumReachedItemIds.Clear();
         Status = message;
         ResetRequest();
+        if (continueTraversal)
+        {
+            work = Work.AutoUpdateAllRetainers;
+            step = Step.AutoCloseSellList;
+            deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        }
     }
 
     private void ScanReceived(PriceRow row, PriceSnapshot snapshot)
@@ -1881,6 +1917,8 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        listingTraversal = false;
+        LastTraversalSucceeded = false;
         MateriaWarningItem = null;
         materiaProceed = materiaSkip = null;
         approvedMateriaItem = null;

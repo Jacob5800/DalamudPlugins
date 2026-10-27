@@ -6,6 +6,11 @@ namespace RetainerPricer;
 /// </summary>
 internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig config)
 {
+    private enum CycleMode { Normal, CollectOnly, AssignOnly }
+    private CycleMode mode;
+    private readonly Dictionary<ulong, uint> collectedTasks = [];
+    public bool LastRunSucceeded { get; private set; }
+
     private enum Step
     {
         Idle,
@@ -98,9 +103,16 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         }
     }
 
-    public void Start()
+    public void Start() => Start(CycleMode.Normal);
+    public void CollectRewards() => Start(CycleMode.CollectOnly);
+    public void ReassignVentures() => Start(CycleMode.AssignOnly);
+
+    private void Start(CycleMode cycleMode)
     {
         if (IsRunning) return;
+        LastRunSucceeded = false;
+        mode = cycleMode;
+        if (mode != CycleMode.AssignOnly) collectedTasks.Clear();
         if (!config.RunVentures)
         { Status = "Enable Run ventures in the Ventures tab before starting the cycle."; return; }
         if (!bridge.IsRetainerPickerVisible)
@@ -223,6 +235,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     public void Cancel(string? message = null)
     {
         if (!IsRunning && message is null) return;
+        LastRunSucceeded = false;
         step = Step.Idle;
         currentRetainer = null;
         Status = message ?? "Venture cycle stopped. The current game window was left open.";
@@ -234,6 +247,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         {
             step = Step.Idle;
             currentRetainer = null;
+            LastRunSucceeded = true;
             Status = $"Venture cycle complete: {processed} venture action(s), {skipped} retainer(s) skipped.";
             return;
         }
@@ -295,14 +309,20 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
             { Cancel($"Venture cycle stopped because {expected.Name}'s menu and venture data disagree."); return; }
             if (!bridge.TrySelectRetainerMenuEntry(text => string.Equals(text, labels.ViewReport, StringComparison.Ordinal), out _, out error))
             { Cancel($"Venture cycle stopped before opening {expected.Name}'s venture report: {error}"); return; }
-            actionReassigns = config.RepeatCompletedVentures;
+            if (mode == CycleMode.CollectOnly) collectedTasks[expected.RetainerId] = ventureId;
+            actionReassigns = mode == CycleMode.Normal && config.RepeatCompletedVentures;
             SetStep(Step.WaitForResult, now, $"Opening {expected.Name}'s completed venture...");
             return;
         }
 
-        if (ventureId == 0 && config.AssignQuickExplorationWhenIdle)
+        if (mode == CycleMode.CollectOnly)
+        { SelectQuit(expected, now, $"Collected {expected.Name}; leaving ventures unassigned until listing finishes."); return; }
+
+        if (ventureId == 0 && (config.AssignQuickExplorationWhenIdle || collectedTasks.ContainsKey(expected.RetainerId)))
         {
-            selectedTaskId = config.RetainerVentureTaskOverrides.TryGetValue(expected.RetainerId, out var configuredTaskId)
+            selectedTaskId = mode == CycleMode.AssignOnly && config.RepeatCompletedVentures && collectedTasks.TryGetValue(expected.RetainerId, out var previousTask)
+                ? previousTask
+                : config.RetainerVentureTaskOverrides.TryGetValue(expected.RetainerId, out var configuredTaskId)
                 ? configuredTaskId
                 : RetainerVentureIds.QuickExploration;
             selectedTaskListCategoryOpened = false;

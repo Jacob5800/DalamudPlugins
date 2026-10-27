@@ -29,6 +29,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly SniperMonitor sniper;
     private readonly AutoVendorController vendor;
     private readonly VentureController ventures;
+    private readonly AutomationController automation;
     private readonly MainWindow window;
     private readonly InventoryListMenu inventoryMenus;
     private readonly UndercutNotifier undercuts;
@@ -37,6 +38,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ItemPriceTooltip itemPriceTooltip;
     private readonly MarketboardRoi marketboardRoi;
     private bool wasOpen;
+    private bool ventureVisitHandled;
+    private DateTimeOffset? venturePickerReadyAt;
     private bool disposed;
     private readonly bool rpAliasRegistered;
 
@@ -86,15 +89,15 @@ public sealed class Plugin : IDalamudPlugin
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
         ventures = new VentureController(bridge, config);
+        automation = new AutomationController(bridge, controller, ventures, vendor, config, IsAutoRetainerLoaded);
         undercuts = new UndercutNotifier(universalis, config);
         inventoryMenus = new InventoryListMenu(contextMenu, config, Save, bridge, itemSheet
             .Where(item => item.RowId != 0)
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
-        controller.AutoUpdateCompleted += StartVenturesAfterAutoUpdate;
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
-            shown => serverInfoBarEntry.Shown = shown, ventures, pluginInterface.IsTesting, undercuts,
+            shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
             UndercutsPaused);
         inventoryMenus.SearchUniversalis = window.SearchMarketboardItem;
         windows.AddWindow(window);
@@ -133,6 +136,7 @@ public sealed class Plugin : IDalamudPlugin
             catch (Exception ex)
             {
                 log.Error(ex, "Retainer Pricer operation failed");
+                automation.Cancel("Full sequence stopped after an unexpected error.");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
                 vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
                 ventures.Cancel("Venture cycle stopped after an unexpected error. Check the current retainer window before continuing.");
@@ -145,10 +149,15 @@ public sealed class Plugin : IDalamudPlugin
         if (disposed) return;
         try
         {
+            automation.Update();
+            if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
+                ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
             controller.Update();
             if (controller.MateriaWarningItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
+            UpdateAutomaticVentures();
+            statusHistory.Observe("Automation", automation.Status);
             statusHistory.Observe("Pricing", controller.Status, controller.Progress);
             statusHistory.Observe("Retainer sales", vendor.Status);
             statusHistory.Observe("Ventures", ventures.Status);
@@ -188,17 +197,76 @@ public sealed class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
+            automation.Cancel("Full sequence stopped after an unexpected error.");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
             vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
             ventures.Cancel("Venture cycle stopped after an unexpected error. Check the current retainer window before continuing.");
         }
     }
 
-    private void StartVenturesAfterAutoUpdate()
+    private bool IsAutoRetainerLoaded() => pluginInterface.InstalledPlugins.Any(plugin =>
+        plugin.IsLoaded && string.Equals(plugin.InternalName, "AutoRetainer", StringComparison.OrdinalIgnoreCase));
+
+    private void UpdateAutomaticVentures()
     {
-        if (config.RunVentures && !disposed && !vendor.IsRunning)
-            ventures.Start();
+        if (automation.IsRunning)
+        { ventureVisitHandled = true; venturePickerReadyAt = null; return; }
+        if (IsAutoRetainerLoaded())
+        { venturePickerReadyAt = null; return; }
+        // Retainer UI has a single owner. Never start a cycle during pricing,
+        // price lookups, listing, selling, or an existing venture operation.
+        if (ventures.IsRunning)
+        {
+            ventureVisitHandled = true;
+            venturePickerReadyAt = null;
+            return;
+        }
+        if (controller.Busy || vendor.IsRunning)
+        {
+            // An explicit operation owns this visit. The full sequence owns its own
+            // ordered transitions and never uses this standalone trigger.
+            ventureVisitHandled = true;
+            venturePickerReadyAt = null;
+            return;
+        }
+        if (!bridge.IsRetainerPickerVisible || bridge.IsClientStateUnavailable)
+        {
+            // A child retainer window hiding the picker is still the same visit.
+            // In particular, stopping there must not re-arm an automatic run.
+            if (bridge.IsClientStateUnavailable ||
+                (!bridge.IsRetainerMenuVisible && !bridge.IsRetainerDialogueVisible &&
+                 !bridge.IsRetainerSellListVisible && !bridge.IsSellWindowVisible && !bridge.IsComparisonVisible &&
+                 !bridge.IsVentureTaskAskVisible && !bridge.IsVentureTaskResultVisible && !bridge.IsVentureTaskSupplyVisible))
+                ventureVisitHandled = false;
+            venturePickerReadyAt = null;
+            return;
+        }
+        if (!config.RunVentures || (!config.AutoRunVentures && !config.AutoRunFullSequence))
+        {
+            venturePickerReadyAt = null;
+            return;
+        }
+        if (ventureVisitHandled) return;
+        if (!IsIdleVenturePicker)
+        {
+            venturePickerReadyAt = null;
+            return;
+        }
+
+        // Let picker transitions settle and give explicit user operations priority.
+        var now = DateTimeOffset.UtcNow;
+        venturePickerReadyAt ??= now.AddSeconds(1);
+        if (now < venturePickerReadyAt.Value) return;
+        ventureVisitHandled = true;
+        if (config.AutoRunFullSequence) automation.Start();
+        else ventures.Start();
     }
+
+    private bool IsIdleVenturePicker => bridge.IsRetainerPickerVisible &&
+        !bridge.IsRetainerMenuVisible && !bridge.IsRetainerDialogueVisible &&
+        !bridge.IsRetainerSellListVisible && !bridge.IsSellWindowVisible && !bridge.IsComparisonVisible &&
+        !bridge.IsVentureTaskAskVisible && !bridge.IsVentureTaskResultVisible && !bridge.IsVentureTaskSupplyVisible &&
+        !bridge.IsClientStateUnavailable;
 
     private string clipboardSearchMessage = "";
     private void DrawMarketboardClipboard()
@@ -239,7 +307,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             if (config.ShowRetainerListingButton)
             {
-            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanStartListingItems || controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanStartListingItems || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Start listing items")) window.RequestListingFromMarketMenu();
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
@@ -248,7 +316,7 @@ public sealed class Plugin : IDalamudPlugin
             if (config.ShowRetainerVendorButton)
             {
                 if (config.ShowRetainerListingButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
-            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning || bridge.RetainerSaleAvailabilityError is not null);
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || bridge.RetainerSaleAvailabilityError is not null);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Retainer vendor items", new System.Numerics.Vector2(vendorWidth, 0)))
             {
                 window.IsOpen = true;
@@ -277,7 +345,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             if (config.ShowRetainerUpdateButton)
             {
-            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Update existing listings", new System.Numerics.Vector2(updateWidth, 0))) Dispatch(controller.UpdateExistingListings);
             Dalamud.Bindings.ImGui.ImGui.EndDisabled();
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
@@ -286,7 +354,7 @@ public sealed class Plugin : IDalamudPlugin
             if (config.ShowRetainerVentureButton)
             {
                 if (config.ShowRetainerUpdateButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
-            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!config.RunVentures || controller.Busy || vendor.IsRunning || ventures.IsRunning);
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!config.RunVentures || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.Button, new System.Numerics.Vector4(0.84f, 0.70f, 0.12f, 1));
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.96f, 0.82f, 0.22f, 1));
             Dalamud.Bindings.ImGui.ImGui.PushStyleColor(Dalamud.Bindings.ImGui.ImGuiCol.ButtonActive, new System.Numerics.Vector4(0.70f, 0.57f, 0.08f, 1));
@@ -312,7 +380,6 @@ public sealed class Plugin : IDalamudPlugin
         disposed = true;
         inventoryMenus.Dispose();
         undercuts.Dispose();
-        controller.AutoUpdateCompleted -= StartVenturesAfterAutoUpdate;
         framework.Update -= Update;
         pluginInterface.UiBuilder.Draw -= windows.Draw;
         pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
@@ -329,6 +396,7 @@ public sealed class Plugin : IDalamudPlugin
         if (rpAliasRegistered) commands.RemoveHandler("/rp");
         serverInfoBarEntry.Remove();
         controller.Dispose();
+        automation.Cancel();
         vendor.Dispose();
         ventures.Cancel();
         sniper.Dispose();

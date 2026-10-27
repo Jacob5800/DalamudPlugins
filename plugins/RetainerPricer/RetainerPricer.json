@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.17",
+  "AssemblyVersion": "0.5.1.18",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.17\n\n- Successful Sniper scans now appear as Complete in Status when failed batches and unresolved items are both zero.\n- The minimum-profit filter now applies to 1-gil alerts too. Alerts without a known profit estimate remain hidden while this filter is enabled.\n",
+  "Changelog": "## 0.5.1.18\n\n- Added an Automation tab with separate Auto ventures and full-sequence toggles, both off by default. Full-sequence automation takes priority when both are enabled.\n- Auto update now collects venture rewards, updates existing listings, lists eligible new items across retainers, then reassigns ventures. Manual pricing and listing controls remain separate.\n- Added checks that prevent duplicate venture runs, stop subsequent passes after a failure or cancellation, and block automatic runs while the AutoRetainer plugin is loaded.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

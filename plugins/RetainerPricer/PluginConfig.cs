@@ -30,6 +30,8 @@ public sealed class PluginConfig : IPluginConfiguration
     public int UndercutGilAmount { get; set; } = 1;
     public double UndercutPercentage { get; set; } = 1;
     public bool RunVentures { get; set; }
+    public bool AutoRunVentures { get; set; } = false;
+    public bool AutoRunFullSequence { get; set; } = false;
     public bool AssignQuickExplorationWhenIdle { get; set; } = true;
     public bool RepeatCompletedVentures { get; set; } = true;
     public Dictionary<ulong, RetainerVentureJob> RetainerVentureJobOverrides { get; set; } = [];
