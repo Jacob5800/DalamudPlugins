@@ -40,6 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool wasOpen;
     private bool ventureVisitHandled;
     private DateTimeOffset? venturePickerReadyAt;
+    private DateTimeOffset? ventureInteractionClosedAt;
     private bool disposed;
     private readonly bool rpAliasRegistered;
 
@@ -209,6 +210,27 @@ public sealed class Plugin : IDalamudPlugin
 
     private void UpdateAutomaticVentures()
     {
+        // Child addon transitions can briefly hide every retainer window. Only
+        // ending the bell interaction can re-arm a completed automatic visit.
+        var interactionVisible = bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible ||
+            bridge.IsRetainerDialogueVisible || bridge.IsRetainerSellListVisible ||
+            bridge.IsSellWindowVisible || bridge.IsComparisonVisible ||
+            bridge.IsVentureTaskAskVisible || bridge.IsVentureTaskResultVisible || bridge.IsVentureTaskSupplyVisible;
+        if (bridge.IsClientStateUnavailable)
+        {
+            ventureVisitHandled = false;
+            ventureInteractionClosedAt = null;
+        }
+        else if (interactionVisible || condition[ConditionFlag.OccupiedSummoningBell] ||
+                 automation.IsRunning || ventures.IsRunning || controller.Busy || vendor.IsRunning)
+            ventureInteractionClosedAt = null;
+        else
+        {
+            ventureInteractionClosedAt ??= DateTimeOffset.UtcNow;
+            if (DateTimeOffset.UtcNow - ventureInteractionClosedAt.Value >= TimeSpan.FromSeconds(4))
+                ventureVisitHandled = false;
+        }
+
         if (automation.IsRunning)
         { ventureVisitHandled = true; venturePickerReadyAt = null; return; }
         if (IsAutoRetainerLoaded())
@@ -231,13 +253,6 @@ public sealed class Plugin : IDalamudPlugin
         }
         if (!bridge.IsRetainerPickerVisible || bridge.IsClientStateUnavailable)
         {
-            // A child retainer window hiding the picker is still the same visit.
-            // In particular, stopping there must not re-arm an automatic run.
-            if (bridge.IsClientStateUnavailable ||
-                (!bridge.IsRetainerMenuVisible && !bridge.IsRetainerDialogueVisible &&
-                 !bridge.IsRetainerSellListVisible && !bridge.IsSellWindowVisible && !bridge.IsComparisonVisible &&
-                 !bridge.IsVentureTaskAskVisible && !bridge.IsVentureTaskResultVisible && !bridge.IsVentureTaskSupplyVisible))
-                ventureVisitHandled = false;
             venturePickerReadyAt = null;
             return;
         }
