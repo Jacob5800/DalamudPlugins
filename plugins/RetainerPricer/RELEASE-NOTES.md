@@ -1,5 +1,3 @@
-## 0.5.1.18
+## 0.5.1.19
 
-- Added an Automation tab with separate Auto ventures and full-sequence toggles, both off by default. Full-sequence automation takes priority when both are enabled.
-- Auto update now collects venture rewards, updates existing listings, lists eligible new items across retainers, then reassigns ventures. Manual pricing and listing controls remain separate.
-- Added checks that prevent duplicate venture runs, stop subsequent passes after a failure or cancellation, and block automatic runs while the AutoRetainer plugin is loaded.
+- Fixed automation restarting when opening a retainer and returning to the retainer list. Automatic runs now rearm only after leaving the bell interaction for four seconds.

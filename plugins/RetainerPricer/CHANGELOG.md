@@ -1,3 +1,7 @@
+## 0.5.1.19
+
+- Fixed automation restarting when opening a retainer and returning to the retainer list. Automatic runs now rearm only after leaving the bell interaction for four seconds.
+
 ## 0.5.1.18
 
 - Added an Automation tab with separate Auto ventures and full-sequence toggles, both off by default. Full-sequence automation takes priority when both are enabled.
