@@ -7,3 +7,5 @@ Selected configuration and font helper code reused from Roxyz0501/BaitBeacon (in
 StandardPluginTabs.cs was adapted from the original shared tab implementation.
 Dalamud, Dalamud.Bindings.ImGui, FFXIVClientStructs, Lumina and Lumina.Excel are runtime references supplied by Dalamud and are not included in the ZIP.
 FINAL FANTASY XIV and related game content belong to Square Enix. No game executable, art, font file, game text dictionary or game data is included.
+
+Distribution changes: 2026 Jacob5800. Version 1.0.8.1 reconstructs source from the supplied custom assembly and adds an optional server info bar button. Original attribution and Apache-2.0 licensing are retained.

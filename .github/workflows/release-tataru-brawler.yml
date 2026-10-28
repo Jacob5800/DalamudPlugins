@@ -12,13 +12,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Dalamud API 15 SDK
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
+          $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/a44d77c7f7927aec7f706df3ab3cb6d4f45f2a59/stg/latest.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
+          "DalamudLibPath=$install/" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Verify tag version
         shell: pwsh
         run: |
           $tagVersion = $env:GITHUB_REF_NAME -replace '^TataruBrawler-v', ''
           $manifest = Get-Content 'plugins/TataruBrawler/TataruBrawler.json' -Raw | ConvertFrom-Json
           if ($tagVersion -ne $manifest.AssemblyVersion) { throw 'Tag and manifest versions must match.' }
-      - name: Package supplied custom binary and verify metadata
+      - name: Build reconstructed custom source and verify package
         shell: pwsh
         run: ./plugins/TataruBrawler/Package.ps1
       - name: Name release asset
