@@ -583,9 +583,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         }
         if (!TryGetStock(agentView->SellInventoryType, agentView->SellInventorySlot, out var stock, out error))
             return false;
-        if (IsBound(stock))
+        if (!CanListOnMarketboard(stock))
         {
-            error = "This item is bound and cannot be listed on the marketboard.";
+            error = "This item is bound, untradeable, collectable, or market prohibited and cannot be listed on the marketboard.";
             return false;
         }
         var quantity = addon->Quantity->Value;
@@ -712,6 +712,10 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 if (IsBound(stock) && !includeBound && allowedBoundItemIds?.Contains(itemId) != true) { unmarketableSkipped++; continue; }
                 if (!includeUnmarketable && !marketableItemIds.Contains(itemId) && additionalAllowedItemIds?.Contains(itemId) != true)
                 { unmarketableSkipped++; continue; }
+                // Normal market listing snapshots must apply live-slot eligibility too.
+                // Additional allowed items belong to the separately protected NPC-sale path.
+                if (!includeUnmarketable && additionalAllowedItemIds?.Contains(itemId) != true && !CanListOnMarketboard(stock))
+                { unmarketableSkipped++; continue; }
                 if (excludedItemIds.Contains(itemId)) { exceptionSkipped++; continue; }
                 var name = ItemName(itemId);
                 if (string.IsNullOrWhiteSpace(name)) { unmarketableSkipped++; continue; }
@@ -781,7 +785,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (stock->IsEmpty()) { error = string.Empty; return true; }
         if (stock->GetBaseItemId() != expected.ItemId || stock->IsHighQuality() != expected.IsHq)
         { error = "The original inventory slot now contains a different item. The batch stopped."; return false; }
-        if (IsBound(stock)) { error = $"{expected.Name} is bound and cannot be listed."; return false; }
+        if (!CanListOnMarketboard(stock)) { error = $"{expected.Name} is bound, untradeable, collectable, or market prohibited and cannot be listed."; return false; }
         quantity = stock->GetQuantity();
         error = string.Empty;
         return true;
@@ -1123,9 +1127,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             error = "That inventory slot changed after the snapshot. Take a fresh snapshot before opening it.";
             return false;
         }
-        if (IsBound(stock))
+        if (!CanListOnMarketboard(stock))
         {
-            error = $"{expected.Name} is bound and cannot be listed. It was skipped.";
+            error = $"{expected.Name} is bound, untradeable, collectable, or market prohibited. It was skipped.";
             return false;
         }
         var agent = AgentRetainer.Instance();
@@ -1570,6 +1574,16 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (stock == null || stock->IsEmpty() || stock->GetBaseItemId() == 0) return false;
         error = string.Empty;
         return true;
+    }
+
+    // Recheck the live slot at every market entry point, even if a stale snapshot or
+    // whitelist previously admitted it. NPC selling has separate eligibility rules.
+    private bool CanListOnMarketboard(InventoryItem* stock)
+    {
+        if (stock == null || stock->IsEmpty() || IsBound(stock) || stock->IsCollectable()) return false;
+        if ((stock->GetFlags() & InventoryItem.ItemFlags.CompanyCrestApplied) != 0) return false;
+        var row = data.GetExcelSheet<Item>().GetRowOrDefault(stock->GetBaseItemId());
+        return row is { IsUntradable: false } item && item.ItemSearchCategory.RowId != 0;
     }
 
     private static bool IsBound(InventoryItem* stock) =>

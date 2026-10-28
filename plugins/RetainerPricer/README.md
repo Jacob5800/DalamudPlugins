@@ -142,3 +142,5 @@ An automatic run requires the picker to remain idle for one second. Opening a re
 **AutoRetainer conflict protection:** automatic ventures and the full sequence are blocked whenever the AutoRetainer plugin is loaded. This checks the loaded plugin, not merely whether its files are installed. Unload AutoRetainer before using these automations. Loading it during a full sequence stops the remaining work.
 
 **Stop** cancels the remaining sequence and does not immediately restart it. Already submitted prices/listings and collected rewards remain applied; retainers collected before a cancellation may be left idle until you manually reassign them or run another cycle. Close the bell UI and reopen the picker to permit another automatic run. Disconnects, character/world changes and controller failures stop progression. Price-drop and materia prompts still require a decision.
+
+Automatic market listing skips untradeable, market-prohibited, bound/spiritbonded, collectable, and company-crested inventory stacks. NPC sales retain their separate whitelist and protection rules.
