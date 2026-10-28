@@ -11,6 +11,8 @@ internal sealed class TugOfWarWindow : Window
     private readonly Action<RollOutcome> processManualRoll;
     private readonly Action save;
     private readonly Func<IReadOnlyList<string>> readPartyMembers;
+    private readonly Func<string> readDiagnostics;
+    private readonly Action clearDiagnostics;
     private readonly List<string> partyMembers = [];
     private readonly List<int> partyAssignments = [];
     private string status = "Enter team names and member rosters, then start the match.";
@@ -21,7 +23,8 @@ internal sealed class TugOfWarWindow : Window
     public TugOfWarConfig Config { get; }
 
     public TugOfWarWindow(TugOfWarConfig config, MatchEngine engine, Action start,
-        Action<RollOutcome> processManualRoll, Action save, Func<IReadOnlyList<string>> readPartyMembers) : base("Tug of War")
+        Action<RollOutcome> processManualRoll, Action save, Func<IReadOnlyList<string>> readPartyMembers,
+        Func<string> readDiagnostics, Action clearDiagnostics) : base("Tug of War")
     {
         Config = config;
         this.engine = engine;
@@ -29,6 +32,8 @@ internal sealed class TugOfWarWindow : Window
         this.processManualRoll = processManualRoll;
         this.save = save;
         this.readPartyMembers = readPartyMembers;
+        this.readDiagnostics = readDiagnostics;
+        this.clearDiagnostics = clearDiagnostics;
         Size = new Vector2(610, 610);
         SizeCondition = ImGuiCond.FirstUseEver;
         Flags = ImGuiWindowFlags.NoCollapse;
@@ -108,8 +113,15 @@ internal sealed class TugOfWarWindow : Window
         }
         ImGui.EndDisabled();
         var announce = Config.AnnounceToParty;
-        if (ImGui.Checkbox("Announce match and resolved scores in party chat", ref announce))
+        if (ImGui.Checkbox("Announce match and resolved scores", ref announce))
         { Config.AnnounceToParty = announce; save(); }
+        var channels = new[] { "Party", "Say", "Shout" };
+        var channelIndex = Array.IndexOf(channels, Config.AnnouncementChannel);
+        if (channelIndex < 0) channelIndex = 0;
+        ImGui.SetNextItemWidth(160);
+        if (ImGui.Combo("Announcement channel", ref channelIndex, channels, channels.Length))
+        { Config.AnnouncementChannel = channels[channelIndex]; save(); }
+        ImGui.TextDisabled("Party: /p · Say: /say · Shout: /shout (public zone chat)");
 
         ImGui.Separator();
         if (!engine.IsActive)
@@ -137,6 +149,19 @@ internal sealed class TugOfWarWindow : Window
         ImGui.Text($"{engine.TeamAName} roll: {FormatRoll(engine.RollA)}");
         ImGui.Text($"{engine.TeamBName} roll: {FormatRoll(engine.RollB)}");
         ImGui.TextWrapped(status);
+
+        if (ImGui.CollapsingHeader("Diagnostics"))
+        {
+            var enabled = Config.DebugLogging;
+            if (ImGui.Checkbox("Log roll diagnostics", ref enabled)) { Config.DebugLogging = enabled; save(); }
+            ImGui.TextWrapped("Captures roll messages and character names, parsing results and match decisions. Other chat is not captured. Keeps the latest 200 lines; also writes to /xllog.");
+            if (ImGui.Button("Copy diagnostics")) ImGui.SetClipboardText(readDiagnostics());
+            ImGui.SameLine();
+            if (ImGui.Button("Clear diagnostics")) clearDiagnostics();
+            if (ImGui.BeginChild("##rollDiagnostics", new Vector2(-1, 140), true))
+                ImGui.TextUnformatted(readDiagnostics());
+            ImGui.EndChild();
+        }
 
         ImGui.Separator();
         ImGui.TextDisabled("Manual entry (for rolls the chat reader did not recognize)");
