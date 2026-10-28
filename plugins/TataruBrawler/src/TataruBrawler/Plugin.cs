@@ -66,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly IChatGui chat;
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
+    private long wholeWordDue;
 
 	private long loopSample;
 
@@ -448,6 +449,24 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				break;
 			case RunGate.Run:
 			{
+                if (config.IllegalMode)
+                {
+                    controlGate = "WholeWordWait";
+                    if (typing.ManualPaused || loop.Paused || encounter.Paused(tickCount)
+                        || !backgroundKeys.Ready || tickCount < wholeWordDue) break;
+                    string word = reader.Words.FirstOrDefault();
+                    uint entity = word == null ? 0 : reader.Source(word);
+                    if (word != null && entity != 0)
+                    {
+                        if (reader.SubmitWholeWord(word, config.SkipOptionalPunctuation))
+                        {
+                            wholeWordDue = tickCount + Math.Max(1500, config.BetweenWordsMs);
+                            controlGate = "WholeWordSubmitted";
+                        }
+                    }
+                    break;
+                }
+
 				bool flag4 = encounter.Paused(tickCount) || typing.ManualPaused || (background && (typing.Japanese || !backgroundKeys.Ready));
 				bool flag5 = typing.Submitted || (!flag4 && reader.EnsureFocus(tickCount));
 				if (typing.CurrentWord.Length == 0)
@@ -939,6 +958,17 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void DrawSettings()
     {
+        bool illegalMode = config.IllegalMode;
+        if (ImGui.Checkbox("Illegal mode (insert whole word)", ref illegalMode))
+        {
+            config.IllegalMode = illegalMode;
+            backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
+            wholeWordDue = 0;
+            if (typing.Running && !typing.ManualPaused) StartTyping(Environment.TickCount64, "input_mode_changed");
+            settings.Update(config);
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Experimental: insert the entire answer into Keybound's own field and submit it once. Off by default. Will wait if the field already contains text; clear it before switching modes.");
         bool skipPunctuation = config.SkipOptionalPunctuation;
         if (ImGui.Checkbox("Skip optional English punctuation", ref skipPunctuation))
         { config.SkipOptionalPunctuation = skipPunctuation; settings.Update(config); }

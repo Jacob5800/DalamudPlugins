@@ -1,3 +1,8 @@
+## 1.0.8.7
+
+- Added optional Illegal mode to insert and submit a complete Keybound answer at once.
+- Disabled by default; normal per-letter typing remains available.
+
 ## 1.0.8.6
 
 - Automatically resume after temporary input-send failures once the duty input is ready again.

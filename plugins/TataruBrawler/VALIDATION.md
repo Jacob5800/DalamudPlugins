@@ -13,3 +13,5 @@ Version 1.0.8.4: local build and 34 offline checks pass, including English backg
 Version 1.0.8.5: offline checks cover punctuation enable/disable, required punctuation, original prompt identity, Japanese preservation, shortened background submission, threshold/cap transitions, suppression of repeat warnings, transient missing cap data and rearming after spending. Local compilation and packaging pass. Live CurrencyManager cap availability, warning display and shortened-answer acceptance remain pending observation.
 
 1.0.8.6: automatic SendFailed recovery requires two seconds of stable ready input, with five-second retry spacing. Manual pause/stop, results, unsupported input and NoProgress are excluded. Partial answers enter existing clearing recovery. Offline policy checks pass; live phase transition recovery remains pending.
+
+1.0.8.7: whole-word callback path compiled and package metadata verified; 62 existing offline checks pass. Native field insertion/submission and game acceptance remain unverified. No successful gameplay claim is made.

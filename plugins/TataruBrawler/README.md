@@ -46,3 +46,7 @@ Settings provides **Warn when MGC approaches its cap** (on by default) and **MGC
 ## Automatic recovery
 
 Temporary input unavailability already pauses typing until ready. A SendFailed stop now retries after two seconds of continuously ready duty input, no more often than every five seconds. It retains the normal focus, cast-block and loading gates, including partial-answer cleanup during word preparation. Manual Pause/Stop, results, unsupported text and exhausted NoProgress cleanup never trigger a restart.
+
+## Illegal mode
+
+Settings → **Illegal mode (insert whole word)** is experimental and off by default. It inserts the prepared answer into the owned Keybound field and invokes its Enter callback. It checks prompt visibility, field ownership/readiness, existing text and competing focus. Existing manual pause/stop and cast blocks remain active. Submission is throttled to at least 1.5 seconds (or the longer configured between-word delay). It does not use the system clipboard or OS typing. Clear partial text before switching modes. Actual whole-answer acceptance has not been verified in game.

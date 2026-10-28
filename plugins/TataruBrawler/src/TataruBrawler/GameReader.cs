@@ -161,6 +161,26 @@ internal sealed class GameReader(IGameGui gui)
 		return SeString.Parse(data).TextValue;
 	}
 
+    public unsafe bool SubmitWholeWord(string original, bool skipPunctuation)
+    {
+        uint entity = Source(original);
+        var plan = TypingPlan.Create(original, skipPunctuation);
+        if (entity == 0 || plan == null || !StillVisible(original, entity)) return false;
+        var input = Input(out var addon);
+        if (input == null || !input->Enabled || input->OwnerAddon != addon || CompetingFocus()
+            || input->Callback == null) return false;
+        // Do not replace text left by a user or an unfinished ordinary answer.
+        if (!string.IsNullOrEmpty(EvaluatedText())) return false;
+        input->SetText(plan.Expected);
+        if (Input(out var checkAddon) != input || checkAddon != addon
+            || EvaluatedText() != plan.Expected || !StillVisible(original, entity)) return false;
+        var result = input->Callback(addon, InputCallbackType.Enter,
+            input->RawString.StringPtr, input->EvaluatedString.StringPtr, input->CallbackEventKind);
+        if (result == InputCallbackResult.ClearText && Input(out checkAddon) == input && checkAddon == addon)
+            input->SetText("");
+        return true;
+    }
+
     public unsafe bool SendBackground(char key, string expected, BackgroundKeys keys)
     {
         var input = Input(out var addon);
