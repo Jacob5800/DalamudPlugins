@@ -17,6 +17,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commandManager;
     private readonly IChatGui chatGui;
     private readonly IPartyList partyList;
+    private readonly IPlayerState playerState;
     private readonly IPluginLog log;
     private readonly WindowSystem windowSystem = new("TugOfWar");
     private readonly MatchEngine engine = new();
@@ -26,12 +27,13 @@ public sealed class Plugin : IDalamudPlugin
     private int diagnosticCount;
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager,
-        IChatGui chatGui, IPartyList partyList, IPluginLog log)
+        IChatGui chatGui, IPartyList partyList, IPlayerState playerState, IPluginLog log)
     {
         this.pluginInterface = pluginInterface;
         this.commandManager = commandManager;
         this.chatGui = chatGui;
         this.partyList = partyList;
+        this.playerState = playerState;
         this.log = log;
 
         var config = pluginInterface.GetPluginConfig() as TugOfWarConfig ?? new TugOfWarConfig();
@@ -108,18 +110,24 @@ public sealed class Plugin : IDalamudPlugin
         var source = linkedPlayer is not null ? "player payload" : "sender";
         if (string.IsNullOrWhiteSpace(sender))
         {
-            var nameMatch = Regex.Match(text, @"^\s*(?<player>.+?)\s+roll(?:s|ed)?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            var nameMatch = Regex.Match(text, @"^\s*(?:Random!\s*)?(?<player>.+?)\s+roll(?:s|ed)?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             if (nameMatch.Success) { sender = nameMatch.Groups["player"].Value; source = "message text"; }
         }
-        Diagnostic($"Roll chat type={message.LogKind}; active={engine.IsActive}; parsed={parsed}; value={roll}; sender source={source}; player='{sender}'; payloads={string.Join(",", message.Message.Payloads.Select(p => p.GetType().Name))}; text='{text}'.");
-        if (!parsed) { Diagnostic("Rejected: expected a /random 100 result (1–100 with maximum 100)."); return; }
+        if (message.LogKind == XivChatType.RandomNumber && linkedPlayer is null &&
+            Regex.IsMatch(text, @"^\s*(?:Random!\s*)?You\s+roll\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            sender = playerState.IsLoaded ? playerState.CharacterName : string.Empty;
+            source = "self";
+        }
+        if (!parsed) { Diagnostic($"Unparsed {message.LogKind}: {text}"); return; }
         if (string.IsNullOrWhiteSpace(sender))
         {
+            Diagnostic($"Roll {roll}: player missing ({source}).");
             mainWindow.SetStatus("Roll detected, but its player could not be identified. Copy Diagnostics for troubleshooting.");
             return;
         }
         var outcome = engine.Accept(sender, text);
-        Diagnostic($"Result={outcome.Status}; round={engine.Round}; score={engine.ScoreA}:{engine.ScoreB}; {outcome.Message}");
+        Diagnostic($"{sender}: {roll} ({source}) -> {outcome.Status}; score {engine.ScoreA}:{engine.ScoreB}, round {engine.Round}.");
         if (outcome.Status == RollStatus.Ignored) return;
 
         mainWindow.SetStatus(outcome.Message);
@@ -148,7 +156,7 @@ public sealed class Plugin : IDalamudPlugin
         var now = DateTime.UtcNow;
         if ((now - diagnosticWindow).TotalSeconds >= 1) { diagnosticWindow = now; diagnosticCount = 0; }
         if (++diagnosticCount > 20) return;
-        var line = $"{now:O} {text.Replace('\r', ' ').Replace('\n', ' ')}";
+        var line = $"{now:HH:mm:ss} {text.Replace('\r', ' ').Replace('\n', ' ')}";
         if (line.Length > 2000) line = line[..2000];
         diagnostics.Enqueue(line);
         while (diagnostics.Count > 200) diagnostics.Dequeue();

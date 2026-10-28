@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Tug of War",
   "InternalName": "TugOfWar",
-  "AssemblyVersion": "0.2.0.3",
+  "AssemblyVersion": "0.2.0.4",
   "Description": "Track Tug of War scores from /random 100 rolls and import current party members into teams.",
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -20,5 +20,5 @@
   "LoadPriority": 0,
   "Punchline": "Track team scores from FFXIV /random rolls.",
   "AcceptsFeedback": true,
-  "Changelog": "## 0.2.0.3\n\n- Fixed rolls being ignored when system messages have an empty sender; player links now identify the roller.\n- Added a Diagnostics panel with copyable roll-processing logs.\n- Added Party, Say and Shout announcement choices, with Party as the default.\n"
+  "Changelog": "## 0.2.0.4\n\n- Fixed your own rolls being ignored: \"You roll\" now identifies your logged-in character.\n- Shortened diagnostics to one concise line per roll.\n"
 }

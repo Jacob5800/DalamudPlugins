@@ -1,5 +1,4 @@
-## 0.2.0.3
+## 0.2.0.4
 
-- Fixed rolls being ignored when system messages have an empty sender; player links now identify the roller.
-- Added a Diagnostics panel with copyable roll-processing logs.
-- Added Party, Say and Shout announcement choices, with Party as the default.
+- Fixed your own rolls being ignored: "You roll" now identifies your logged-in character.
+- Shortened diagnostics to one concise line per roll.

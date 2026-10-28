@@ -1,3 +1,8 @@
+## 0.2.0.4
+
+- Fixed your own rolls being ignored: "You roll" now identifies your logged-in character.
+- Shortened diagnostics to one concise line per roll.
+
 ## 0.2.0.3
 
 - Fixed rolls being ignored when system messages have an empty sender; player links now identify the roller.
@@ -7,7 +12,7 @@
 ## 0.2.0.2
 
 - Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.
-- Winning score is configurable from 1–100, default 3. Team setup is locked during an active match.
+- Winning score is configurable from 1â€“100, default 3. Team setup is locked during an active match.
 - Added clearer current-turn and waiting-team indicators, plus named team presets with save, load and delete.
 
 ### 0.2.0.1
