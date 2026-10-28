@@ -178,7 +178,6 @@
     "Punchline": "Automatically type Keybound Brawler prompts and optionally keep queueing.",
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
     "Changelog": "## 1.0.8.0\n\n- Added Keybound Automation with configurable typing speed, English and Japanese answers, and repeat queueing.\n",
     "IsHide": false,
     "IsTestingExclusive": false,
@@ -186,7 +185,8 @@
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.0/TataruBrawler.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "TestingDalamudApiLevel": null,
-    "LastUpdate": 1793210127
+    "LastUpdate": 1793210358,
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
+    "TestingDalamudApiLevel": null
   }
 ]
