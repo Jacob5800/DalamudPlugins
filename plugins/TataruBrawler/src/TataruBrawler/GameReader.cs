@@ -161,41 +161,19 @@ internal sealed class GameReader(IGameGui gui)
 		return SeString.Parse(data).TextValue;
 	}
 
-	public unsafe bool SendBackground(char key, string expected)
-	{
-		AtkComponentTextInput* ptr = Input(out var addon);
-		if (ptr == null || !ptr->Enabled || ptr->OwnerAddon != addon || CompetingFocus())
-		{
-			return false;
-		}
-		string text = EvaluatedText();
-		if (text == null || !BackgroundText.TryNext(text, key, expected, out string next))
-		{
-			return false;
-		}
-		if (key == '\r')
-		{
-			if (ptr->Callback == (delegate* unmanaged<AtkUnitBase*, InputCallbackType, CStringPointer, CStringPointer, int, InputCallbackResult>)null)
-			{
-				return false;
-			}
-			if (ptr->Callback(addon, InputCallbackType.Enter, ptr->RawString.StringPtr, ptr->EvaluatedString.StringPtr, ptr->CallbackEventKind) == InputCallbackResult.ClearText)
-			{
-				AtkComponentTextInput* ptr2 = Input(out var addon2);
-				if (ptr2 == ptr && addon2 == addon)
-				{
-					ptr2->SetText("");
-				}
-			}
-			return true;
-		}
-		ptr->SetText(next);
-		if (Input(out var addon3) != null && addon3 == addon)
-		{
-			return string.Equals(EvaluatedText(), next, StringComparison.OrdinalIgnoreCase);
-		}
-		return true;
-	}
+    public unsafe bool SendBackground(char key, string expected, BackgroundKeys keys)
+    {
+        var input = Input(out var addon);
+        if (input == null || !input->Enabled || input->OwnerAddon != addon || CompetingFocus())
+            return false;
+        var current = EvaluatedText();
+        if (current == null || !BackgroundText.TryNext(current, key, expected, out _))
+            return false;
+        // Focus the game's dedicated field, without activating its OS window.
+        // This avoids sending characters to chat or another in-game text field.
+        if (!input->IsActive && !EnsureFocus(Environment.TickCount64)) return false;
+        return keys.Send(key);
+    }
 
 	public unsafe void Refresh()
 	{

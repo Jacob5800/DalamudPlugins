@@ -1,3 +1,10 @@
+## 1.0.8.4
+
+- Use FFXIV-directed key messages for English background typing without activating the game window.
+- Start play automatically on entering a new Keybound duty.
+- Fix reward tracking gates and capture results before automatic dismissal.
+- Show reward tracking status in the Main tab.
+
 ## 1.0.8.3
 
 - Added session and saved totals for completed Keybound games, MGP and MGC earned.

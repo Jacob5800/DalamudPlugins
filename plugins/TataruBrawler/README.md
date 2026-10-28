@@ -30,3 +30,9 @@ While automated play is active in Keybound (territory 1359), the plugin resets t
 The Main tab shows completed games and observed MGP/MGC gains for the current plugin session and saved totals across characters on this installation. Saved totals live in `rewards.json` beside the plugin settings, with a previous-save backup. Each result is counted once; aborted visits do not count. A 15-second settlement window includes delayed currency updates on returning to the lobby. Currency caps and missing inventory baselines cannot be converted into theoretical rewards.
 
 Cursed Gaze (49529) and Sensory Jammer (49532/49702) are detected through native battle-NPC cast IDs in territory 1359, independent of localized names. Typing pauses for the last half-second of the cast and the existing conservative four seconds after resolution. This does not change movement or registrar navigation.
+
+## Background typing
+
+English background input uses window-directed key messages to the current FFXIV process, after checking its dedicated input field, competing text focus and blocking casts. It does not activate the game window or send global key-down input into another application. Pending key releases are retained on stop/unload. New installs enable this option; existing checkbox choices are preserved. Japanese/IME prompts still wait for game focus. The game must continue updating in the background.
+
+New duty entry explicitly starts play once. Stop remains effective for the current visit. Reward detection samples visible KTGResult before the repeat loop dismisses it, without relying on the extra agent-ID/container-loaded gates removed in 1.0.8.4. Loading screens do not establish currency baselines.

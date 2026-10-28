@@ -61,6 +61,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private readonly ICondition condition;
     private readonly IObjectTable objects;
+    private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
 
 	private long loopSample;
@@ -207,7 +208,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			autoQueueLoop = false;
 			loop.Stop();
 			typing.Stop();
-			Keyboard.Release(force: true);
+			backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 			ime.Restore();
 			encounter.Reset();
 			automation.Reset();
@@ -229,7 +231,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
             rewards.Flush();
 			loop.Stop();
 			typing.Stop();
-			Keyboard.Release(force: true);
+			backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 			ime.Restore();
 			diagnostics.Dispose();
 			settings.Dispose();
@@ -289,7 +292,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		automation.Suppress();
 		typing.Stop();
 		controlGate = "ManualStop";
-		Keyboard.Release(force: true);
+		backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 		ime.Restore();
 	}
 
@@ -309,12 +313,13 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
-        rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType);
+        rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
 		if (mapEntry.Observe(client.IsLoggedIn, client.TerritoryType) && config.AutoEnableOnMap)
 		{
 			SetPlayEnabled(enabled: true);
 			automation.Reset();
-			controlGate = "MapEntry";
+			StartTyping(Environment.TickCount64, "duty_entry");
+            controlGate = "MapEntry";
 		}
 		bool flag = !client.IsLoggedIn;
 		if (!flag)
@@ -345,7 +350,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		try
 		{
 			long tickCount = Environment.TickCount64;
-			if (!Keyboard.Release())
+			if (!backgroundKeys.Release() || !Keyboard.Release())
 			{
 				typing.Stop("SendFailed");
 				controlGate = "KeyReleaseFailed";
@@ -384,7 +389,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				automation.Suppress();
 				typing.Stop("Completed");
 				controlGate = "ContentComplete";
-				Keyboard.Release(force: true);
+				backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 				return;
 			}
 			if (!typing.Running)
@@ -417,13 +423,14 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				break;
 			default:
 				reader.ResetFocus();
-				Keyboard.Release(force: true);
+				backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 				typing.Tick(tickCount, ready: true, null, currentStillVisible: false, config.MinimumMs, config.MaximumMs, (char _) => false, paused: true);
 				break;
 			case RunGate.Run:
 			{
-				bool flag4 = encounter.Paused(tickCount) || typing.ManualPaused || (background && typing.Japanese);
-				bool flag5 = typing.Submitted || (!flag4 && (background || reader.EnsureFocus(tickCount)));
+				bool flag4 = encounter.Paused(tickCount) || typing.ManualPaused || (background && (typing.Japanese || !backgroundKeys.Ready));
+				bool flag5 = typing.Submitted || (!flag4 && reader.EnsureFocus(tickCount));
 				if (typing.CurrentWord.Length == 0)
 				{
 					preparedWord = "";
@@ -487,7 +494,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 					TypingPlan typingPlan = TypingPlan.Create(w);
 					return (object)typingPlan != null && !typingPlan.Japanese;
 				}) : reader.Words.FirstOrDefault());
-				typing.Tick(tickCount, ready: true, candidate, reader.StillVisible(typing.CurrentWord, currentEntity), config.MinimumMs, config.MaximumMs, (char c) => !stopping && IsContent() && (!foreground || !uiCaptures) && !encounter.Paused(Environment.TickCount64) && (c == '\b' || reader.StillVisible(typing.CurrentWord, currentEntity)) && ((!background) ? (reader.FocusedNow() && Keyboard.Send(c)) : reader.SendBackground(c, typing.CurrentWord)), flag4 || !flag5, imeState.Composing, reader.EvaluatedText(), config.BetweenWordsMs);
+				typing.Tick(tickCount, ready: true, candidate, reader.StillVisible(typing.CurrentWord, currentEntity), config.MinimumMs, config.MaximumMs, (char c) => !stopping && IsContent() && (!foreground || !uiCaptures) && !encounter.Paused(Environment.TickCount64) && (c == '\b' || reader.StillVisible(typing.CurrentWord, currentEntity)) && ((!background) ? (reader.FocusedNow() && Keyboard.Send(c)) : reader.SendBackground(c, typing.CurrentWord, backgroundKeys)), flag4 || !flag5, imeState.Composing, reader.EvaluatedText(), config.BetweenWordsMs);
 				if (currentWord.Length == 0 && typing.CurrentWord.Length > 0)
 				{
 					currentEntity = reader.Source(typing.CurrentWord);
@@ -544,7 +551,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			autoQueueLoop = automatic;
 			autoQueuePaused = false;
 			typing.Stop();
-			Keyboard.Release(force: true);
+			backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 			ime.Restore();
 			activity.Reset();
 			automation.Suppress();
@@ -579,6 +587,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			bool foregroundGame = Keyboard.ForegroundGame;
 			RoundLoop roundLoop = loop;
 			LoopSnapshot state = loopUi.Read(client.IsLoggedIn, client.TerritoryType, loading);
+            // Capture results before the loop can close a short-lived result UI.
+            if (state.Result) rewards.Tick(now, client.IsLoggedIn, client.TerritoryType, loading, force: true);
 			bool flag = (!foregroundGame && !config.BackgroundInput) || (foregroundGame && (Keyboard.Modifier || uiCaptures));
 			LoopPhase phase;
 			if (!flag)
@@ -612,7 +622,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			{
 				automation.Suppress();
 				typing.Stop((loop.Phase == LoopPhase.Complete) ? "Completed" : "Fault");
-				Keyboard.Release(force: true);
+				backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 			}
 		}
 	}
@@ -683,6 +694,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			{
 				gate = controlGate,
 				activityFailed = activity.Failed,
+                backgroundInput = config.BackgroundInput,
+                backgroundPostError = backgroundKeys.LastError,
+                rewards = rewards.Status,
 				loopPhase = loop.Phase.ToString(),
 				Current = loop.Current,
 				Total = loop.Total,
@@ -777,6 +791,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                             ImGui.TextUnformatted($"Session: {rewards.Session.Games:N0} games | {rewards.Session.Mgp:N0} MGP | {rewards.Session.Mgc:N0} MGC");
                             ImGui.TextUnformatted($"Saved total: {rewards.Total.Games:N0} games | {rewards.Total.Mgp:N0} MGP | {rewards.Total.Mgc:N0} MGC");
                             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Session starts when the plugin loads. Saved totals cover all characters on this installation. Currency tracks observed gains; capped rewards cannot be measured.");
+                            ImGui.TextDisabled(rewards.Status);
                             if (rewards.Error != null) ImGui.TextWrapped(rewards.Error);
                             ImGui.Separator();
 							ImGui.TextUnformatted(T("InputVisible") + ": " + T(reader.InputVisible ? "Yes" : "No"));
@@ -822,7 +837,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 								loop.Pause();
 								typing.PauseByUser();
 								controlGate = "ManualPause";
-								Keyboard.Release(force: true);
+								backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
 							}, StopByUser, typing.Running || loop.Active);
 							ImGui.SameLine();
 							bool flag = !loop.Active && loopUi.Supported && client.IsLoggedIn;

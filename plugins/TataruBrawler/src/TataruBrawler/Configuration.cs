@@ -16,7 +16,7 @@ public sealed class Configuration
 
 	public bool AutoQueueOnLobbyEntry { get; set; } = true;
 
-	public bool BackgroundInput { get; set; }
+	public bool BackgroundInput { get; set; } = true;
 
 	public int Version { get; set; } = 1;
 

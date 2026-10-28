@@ -18,6 +18,7 @@ internal sealed class RewardTracker
     public RewardTotals Session => model.Session;
     public RewardTotals Total => model.Total;
     public string? Error { get; private set; }
+    public string Status { get; private set; } = "Waiting for Keybound";
 
     public RewardTracker(string path, IGameGui gui)
     {
@@ -43,13 +44,20 @@ internal sealed class RewardTracker
         model = new RewardSession(totals);
     }
 
-    public unsafe void Tick(long now, bool loggedIn, uint territory)
+    public unsafe void Tick(long now, bool loggedIn, uint territory, bool loading, bool force = false)
     {
-        if (now < nextSample) return;
+        if (!force && now < nextSample) return;
         nextSample = now + 100;
         if (!loggedIn || territory is not (1359 or 1360))
         {
             model.EndVisit();
+            Status = "Rewards: outside Keybound";
+            if (dirty && now >= nextSave) Flush();
+            return;
+        }
+        if (loading)
+        {
+            Status = "Rewards: waiting for loading to finish";
             if (dirty && now >= nextSave) Flush();
             return;
         }
@@ -57,16 +65,13 @@ internal sealed class RewardTracker
         bool resultVisible = false;
         if (inGame)
         {
-            var agents = AgentModule.Instance();
-            var resultAgent = agents == null ? null : agents->GetAgentByInternalId(AgentId.KTGResult);
             var result = gui.GetAddonByName<AtkUnitBase>("KTGResult");
-            resultVisible = resultAgent != null && result != null && result->IsVisible && resultAgent->GetAddonId() == result->Id;
+            resultVisible = result != null && result->IsVisible && result->RootNode != null && result->RootNode->IsVisible();
         }
         var inventory = InventoryManager.Instance();
-        var currency = inventory == null ? null : inventory->GetInventoryContainer(InventoryType.Currency);
-        bool currencyReady = currency != null && currency->IsLoaded;
-        long? mgp = !currencyReady ? null : inventory->GetInventoryItemCount(29, false, false, false);
-        long? mgc = !currencyReady ? null : inventory->GetInventoryItemCount(52322, false, false, false);
+        long? mgp = inventory == null ? null : inventory->GetInventoryItemCount(29, false, false, false);
+        long? mgc = inventory == null ? null : inventory->GetInventoryItemCount(52322, false, false, false);
+        Status = inventory == null ? "Rewards: waiting for inventory" : resultVisible ? "Rewards: settling result" : inGame ? "Rewards: tracking this game" : "Rewards: waiting for next game";
         if (model.Observe(now, inGame, resultVisible, mgp, mgc)) dirty = true;
         if (dirty && now >= nextSave) Flush();
     }

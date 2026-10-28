@@ -29,4 +29,21 @@ s.EndVisit(); s.Observe(22000,true,false,null,null); s.Observe(22100,true,true,3
 Check(s.Session.Games==3 && s.Session.Mgp==150, "Missing baseline cannot invent rewards");
 s.EndVisit(); s.Observe(23000,true,false,500,50); s.Observe(23100,true,true,400,40);
 Check(s.Session.Mgp==150 && s.Session.Mgc==3, "Currency decrease not negative reward");
+Check(BackgroundKeyPolicy.Allowed('a') && BackgroundKeyPolicy.Allowed('.') && BackgroundKeyPolicy.Allowed('\r'), "Background supports English and Enter");
+Check(!BackgroundKeyPolicy.Allowed('\u001b') && !BackgroundKeyPolicy.Allowed('\u0006') && !BackgroundKeyPolicy.Allowed('あ'), "Background rejects escape, IME and Japanese keys");
+Check(BackgroundText.TryNext("he", 'l', "hello", out var next) && next=="hel", "Background prefix progression");
+Check(!BackgroundText.TryNext("other", 'a', "hello", out _), "Unrelated field text rejected");
+Check(!BackgroundText.TryNext("hell", '\r', "hello", out _), "Partial answer cannot submit");
+Check(BackgroundText.TryNext("hello", '\r', "hello", out _), "Complete answer can submit");
+var typing = new TypingSession((min,max)=>min);
+string field = ""; bool submitted = false;
+typing.Start(0);
+for (long t=0;t<2000 && !submitted;t+=50)
+    typing.Tick(t,true,"hello",true,20,20,key=>
+    {
+        if(!BackgroundText.TryNext(field,key,"hello",out var changed)) return false;
+        if(key=='\r') submitted=true; else field=changed;
+        return true;
+    },false,false,field,0);
+Check(submitted && field=="hello" && typing.Running, "Typing session completes background character/submit protocol");
 Console.WriteLine($"{checks} checks passed.");

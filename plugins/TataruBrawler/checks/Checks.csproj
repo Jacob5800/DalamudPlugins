@@ -5,5 +5,9 @@
     <Compile Include="../src/TataruBrawler/BlockingCast.cs" Link="BlockingCast.cs" />
     <Compile Include="../src/TataruBrawler/KtgWord.cs" Link="KtgWord.cs" />
     <Compile Include="../src/TataruBrawler/RewardSession.cs" Link="RewardSession.cs" />
+    <Compile Include="../src/TataruBrawler/BackgroundKeyPolicy.cs" Link="BackgroundKeyPolicy.cs" />
+    <Compile Include="../src/TataruBrawler/BackgroundText.cs" Link="BackgroundText.cs" />
+    <Compile Include="../src/TataruBrawler/TypingPlan.cs" Link="TypingPlan.cs" />
+    <Compile Include="../src/TataruBrawler/TypingSession.cs" Link="TypingSession.cs" />
   </ItemGroup>
 </Project>
