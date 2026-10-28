@@ -65,6 +65,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly RewardTracker rewards;
     private readonly IChatGui chat;
     private readonly MgcWarning warning = new();
+    private readonly AutomaticRecovery recovery = new();
 
 	private long loopSample;
 
@@ -399,6 +400,18 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
             Keyboard.Release(force: true);
 				return;
 			}
+            bool recoveryReady = reader.Available && reader.InputEnabled && reader.Words.Count > 0
+                && !reader.CompetingFocus() && !encounter.Paused(tickCount)
+                && (foreground ? !uiCaptures && !Keyboard.Modifier && !Keyboard.Escape : config.BackgroundInput)
+                && !condition[ConditionFlag.BetweenAreas] && !condition[ConditionFlag.BetweenAreas51];
+            if (recovery.ShouldResume(tickCount, config.AutoStart, client.TerritoryType == 1359,
+                typing.Running, typing.Status, recoveryReady, typing.ManualPaused || loop.Paused, reader.ContentComplete))
+            {
+                backgroundKeys.Release(force: true);
+                Keyboard.Release(force: true);
+                StartTyping(tickCount, "automatic_recovery");
+                // The normal per-word preparation clears an existing partial answer.
+            }
 			if (!typing.Running)
 			{
 				ime.Restore();

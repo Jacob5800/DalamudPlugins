@@ -1,3 +1,8 @@
+## 1.0.8.6
+
+- Automatically resume after temporary input-send failures once the duty input is ready again.
+- Manual Pause and Stop remain respected.
+
 ## 1.0.8.5
 
 - Added configurable MGC cap warnings, enabled at 90% by default, with an additional alert at the cap.

@@ -10,5 +10,6 @@
     <Compile Include="../src/TataruBrawler/TypingPlan.cs" Link="TypingPlan.cs" />
     <Compile Include="../src/TataruBrawler/TypingSession.cs" Link="TypingSession.cs" />
     <Compile Include="../src/TataruBrawler/MgcWarning.cs" Link="MgcWarning.cs" />
+    <Compile Include="../src/TataruBrawler/AutomaticRecovery.cs" Link="AutomaticRecovery.cs" />
   </ItemGroup>
 </Project>

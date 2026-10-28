@@ -42,3 +42,7 @@ New duty entry explicitly starts play once. Stop remains effective for the curre
 Settings provides **Warn when MGC approaches its cap** (on by default) and **MGC warning threshold (%)** (90 by default). The cap and balance are read from the game's CurrencyManager, without a hard-coded cap. A persistent Main-tab warning and a chat notification appear at the threshold, with an additional notification at the cap. Repeated samples do not repeat the chat alert. Spending below the threshold rearms it. These warnings do not stop play or make purchases.
 
 **Skip optional English punctuation** is off by default. Enabling it skips question marks, exclamation marks, hyphens and straight/curly apostrophes in new English answers. Spaces, periods and commas remain. Japanese answers and native prompt identity are preserved. Turn it off if game acceptance differs; live shortened-answer acceptance still needs verification.
+
+## Automatic recovery
+
+Temporary input unavailability already pauses typing until ready. A SendFailed stop now retries after two seconds of continuously ready duty input, no more often than every five seconds. It retains the normal focus, cast-block and loading gates, including partial-answer cleanup during word preparation. Manual Pause/Stop, results, unsupported text and exhausted NoProgress cleanup never trigger a restart.

@@ -71,4 +71,13 @@ Check(!warning.Update(100,100,true,90), "No repeated cap chat");
 warning.Update(10,100,true,90);
 Check(warning.Update(90,100,true,90), "Warn again after spending and refilling");
 Check(!warning.Update(100,100,false,90) && warning.Message==null, "Warning toggle disables messages");
+var recovery = new AutomaticRecovery();
+Check(!recovery.ShouldResume(0,true,true,false,"SendFailed",true,false,false), "Recovery waits for stable input");
+Check(recovery.ShouldResume(2000,true,true,false,"SendFailed",true,false,false), "Transient failure resumes");
+Check(!recovery.ShouldResume(3000,true,true,false,"SendFailed",true,false,false), "Recovery throttled");
+foreach(var status in new[]{"Stopped","Completed","Unsupported","NoProgress","UserPaused"})
+ Check(!recovery.ShouldResume(10000,true,true,false,status,true,false,false), "Never restart "+status);
+Check(!recovery.ShouldResume(12000,false,true,false,"SendFailed",true,false,false), "Manual stop disables recovery");
+Check(!recovery.ShouldResume(13000,true,true,false,"SendFailed",true,true,false), "Manual pause respected");
+Check(!recovery.ShouldResume(14000,true,false,false,"SendFailed",true,false,false), "Outside duty not resumed");
 Console.WriteLine($"{checks} checks passed.");
