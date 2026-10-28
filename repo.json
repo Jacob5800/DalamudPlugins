@@ -157,5 +157,36 @@
     "TestingAssemblyVersion": null,
     "LastUpdate": 1791942905,
     "TestingDalamudApiLevel": null
+  },
+  {
+    "Author": "Tataru-business",
+    "Name": "Keybound Automation",
+    "InternalName": "TataruBrawler",
+    "AssemblyVersion": "1.0.8.0",
+    "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Cyberpunk interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
+    "ApplicableVersion": "any",
+    "Tags": [
+      "gold saucer",
+      "typing",
+      "keybound brawler"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "Punchline": "Automatically type Keybound Brawler prompts and optionally keep queueing.",
+    "AcceptsFeedback": true,
+    "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
+    "Changelog": "## 1.0.8.0\n\n- Added Keybound Automation with configurable typing speed, English and Japanese answers, and repeat queueing.\n",
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.0/TataruBrawler.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.0/TataruBrawler.zip",
+    "DownloadLinkTesting": null,
+    "TestingAssemblyVersion": null,
+    "TestingDalamudApiLevel": null,
+    "LastUpdate": 1793210127
   }
 ]

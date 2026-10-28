@@ -29,8 +29,8 @@ jobs:
             @($previous | ConvertFrom-Json)
           }
           $current = @(Get-Content repo.json -Raw | ConvertFrom-Json)
-          # These plugins announce in their own release workflows already.
-          $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary', 'Workshoppa', 'TugOfWar', 'HousingTimeoutReminder')
+          # Consolidated plugins; binary-only TataruBrawler is distributed without an automatic announcement.
+          $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary', 'Workshoppa', 'TugOfWar', 'HousingTimeoutReminder', 'TataruBrawler')
           foreach ($plugin in $current) {
             if ($plugin.InternalName -in $managed) { continue }
             $old = $before | Where-Object InternalName -eq $plugin.InternalName | Select-Object -First 1

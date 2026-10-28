@@ -1,0 +1,51 @@
+name: Release Keybound Automation
+
+on:
+  push:
+    tags: ["TataruBrawler-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag version
+        shell: pwsh
+        run: |
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^TataruBrawler-v', ''
+          $manifest = Get-Content 'plugins/TataruBrawler/TataruBrawler.json' -Raw | ConvertFrom-Json
+          if ($tagVersion -ne $manifest.AssemblyVersion) { throw 'Tag and manifest versions must match.' }
+      - name: Package supplied custom binary and verify metadata
+        shell: pwsh
+        run: ./plugins/TataruBrawler/Package.ps1
+      - name: Name release asset
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/TataruBrawler/dist/package/latest.zip' -Destination 'TataruBrawler.zip' -Force
+      - name: Preserve packaged plugin manifest
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/TataruBrawler/dist/package/TataruBrawler.json' -Destination (Join-Path $env:RUNNER_TEMP 'TataruBrawler.json') -Force
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          body_path: plugins/TataruBrawler/CHANGELOG.md
+          files: TataruBrawler.zip
+      - name: Update combined feed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git switch --force-create feed-update --track origin/main
+          ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'TataruBrawler.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'TataruBrawler.zip'
+          git add repo.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: update feed for $env:GITHUB_REF_NAME"
+            git push origin HEAD:main
+          }

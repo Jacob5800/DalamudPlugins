@@ -12,6 +12,7 @@ A single custom Dalamud repository for separately built API 15 plugins.
 | Housing Timeout Reminder | Reminds you to visit configured housing plots across your saved characters. | [Source](plugins/HousingTimeoutReminder) |
 | Workshoppa | Automates company workshop material turn-ins and retainer deposits. | [Source](plugins/Workshoppa) |
 | Tug of War | Tracks team scores from /random rolls, with optional party announcements. | [Source](plugins/TugOfWar) |
+| Keybound Automation | Automates Keybound Brawler typing and repeat queueing. | [Package and attribution](plugins/TataruBrawler) |
 
 ## Install
 
