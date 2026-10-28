@@ -1,3 +1,9 @@
+## 0.2.0.3
+
+- Fixed rolls being ignored when system messages have an empty sender; player links now identify the roller.
+- Added a Diagnostics panel with copyable roll-processing logs.
+- Added Party, Say and Shout announcement choices, with Party as the default.
+
 ## 0.2.0.2
 
 - Added Undo last scored turn, restoring scores and the turn number and clearing pending rolls for a reroll. Works after a match-winning turn; past chat announcements cannot be withdrawn.
