@@ -1,3 +1,8 @@
+## 1.0.8.5
+
+- Added configurable MGC cap warnings, enabled at 90% by default, with an additional alert at the cap.
+- Added optional English punctuation skipping in Settings, preserving required spaces, periods and commas.
+
 ## 1.0.8.4
 
 - Use FFXIV-directed key messages for English background typing without activating the game window.

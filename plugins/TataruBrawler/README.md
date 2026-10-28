@@ -36,3 +36,9 @@ Cursed Gaze (49529) and Sensory Jammer (49532/49702) are detected through native
 English background input uses window-directed key messages to the current FFXIV process, after checking its dedicated input field, competing text focus and blocking casts. It does not activate the game window or send global key-down input into another application. Pending key releases are retained on stop/unload. New installs enable this option; existing checkbox choices are preserved. Japanese/IME prompts still wait for game focus. The game must continue updating in the background.
 
 New duty entry explicitly starts play once. Stop remains effective for the current visit. Reward detection samples visible KTGResult before the repeat loop dismisses it, without relying on the extra agent-ID/container-loaded gates removed in 1.0.8.4. Loading screens do not establish currency baselines.
+
+## MGC cap warnings and punctuation
+
+Settings provides **Warn when MGC approaches its cap** (on by default) and **MGC warning threshold (%)** (90 by default). The cap and balance are read from the game's CurrencyManager, without a hard-coded cap. A persistent Main-tab warning and a chat notification appear at the threshold, with an additional notification at the cap. Repeated samples do not repeat the chat alert. Spending below the threshold rearms it. These warnings do not stop play or make purchases.
+
+**Skip optional English punctuation** is off by default. Enabling it skips question marks, exclamation marks, hyphens and straight/curly apostrophes in new English answers. Spaces, periods and commas remain. Japanese answers and native prompt identity are preserved. Turn it off if game acceptance differs; live shortened-answer acceptance still needs verification.

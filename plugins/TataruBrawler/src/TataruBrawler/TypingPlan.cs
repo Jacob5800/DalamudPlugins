@@ -6,6 +6,8 @@ namespace TataruBrawler;
 
 public sealed record TypingPlan(string Expected, string Keys, bool Japanese)
 {
+	public string Original { get; init; } = Expected;
+
 	private static readonly Dictionary<char, string> Kana = BuildKana();
 
 	private static Dictionary<char, string> BuildKana()
@@ -45,8 +47,18 @@ public sealed record TypingPlan(string Expected, string Keys, bool Japanese)
 		return text.Replace('〜', '～').Normalize(NormalizationForm.FormKC).Replace('ヴ', 'ゔ');
 	}
 
-	public static TypingPlan? Create(string text)
-	{
+	public static TypingPlan? Create(string text, bool skipOptionalPunctuation = false)
+    {
+        string original = text.Trim();
+        string answer = skipOptionalPunctuation && original.All(c => c <= 127 || c == '’')
+            ? string.Concat(original.Where(c => c is not ('?' or '!' or '-' or '\'' or '’')))
+            : original;
+        var plan = CreateExact(answer);
+        return plan == null ? null : plan with { Original = original };
+    }
+
+    private static TypingPlan? CreateExact(string text)
+    {
 		text = text.Trim();
 		int length = text.Length;
 		if ((length > 96 || length == 0) ? true : false)

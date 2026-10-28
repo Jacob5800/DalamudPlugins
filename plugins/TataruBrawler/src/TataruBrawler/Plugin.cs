@@ -63,6 +63,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly IObjectTable objects;
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
+    private readonly IChatGui chat;
+    private readonly MgcWarning warning = new();
 
 	private long loopSample;
 
@@ -110,7 +112,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool autoQueueVisitArmed = true;
 
-	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar)
+	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat)
 	{
 		Plugin plugin = this;
 		this.pi = pi;
@@ -121,6 +123,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		this.log = log;
 		this.condition = condition;
         this.objects = objects;
+        this.chat = chat;
         rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
 		Loc.CheckCompleteness();
@@ -314,6 +317,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		}
 		settings.Tick();
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
+        if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
+            chat.Print("[Keybound Automation] " + warning.Message);
+        typing.SkipOptionalPunctuation = config.SkipOptionalPunctuation;
 		if (mapEntry.Observe(client.IsLoggedIn, client.TerritoryType) && config.AutoEnableOnMap)
 		{
 			SetPlayEnabled(enabled: true);
@@ -491,10 +497,10 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				reference = text;
 				string candidate = (background ? reader.Words.FirstOrDefault((string w) =>
 				{
-					TypingPlan typingPlan = TypingPlan.Create(w);
+					TypingPlan typingPlan = TypingPlan.Create(w, config.SkipOptionalPunctuation);
 					return (object)typingPlan != null && !typingPlan.Japanese;
 				}) : reader.Words.FirstOrDefault());
-				typing.Tick(tickCount, ready: true, candidate, reader.StillVisible(typing.CurrentWord, currentEntity), config.MinimumMs, config.MaximumMs, (char c) => !stopping && IsContent() && (!foreground || !uiCaptures) && !encounter.Paused(Environment.TickCount64) && (c == '\b' || reader.StillVisible(typing.CurrentWord, currentEntity)) && ((!background) ? (reader.FocusedNow() && Keyboard.Send(c)) : reader.SendBackground(c, typing.CurrentWord, backgroundKeys)), flag4 || !flag5, imeState.Composing, reader.EvaluatedText(), config.BetweenWordsMs);
+				typing.Tick(tickCount, ready: true, candidate, reader.StillVisible(typing.CurrentWord, currentEntity), config.MinimumMs, config.MaximumMs, (char c) => !stopping && IsContent() && (!foreground || !uiCaptures) && !encounter.Paused(Environment.TickCount64) && (c == '\b' || reader.StillVisible(typing.CurrentWord, currentEntity)) && ((!background) ? (reader.FocusedNow() && Keyboard.Send(c)) : reader.SendBackground(c, typing.ExpectedAnswer, backgroundKeys)), flag4 || !flag5, imeState.Composing, reader.EvaluatedText(), config.BetweenWordsMs);
 				if (currentWord.Length == 0 && typing.CurrentWord.Length > 0)
 				{
 					currentEntity = reader.Source(typing.CurrentWord);
@@ -792,6 +798,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                             ImGui.TextUnformatted($"Saved total: {rewards.Total.Games:N0} games | {rewards.Total.Mgp:N0} MGP | {rewards.Total.Mgc:N0} MGC");
                             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Session starts when the plugin loads. Saved totals cover all characters on this installation. Currency tracks observed gains; capped rewards cannot be measured.");
                             ImGui.TextDisabled(rewards.Status);
+                            if (warning.Message != null) ImGui.TextColored(new Vector4(1f, 0.4f, 0.15f, 1f), warning.Message);
                             if (rewards.Error != null) ImGui.TextWrapped(rewards.Error);
                             ImGui.Separator();
 							ImGui.TextUnformatted(T("InputVisible") + ": " + T(reader.InputVisible ? "Yes" : "No"));
@@ -919,6 +926,16 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void DrawSettings()
     {
+        bool skipPunctuation = config.SkipOptionalPunctuation;
+        if (ImGui.Checkbox("Skip optional English punctuation", ref skipPunctuation))
+        { config.SkipOptionalPunctuation = skipPunctuation; settings.Update(config); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skip ? ! - and apostrophes in English answers. Keep spaces, periods and commas. Applies to the next word; Japanese is unchanged.");
+        bool warnCap = config.WarnMgcCap;
+        if (ImGui.Checkbox("Warn when MGC approaches its cap", ref warnCap))
+        { config.WarnMgcCap = warnCap; settings.Update(config); }
+        int warnPercent = config.MgcWarningPercent;
+        if (ImGui.SliderInt("MGC warning threshold (%)", ref warnPercent, 1, 100))
+        { config.MgcWarningPercent = warnPercent; settings.Update(config); }
         bool showServerBar = config.ShowServerBarButton;
         if (ImGui.Checkbox("Show button in the server info bar", ref showServerBar))
         {

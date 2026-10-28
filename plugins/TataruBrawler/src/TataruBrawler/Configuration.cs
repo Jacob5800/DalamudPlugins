@@ -4,6 +4,10 @@ namespace TataruBrawler;
 
 public sealed class Configuration
 {
+	public bool SkipOptionalPunctuation { get; set; }
+    public bool WarnMgcCap { get; set; } = true;
+    public int MgcWarningPercent { get; set; } = 90;
+
 	public bool ShowServerBarButton { get; set; } = true;
 
 	public bool RecordDiagnostics { get; set; } = true;

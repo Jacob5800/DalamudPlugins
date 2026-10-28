@@ -46,4 +46,29 @@ for (long t=0;t<2000 && !submitted;t+=50)
         return true;
     },false,false,field,0);
 Check(submitted && field=="hello" && typing.Running, "Typing session completes background character/submit protocol");
+var plain = TypingPlan.Create("don't-stop?!, now.",true)!;
+Check(plain.Expected=="dontstop, now." && plain.Keys=="dontstop, now." && plain.Original=="don't-stop?!, now.", "Optional punctuation skipped, source and required punctuation preserved");
+Check(TypingPlan.Create("don't-stop?!",false)!.Expected=="don't-stop?!", "Skipping disabled preserves original");
+Check(TypingPlan.Create("あ!",true)!.Expected=="あ!", "Japanese punctuation unchanged");
+var shortened = new TypingSession((min,max)=>min) {SkipOptionalPunctuation=true};
+shortened.Start(0); field=""; submitted=false;
+for(long t=0;t<2000 && !submitted;t+=50)
+    shortened.Tick(t,true,"don't!",true,20,20,key=>
+    {
+        Check(shortened.CurrentWord=="don't!", "Visible prompt identity retained");
+        if(!BackgroundText.TryNext(field,key,shortened.ExpectedAnswer,out var changed))return false;
+        if(key=='\r')submitted=true;else field=changed;
+        return true;
+    },false,false,field,0);
+Check(submitted && field=="dont", "Shortened background answer completes");
+var warning = new MgcWarning();
+Check(!warning.Update(89,100,true,90), "Below cap threshold silent");
+Check(warning.Update(90,100,true,90), "Warn on reaching threshold");
+Check(!warning.Update(91,100,true,90), "No repeated near-cap chat");
+Check(!warning.Update(null,null,true,90) && !warning.Update(91,100,true,90), "Temporary missing data does not rewarn");
+Check(warning.Update(100,100,true,90), "Warn at hard cap");
+Check(!warning.Update(100,100,true,90), "No repeated cap chat");
+warning.Update(10,100,true,90);
+Check(warning.Update(90,100,true,90), "Warn again after spending and refilling");
+Check(!warning.Update(100,100,false,90) && warning.Message==null, "Warning toggle disables messages");
 Console.WriteLine($"{checks} checks passed.");

@@ -18,6 +18,8 @@ internal sealed class RewardTracker
     public RewardTotals Session => model.Session;
     public RewardTotals Total => model.Total;
     public string? Error { get; private set; }
+    public long? MgcBalance { get; private set; }
+    public long? MgcCap { get; private set; }
     public string Status { get; private set; } = "Waiting for Keybound";
 
     public RewardTracker(string path, IGameGui gui)
@@ -51,6 +53,7 @@ internal sealed class RewardTracker
         if (!loggedIn || territory is not (1359 or 1360))
         {
             model.EndVisit();
+            MgcBalance = MgcCap = null;
             Status = "Rewards: outside Keybound";
             if (dirty && now >= nextSave) Flush();
             return;
@@ -71,6 +74,13 @@ internal sealed class RewardTracker
         var inventory = InventoryManager.Instance();
         long? mgp = inventory == null ? null : inventory->GetInventoryItemCount(29, false, false, false);
         long? mgc = inventory == null ? null : inventory->GetInventoryItemCount(52322, false, false, false);
+        var currencies = CurrencyManager.Instance();
+        MgcBalance = MgcCap = null;
+        if (currencies != null && currencies->HasItem(52322))
+        {
+            uint cap = currencies->GetItemMaxCount(52322);
+            if (cap > 0) { MgcCap = cap; MgcBalance = currencies->GetItemCount(52322); }
+        }
         Status = inventory == null ? "Rewards: waiting for inventory" : resultVisible ? "Rewards: settling result" : inGame ? "Rewards: tracking this game" : "Rewards: waiting for next game";
         if (model.Observe(now, inGame, resultVisible, mgp, mgc)) dirty = true;
         if (dirty && now >= nextSave) Flush();

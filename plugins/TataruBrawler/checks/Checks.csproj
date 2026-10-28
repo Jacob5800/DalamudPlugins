@@ -9,5 +9,6 @@
     <Compile Include="../src/TataruBrawler/BackgroundText.cs" Link="BackgroundText.cs" />
     <Compile Include="../src/TataruBrawler/TypingPlan.cs" Link="TypingPlan.cs" />
     <Compile Include="../src/TataruBrawler/TypingSession.cs" Link="TypingSession.cs" />
+    <Compile Include="../src/TataruBrawler/MgcWarning.cs" Link="MgcWarning.cs" />
   </ItemGroup>
 </Project>

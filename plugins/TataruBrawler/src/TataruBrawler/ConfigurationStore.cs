@@ -8,11 +8,11 @@ namespace TataruBrawler;
 
 public sealed class ConfigurationStore : IDisposable
 {
-	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton)
+	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent)
 	{
 		public static Snapshot From(Configuration c)
 		{
-			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton);
+			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent);
 		}
 
 		public Configuration ToConfig()
@@ -30,7 +30,10 @@ public sealed class ConfigurationStore : IDisposable
 				BetweenWordsMs = BetweenWordsMs,
 				RecordDiagnostics = RecordDiagnostics,
 				LoopCount = LoopCount,
-                ShowServerBarButton = ShowServerBarButton
+                ShowServerBarButton = ShowServerBarButton,
+                SkipOptionalPunctuation = SkipOptionalPunctuation,
+                WarnMgcCap = WarnMgcCap,
+                MgcWarningPercent = MgcWarningPercent
 			};
 		}
 	}
@@ -181,6 +184,9 @@ public sealed class ConfigurationStore : IDisposable
 				Configuration.RecordDiagnostics = configuration.RecordDiagnostics;
 				Configuration.LoopCount = configuration.LoopCount;
                 Configuration.ShowServerBarButton = configuration.ShowServerBarButton;
+                Configuration.SkipOptionalPunctuation = configuration.SkipOptionalPunctuation;
+                Configuration.WarnMgcCap = configuration.WarnMgcCap;
+                Configuration.MgcWarningPercent = configuration.MgcWarningPercent;
 				current = Snapshot.From(configuration);
 			}
 			failures = 0;

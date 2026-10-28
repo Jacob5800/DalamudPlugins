@@ -38,7 +38,9 @@ public sealed class TypingSession
 
 	public string Status { get; private set; } = "Stopped";
 
-	public string CurrentWord => plan?.Expected ?? "";
+	public string CurrentWord => plan?.Original ?? "";
+    public string ExpectedAnswer => plan?.Expected ?? "";
+    public bool SkipOptionalPunctuation { get; set; }
 
 	public bool Japanese => plan?.Japanese ?? false;
 
@@ -261,7 +263,7 @@ public sealed class TypingSession
 				due = now + 100;
 				return;
 			}
-			plan = TypingPlan.Create(candidate);
+			plan = TypingPlan.Create(candidate, SkipOptionalPunctuation);
 			if (plan == null)
 			{
 				Stop("Unsupported");

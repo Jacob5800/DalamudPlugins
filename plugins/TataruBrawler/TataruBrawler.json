@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.4",
+  "AssemblyVersion": "1.0.8.5",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Cyberpunk interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "## 1.0.8.4\n\n- Use FFXIV-directed key messages for English background typing without activating the game window.\n- Start play automatically on entering a new Keybound duty.\n- Fix reward tracking gates and capture results before automatic dismissal.\n- Show reward tracking status in the Main tab.\n",
+  "Changelog": "## 1.0.8.5\n\n- Added configurable MGC cap warnings, enabled at 90% by default, with an additional alert at the cap.\n- Added optional English punctuation skipping in Settings, preserving required spaces, periods and commas.\n",
   "IsHide": false,
   "IsTestingExclusive": false
 }
