@@ -24,3 +24,9 @@ The original custom source was not supplied. Reconstructed source compiled befor
 ## Activity handling
 
 While automated play is active in Keybound (territory 1359), the plugin resets the guarded Keybound input-agent inactivity counter and the existing general activity timers. It stops refreshing on pause/stop or outside that duty. No keys or movement are sent by this refresh. The input-agent layout is checked before resetting its counter. See `LICENSE-Saucy.md` for the adapted reset attribution.
+
+## Reward tracking and input-blocking attacks
+
+The Main tab shows completed games and observed MGP/MGC gains for the current plugin session and saved totals across characters on this installation. Saved totals live in `rewards.json` beside the plugin settings, with a previous-save backup. Each result is counted once; aborted visits do not count. A 15-second settlement window includes delayed currency updates on returning to the lobby. Currency caps and missing inventory baselines cannot be converted into theoretical rewards.
+
+Cursed Gaze (49529) and Sensory Jammer (49532/49702) are detected through native battle-NPC cast IDs in territory 1359, independent of localized names. Typing pauses for the last half-second of the cast and the existing conservative four seconds after resolution. This does not change movement or registrar navigation.

@@ -11,3 +11,5 @@ FINAL FANTASY XIV and related game content belong to Square Enix. No game execut
 Distribution changes: 2026 Jacob5800. Version 1.0.8.1 reconstructs source from the supplied custom assembly and adds an optional server info bar button. Original attribution and Apache-2.0 licensing are retained.
 
 Keybound input-agent inactivity reset adapted from Saucy, Copyright (c) 2023 Puni.sh, BSD-3-Clause. Source: https://github.com/PunishXIV/Saucy/blob/b519867b5de20cd3159d7d06323b87c70485150a/Saucy/Games/KeyboundBrawler/KeyboundBrawlerAutomation.cs . See LICENSE-Saucy.md for the complete notice.
+
+Version 1.0.8.3 also references the same Saucy Keybound module for blocking action IDs and adapts its result/late-currency settlement approach; BSD-3-Clause notice remains in LICENSE-Saucy.md.

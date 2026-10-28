@@ -6,48 +6,25 @@ namespace TataruBrawler;
 
 public sealed class EncounterPolicy
 {
-	private readonly Dictionary<uint, int> jammerProgress = new Dictionary<uint, int>();
+    public long PauseUntil { get; private set; }
 
-	public long PauseUntil { get; private set; }
+    public bool Update(long now, IEnumerable<BlockingCast> casts)
+    {
+        bool wasPaused = Paused(now);
+        foreach (var cast in casts)
+        {
+            if (cast.ActionId is not (49529 or 49532 or 49702) ||
+                !float.IsFinite(cast.RemainingMs) || cast.RemainingMs < 0 || cast.RemainingMs > 500)
+                continue;
+            // Keep the custom build's conservative four-second post-cast hold.
+            // Also stop during the final half second so an Enter cannot cross it.
+            PauseUntil = Math.Max(PauseUntil, now + (long)Math.Ceiling(cast.RemainingMs) + 4000);
+        }
+        return !wasPaused && Paused(now);
+    }
 
-	public bool Update(long now, IReadOnlyList<KtgWord> enemies)
-	{
-		bool result = false;
-		KeyValuePair<uint, int>[] array = jammerProgress.ToArray();
-		for (int i = 0; i < array.Length; i++)
-		{
-			KeyValuePair<uint, int> prior = array[i];
-			KtgWord ktgWord = enemies.FirstOrDefault((KtgWord x) => x.EntityId == prior.Key);
-			if (!(ktgWord?.Cast == "動体感知ジャマー"))
-			{
-				if (ktgWord != null && prior.Value >= 90)
-				{
-					PauseUntil = Math.Max(PauseUntil, now + 4000);
-					result = true;
-				}
-				jammerProgress.Remove(prior.Key);
-			}
-		}
-		foreach (KtgWord enemy in enemies)
-		{
-			if (enemy.Cast == "動体感知ジャマー")
-			{
-				jammerProgress[enemy.EntityId] = enemy.Progress;
-			}
-		}
-		return result;
-	}
-
-	public bool Paused(long now)
-	{
-		return now < PauseUntil;
-	}
-
-	public void Reset()
-	{
-		jammerProgress.Clear();
-		PauseUntil = 0L;
-	}
+    public bool Paused(long now) => now < PauseUntil;
+    public void Reset() => PauseUntil = 0;
 
 	public static IEnumerable<KtgWord> Prioritize(IEnumerable<KtgWord> enemies)
 	{

@@ -1,3 +1,8 @@
+## 1.0.8.3
+
+- Added session and saved totals for completed Keybound games, MGP and MGC earned.
+- Detect Cursed Gaze and both Sensory Jammer variants by action ID across client languages.
+
 ## 1.0.8.2
 
 - Prevent Keybound-specific inactivity timeouts during active automated play.

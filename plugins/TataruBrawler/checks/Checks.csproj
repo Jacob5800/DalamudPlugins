@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/TataruBrawler/EncounterPolicy.cs" Link="EncounterPolicy.cs" />
+    <Compile Include="../src/TataruBrawler/BlockingCast.cs" Link="BlockingCast.cs" />
+    <Compile Include="../src/TataruBrawler/KtgWord.cs" Link="KtgWord.cs" />
+    <Compile Include="../src/TataruBrawler/RewardSession.cs" Link="RewardSession.cs" />
+  </ItemGroup>
+</Project>

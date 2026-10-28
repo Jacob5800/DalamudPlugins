@@ -60,6 +60,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 	private readonly LoopGameUi loopUi;
 
 	private readonly ICondition condition;
+    private readonly IObjectTable objects;
+    private readonly RewardTracker rewards;
 
 	private long loopSample;
 
@@ -117,6 +119,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		this.data = data;
 		this.log = log;
 		this.condition = condition;
+        this.objects = objects;
+        rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
 		Loc.CheckCompleteness();
 		settings = new ConfigurationStore(pi.ConfigFile.FullName, (Exception ex) =>
@@ -212,6 +216,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			diagnosticReader.Reset();
 			diagnosticAttempted = false;
 			settings.Flush();
+            rewards.EndVisit();
+            rewards.Flush();
 		}
 	}
 
@@ -220,6 +226,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		lock (executionGate)
 		{
 			stopping = true;
+            rewards.Flush();
 			loop.Stop();
 			typing.Stop();
 			Keyboard.Release(force: true);
@@ -302,6 +309,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
+        rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType);
 		if (mapEntry.Observe(client.IsLoggedIn, client.TerritoryType) && config.AutoEnableOnMap)
 		{
 			SetPlayEnabled(enabled: true);
@@ -368,6 +376,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			{
 				reader.Refresh();
 				scanned = tickCount;
+                if (client.TerritoryType == 1359 && encounter.Update(tickCount, BlockingCastReader.Read(objects)))
+                    diagnostics.Event("input_block_cast", new { waitMs = 4000, source = "native_action_id" });
 			}
 			if (reader.ContentComplete)
 			{
@@ -376,14 +386,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				controlGate = "ContentComplete";
 				Keyboard.Release(force: true);
 				return;
-			}
-			if (encounter.Update(tickCount, reader.Enemies))
-			{
-				diagnostics.Event("jammer_end", new
-				{
-					waitMs = 4000,
-					source = "cast_disappeared_after_90_percent"
-				});
 			}
 			if (!typing.Running)
 			{
@@ -771,6 +773,12 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 								ImGui.TextWrapped(T("ActivityUnavailable"));
 							}
 							ImGui.TextUnformatted(T("Words") + ": " + reader.Words.Count);
+                            ImGui.Separator();
+                            ImGui.TextUnformatted($"Session: {rewards.Session.Games:N0} games | {rewards.Session.Mgp:N0} MGP | {rewards.Session.Mgc:N0} MGC");
+                            ImGui.TextUnformatted($"Saved total: {rewards.Total.Games:N0} games | {rewards.Total.Mgp:N0} MGP | {rewards.Total.Mgc:N0} MGC");
+                            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Session starts when the plugin loads. Saved totals cover all characters on this installation. Currency tracks observed gains; capped rewards cannot be measured.");
+                            if (rewards.Error != null) ImGui.TextWrapped(rewards.Error);
+                            ImGui.Separator();
 							ImGui.TextUnformatted(T("InputVisible") + ": " + T(reader.InputVisible ? "Yes" : "No"));
 							ImGui.TextUnformatted(T("InputFocused") + ": " + T(reader.InputFocused ? "Yes" : "No"));
 							ImGui.TextUnformatted(T("Sent") + ": " + typing.Sent);
@@ -987,5 +995,3 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		}
 	}
 }
-
-

@@ -32,6 +32,9 @@ jobs:
       - name: Build reconstructed custom source and verify package
         shell: pwsh
         run: ./plugins/TataruBrawler/Package.ps1
+      - name: Verify Keybound reward and cast policies
+        shell: pwsh
+        run: dotnet run --project plugins/TataruBrawler/checks/Checks.csproj -c Release
       - name: Name release asset
         shell: pwsh
         run: Copy-Item -LiteralPath 'plugins/TataruBrawler/dist/package/latest.zip' -Destination 'TataruBrawler.zip' -Force
