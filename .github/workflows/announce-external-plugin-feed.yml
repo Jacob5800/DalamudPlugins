@@ -29,7 +29,7 @@ jobs:
             @($previous | ConvertFrom-Json)
           }
           $current = @(Get-Content repo.json -Raw | ConvertFrom-Json)
-          # Consolidated plugins; binary-only TataruBrawler is distributed without an automatic announcement.
+          # These consolidated plugins announce in their own release workflows.
           $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary', 'Workshoppa', 'TugOfWar', 'HousingTimeoutReminder', 'TataruBrawler')
           foreach ($plugin in $current) {
             if ($plugin.InternalName -in $managed) { continue }
