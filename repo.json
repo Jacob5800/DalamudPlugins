@@ -162,7 +162,7 @@
     "Author": "Tataru-business",
     "Name": "Keybound Automation",
     "InternalName": "TataruBrawler",
-    "AssemblyVersion": "1.0.8.5",
+    "AssemblyVersion": "1.0.8.6",
     "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Cyberpunk interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
     "ApplicableVersion": "any",
     "Tags": [
@@ -178,14 +178,14 @@
     "Punchline": "Automatically type Keybound Brawler prompts and optionally keep queueing.",
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-    "Changelog": "## 1.0.8.5\n\n- Added configurable MGC cap warnings, enabled at 90% by default, with an additional alert at the cap.\n- Added optional English punctuation skipping in Settings, preserving required spaces, periods and commas.\n",
+    "Changelog": "## 1.0.8.6\n\n- Automatically resume after temporary input-send failures once the duty input is ready again.\n- Manual Pause and Stop remain respected.\n",
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.5/TataruBrawler.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.5/TataruBrawler.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.6/TataruBrawler.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/TataruBrawler-v1.0.8.6/TataruBrawler.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": 1793216887,
+    "LastUpdate": 1793231068,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
     "TestingDalamudApiLevel": null
   }
