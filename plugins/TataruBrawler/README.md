@@ -20,3 +20,7 @@ Disable any other plugin controlling Keybound Brawler before enabling this one.
 Run `./plugins/TataruBrawler/Package.ps1` from the repository root with .NET 10 and Dalamud API 15 references available. `DalamudLibPath` may point to the SDK directory; it defaults to the local XIVLauncher dev folder. Output: `plugins/TataruBrawler/dist/package/latest.zip`.
 
 The original custom source was not supplied. Reconstructed source compiled before and after the server-bar addition. Gameplay and native interaction still require in-game verification; compilation does not establish behavioral equivalence. InternalName remains `TataruBrawler` to preserve settings identity.
+
+## Activity handling
+
+While automated play is active in Keybound (territory 1359), the plugin resets the guarded Keybound input-agent inactivity counter and the existing general activity timers. It stops refreshing on pause/stop or outside that duty. No keys or movement are sent by this refresh. The input-agent layout is checked before resetting its counter. See `LICENSE-Saucy.md` for the adapted reset attribution.

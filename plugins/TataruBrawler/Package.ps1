@@ -29,6 +29,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'NOTICE') -Destination (Join-Path $output 'NOTICE') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $output 'README.md') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'VALIDATION.md') -Destination (Join-Path $output 'VALIDATION.md') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE-Saucy.md') -Destination (Join-Path $output 'LICENSE-Saucy.md') -Force
     $assembly = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $output 'TataruBrawler.dll'))
     if ($assembly.Name -ne $manifest.InternalName -or $assembly.Version.ToString() -ne $manifest.AssemblyVersion) { throw 'DLL identity/version mismatch' }
     $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $output 'TataruBrawler.json') -Encoding utf8
@@ -37,7 +38,7 @@ try {
     $stream = [IO.File]::Open($zipPath, [IO.FileMode]::Create)
     $package = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create)
     try {
-        foreach ($name in @('TataruBrawler.dll','TataruBrawler.json','TataruBrawler.deps.json','LICENSE','NOTICE','README.md','VALIDATION.md','images/icon.png')) {
+        foreach ($name in @('TataruBrawler.dll','TataruBrawler.json','TataruBrawler.deps.json','LICENSE','LICENSE-Saucy.md','NOTICE','README.md','VALIDATION.md','images/icon.png')) {
             [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($package,(Join-Path $output $name),$name) | Out-Null
         }
     } finally { $package.Dispose(); $stream.Dispose() }

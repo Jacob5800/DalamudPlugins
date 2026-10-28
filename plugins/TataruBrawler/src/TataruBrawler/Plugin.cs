@@ -7,6 +7,8 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Interface;
+
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
@@ -752,7 +754,10 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 						ImGui.End();
 						return;
 					}
-					ImGui.TextColored(new Vector4(0.15f, 0.95f, 0.95f, 1f), "TATARU // BRAWLER");
+					using (pi.UiBuilder.IconFontHandle.Push())
+                        ImGui.TextUnformatted(FontAwesomeIcon.Keyboard.ToIconString());
+                    ImGui.SameLine();
+                    ImGui.TextColored(new Vector4(0.15f, 0.95f, 0.95f, 1f), "TATARU // BRAWLER");
 					ImGui.SameLine();
 					ImGui.TextDisabled("  KEYBOUND SYSTEM");
 					ImGui.Separator();
@@ -982,3 +987,5 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		}
 	}
 }
+
+

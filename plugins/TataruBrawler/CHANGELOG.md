@@ -1,3 +1,8 @@
+## 1.0.8.2
+
+- Prevent Keybound-specific inactivity timeouts during active automated play.
+- Added a keyboard icon to the plugin window.
+
 ## 1.0.8.1
 
 - Added an optional KB button in the server info bar to open or close Keybound Automation.
