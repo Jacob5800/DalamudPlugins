@@ -1,3 +1,8 @@
+## 1.0.8.10
+
+- Restored teal-blue navigation and window icons.
+- Matched numeric input and plus/minus controls to the teal-blue interface.
+
 ## 1.0.8.9
 
 - Fixed status text overlapping the activity ring.

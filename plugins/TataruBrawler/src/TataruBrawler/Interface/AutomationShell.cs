@@ -196,8 +196,13 @@ internal sealed class AutomationShell
     private static bool IconButton(IDalamudPluginInterface pi, FontAwesomeIcon icon, string tip, float width = 32)
     {
         bool clicked;
-        using (pi.UiBuilder.IconFontHandle.Push())
-            clicked = ImGui.Button(icon.ToIconString() + "##" + tip, new Vector2(width, 30) * ImGuiHelpers.GlobalScale);
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.32f,.78f,.78f,1));
+        try
+        {
+            using (pi.UiBuilder.IconFontHandle.Push())
+                clicked = ImGui.Button(icon.ToIconString() + "##" + tip, new Vector2(width, 30) * ImGuiHelpers.GlobalScale);
+        }
+        finally { ImGui.PopStyleColor(); }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
         return clicked;
     }

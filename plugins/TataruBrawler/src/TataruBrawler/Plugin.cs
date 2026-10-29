@@ -851,7 +851,7 @@ ImGui.BeginDisabled(loop.Active);
 							int loopCount = config.LoopCount;
 							ImGui.TextDisabled("Number of runs");
                             ImGui.SetNextItemWidth(-18 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
-							if (ImGui.InputInt("###LoopCount", ref loopCount))
+							if (TealInputInt("###LoopCount", ref loopCount))
 							{
 								config.LoopCount = Math.Clamp(loopCount, 1, 9999);
 								settings.Update(config);
@@ -951,6 +951,13 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 							PlaybackControls.DrawLoop(flag, T("LoopStart"), StartLoop);
     }
 
+    private static bool TealInputInt(string label, ref int value, int step = 1, int fastStep = 100)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.32f,.78f,.78f,1));
+        try { return ImGui.InputInt(label, ref value, step, fastStep); }
+        finally { ImGui.PopStyleColor(); }
+    }
+
     private void DrawSettingsPage()
     {
         Interface.AutomationShell.Card("AUTOMATION SETTINGS", DrawSettings);
@@ -1024,14 +1031,14 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 		int num = config.MinimumMs;
 		int num2 = config.MaximumMs;
 		ImGui.SetNextItemWidth(200f);
-		bool flag = ImGui.InputInt(T("Min") + "###Minimum", ref num, 5, 20);
+		bool flag = TealInputInt(T("Min") + "###Minimum", ref num, 5, 20);
 		if (flag)
 		{
 			num = Math.Clamp(num, 20, 5000);
 			num2 = Math.Max(num, num2);
 		}
 		ImGui.SetNextItemWidth(200f);
-		bool flag2 = ImGui.InputInt(T("Max") + "###Maximum", ref num2, 5, 20);
+		bool flag2 = TealInputInt(T("Max") + "###Maximum", ref num2, 5, 20);
 		if (flag2)
 		{
 			num2 = Math.Clamp(num2, 20, 5000);
@@ -1045,7 +1052,7 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 		ImGui.TextWrapped(T("RangeHelp"));
 		int betweenWordsMs = config.BetweenWordsMs;
 		ImGui.SetNextItemWidth(200f);
-		if (ImGui.InputInt(T("BetweenWordsMs") + "###BetweenWordsMs", ref betweenWordsMs, 50, 250))
+		if (TealInputInt(T("BetweenWordsMs") + "###BetweenWordsMs", ref betweenWordsMs, 50, 250))
 		{
 			config.BetweenWordsMs = Math.Clamp(betweenWordsMs, 0, 60000);
 			settings.Update(config);
