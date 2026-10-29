@@ -1,3 +1,8 @@
+## 1.0.8.11
+
+- Moved playback controls to the bottom-left edge of the window.
+- Kept numeric values and interval labels white; only plus/minus symbols are teal-blue.
+
 ## 1.0.8.10
 
 - Restored teal-blue navigation and window icons.

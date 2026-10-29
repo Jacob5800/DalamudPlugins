@@ -953,9 +953,32 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 
     private static bool TealInputInt(string label, ref int value, int step = 1, int fastStep = 100)
     {
-        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.32f,.78f,.78f,1));
-        try { return ImGui.InputInt(label, ref value, step, fastStep); }
-        finally { ImGui.PopStyleColor(); }
+        float scale = Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
+        float width = label.StartsWith("###") ? Math.Max(130 * scale, ImGui.GetContentRegionAvail().X - 18 * scale) : 200 * scale;
+        ImGui.PushID(label);
+        ImGui.BeginGroup();
+        bool changed;
+        try
+        {
+            ImGui.SetNextItemWidth(Math.Max(60 * scale, width - 58 * scale));
+            changed = ImGui.InputInt("##value", ref value, 0, 0);
+            ImGui.SameLine(0, 4 * scale);
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.32f,.78f,.78f,1));
+            try
+            {
+                int amount = ImGui.GetIO().KeyCtrl ? fastStep : step;
+                if (ImGui.Button("-", new Vector2(24 * scale, ImGui.GetFrameHeight())))
+                { value = (int)Math.Clamp((long)value - amount, int.MinValue, int.MaxValue); changed = true; }
+                ImGui.SameLine(0, 4 * scale);
+                if (ImGui.Button("+", new Vector2(24 * scale, ImGui.GetFrameHeight())))
+                { value = (int)Math.Clamp((long)value + amount, int.MinValue, int.MaxValue); changed = true; }
+            }
+            finally { ImGui.PopStyleColor(); }
+            string title = label.Split("###")[0];
+            if (!string.IsNullOrEmpty(title)) { ImGui.SameLine(); ImGui.TextUnformatted(title); }
+        }
+        finally { ImGui.EndGroup(); ImGui.PopID(); }
+        return changed;
     }
 
     private void DrawSettingsPage()

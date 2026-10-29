@@ -105,8 +105,8 @@ internal sealed class AutomationShell
                 }
                 finally { ImGui.EndChild(); }
                 dl.AddRectFilled(pos + new Vector2(0, size.Y - dock), pos + size, ImGui.GetColorU32(colors.Surface1), 12 * scale);
-                ImGui.SetCursorScreenPos(pos + new Vector2(rail + 22 * scale, size.Y - dock + 16 * scale));
-                bool dockVisible = ImGui.BeginChild("playback_dock", new Vector2(Math.Max(1, size.X - rail - 40 * scale), dock - 20 * scale), false, ImGuiWindowFlags.NoScrollbar);
+                ImGui.SetCursorScreenPos(pos + new Vector2(16 * scale, size.Y - dock + 16 * scale));
+                bool dockVisible = ImGui.BeginChild("playback_dock", new Vector2(Math.Max(1, size.X - 32 * scale), dock - 20 * scale), false, ImGuiWindowFlags.NoScrollbar);
                 try { if (dockVisible) playback(); }
                 finally { ImGui.EndChild(); }
             }
