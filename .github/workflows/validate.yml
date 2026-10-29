@@ -118,7 +118,7 @@ jobs:
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
           $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
-          Invoke-WebRequest -Uri 'https://goatcorp.github.io/dalamud-distrib/stg/latest.zip' -OutFile $archive
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/a44d77c7f7927aec7f706df3ab3cb6d4f45f2a59/stg/latest.zip' -OutFile $archive
           Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
           "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Build
