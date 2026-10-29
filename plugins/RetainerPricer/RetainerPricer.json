@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.26",
+  "AssemblyVersion": "0.5.1.27",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.26\n\n- Moved Sniper deals and deal search into a separate Sniper results tab, linked by Results here.\n- Added a results server filter and an optional customizable minimum estimated sales/day filter.\n- Fit the results table to remaining window space.\n",
+  "Changelog": "## 0.5.1.27\n\n- Added Exclude my server to the Sniper results server filter.\n- Enlarged the Results here button.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

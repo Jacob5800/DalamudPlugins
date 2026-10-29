@@ -1,3 +1,8 @@
+## 0.5.1.27
+
+- Added Exclude my server to the Sniper results server filter.
+- Enlarged the Results here button.
+
 ## 0.5.1.26
 
 - Moved Sniper deals and deal search into a separate Sniper results tab, linked by Results here.

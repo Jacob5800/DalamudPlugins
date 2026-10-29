@@ -46,6 +46,7 @@ internal sealed class MainWindow : Window
     private string sniperDealSearch = "";
     private bool openSniperResultsTab;
     private uint sniperResultsWorldId;
+    private bool sniperExcludeHomeWorld;
     private readonly List<ItemChoice> sniperItemSelections = [];
     private string backupPath = "";
     private string backupStatus = "";
@@ -1438,7 +1439,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped(sniper.Status);
         ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to {UniversalisClient.SniperHistoryEntryLimit:N0} recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
-        if (ImGui.Button("Results here")) openSniperResultsTab = true;
+        if (ImGui.Button("Results here", new Vector2(220, 42) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale)) openSniperResultsTab = true;
         ImGui.SameLine(); ImGui.TextDisabled($"{sniper.Deals.Count:N0} received deals · search and server filters are in Sniper results.");
     }
 
@@ -1535,21 +1536,31 @@ internal sealed class MainWindow : Window
             var worlds = allDeals.GroupBy(deal => deal.WorldId)
                 .Select(group => (Id: group.Key, Name: group.First().WorldName))
                 .OrderBy(world => world.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-            var selectedName = sniperResultsWorldId == 0 ? "All servers"
+            var home = homeWorld();
+            var selectedName = sniperExcludeHomeWorld ? "Exclude my server" : sniperResultsWorldId == 0 ? "All servers"
                 : worlds.FirstOrDefault(world => world.Id == sniperResultsWorldId).Name ?? $"World {sniperResultsWorldId}";
             ImGui.SetNextItemWidth(240);
             if (ImGui.BeginCombo("Server##sniperResults", selectedName))
             {
-                if (ImGui.Selectable("All servers", sniperResultsWorldId == 0)) { sniperResultsWorldId = 0; sniperDealsPage = 0; }
+                if (ImGui.Selectable("All servers", sniperResultsWorldId == 0 && !sniperExcludeHomeWorld))
+                { sniperResultsWorldId = 0; sniperExcludeHomeWorld = false; sniperDealsPage = 0; }
+                ImGui.BeginDisabled(home is null);
+                if (ImGui.Selectable("Exclude my server", sniperExcludeHomeWorld))
+                { sniperResultsWorldId = 0; sniperExcludeHomeWorld = true; sniperDealsPage = 0; }
+                ImGui.EndDisabled();
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    ImGui.SetTooltip(home is null ? "Log in to identify your home server." : $"Show all servers except your home world, {home.Name}.");
                 foreach (var world in worlds)
-                    if (ImGui.Selectable(world.Name + "##world" + world.Id, sniperResultsWorldId == world.Id))
-                    { sniperResultsWorldId = world.Id; sniperDealsPage = 0; }
+                    if (ImGui.Selectable(world.Name + "##world" + world.Id, !sniperExcludeHomeWorld && sniperResultsWorldId == world.Id))
+                    { sniperResultsWorldId = world.Id; sniperExcludeHomeWorld = false; sniperDealsPage = 0; }
                 ImGui.EndCombo();
             }
-            if (sniperResultsWorldId != 0)
+            if (sniperResultsWorldId != 0 || sniperExcludeHomeWorld)
             {
                 var before = deals.Length;
-                deals = deals.Where(deal => deal.WorldId == sniperResultsWorldId).ToArray();
+                deals = sniperExcludeHomeWorld
+                    ? deals.Where(deal => home is not null && deal.WorldId != home.WorldId).ToArray()
+                    : deals.Where(deal => deal.WorldId == sniperResultsWorldId).ToArray();
                 hiddenByServer = before - deals.Length;
             }
         }
