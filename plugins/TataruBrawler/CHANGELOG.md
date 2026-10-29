@@ -1,3 +1,9 @@
+## 1.0.8.8
+
+- Replaced the Cyberpunk interface with an adapted Auto Keybound Brawler layout, navigation rail and persistent playback dock.
+- Added compact mode, a live prompt board and dedicated Log, Changelog and About pages.
+- Illegal mode is now red and labeled Danger.
+
 ## 1.0.8.7
 
 - Added optional Illegal mode to insert and submit a complete Keybound answer at once.

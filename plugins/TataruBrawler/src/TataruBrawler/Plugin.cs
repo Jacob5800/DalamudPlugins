@@ -786,58 +786,68 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		ImGui.TextUnformatted(T("DiagRecords") + ": " + diagnostics.Records + " / " + diagnostics.BytesWritten + " B");
 	}
 
-	private void Draw()
-	{
-		uiCaptures = ImGui.GetIO().WantTextInput || ImGui.IsAnyItemActive();
-		if (stopping || !open)
-		{
-			return;
-		}
-		fonts.Ensure(reader.Words.Append(typing.CurrentWord));
-		using (fonts.Push(config.Language))
-		{
-			CyberpunkTheme.Push();
-			try
-			{
-				ImGui.SetNextWindowSize(new Vector2(650f, 440f), ImGuiCond.FirstUseEver);
-				if (ImGui.Begin("Tataru Brawler###TataruBrawler", ref open))
-				{
-					if (!fonts.Available)
-					{
-						ImGui.TextWrapped(Loc.Get("en", fonts.Failed ? "FontFailed" : "FontLoading"));
-						ImGui.End();
-						return;
-					}
-					using (pi.UiBuilder.IconFontHandle.Push())
-                        ImGui.TextUnformatted(FontAwesomeIcon.Keyboard.ToIconString());
-                    ImGui.SameLine();
-                    ImGui.TextColored(new Vector4(0.15f, 0.95f, 0.95f, 1f), "TATARU // BRAWLER");
-					ImGui.SameLine();
-					ImGui.TextDisabled("  KEYBOUND SYSTEM");
-					ImGui.Separator();
-					if (ImGui.BeginTabBar("Tabs"))
-					{
-						if (ImGui.BeginTabItem(T("Main") + "###Main"))
-						{
-							ImGui.TextUnformatted(T("Status") + ": " + T(typing.Status));
-							if (activity.Failed)
-							{
-								ImGui.TextWrapped(T("ActivityUnavailable"));
-							}
-							ImGui.TextUnformatted(T("Words") + ": " + reader.Words.Count);
-                            ImGui.Separator();
-                            ImGui.TextUnformatted($"Session: {rewards.Session.Games:N0} games | {rewards.Session.Mgp:N0} MGP | {rewards.Session.Mgc:N0} MGC");
-                            ImGui.TextUnformatted($"Saved total: {rewards.Total.Games:N0} games | {rewards.Total.Mgp:N0} MGP | {rewards.Total.Mgc:N0} MGC");
-                            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Session starts when the plugin loads. Saved totals cover all characters on this installation. Currency tracks observed gains; capped rewards cannot be measured.");
-                            ImGui.TextDisabled(rewards.Status);
-                            if (warning.Message != null) ImGui.TextColored(new Vector4(1f, 0.4f, 0.15f, 1f), warning.Message);
-                            if (rewards.Error != null) ImGui.TextWrapped(rewards.Error);
-                            ImGui.Separator();
-							ImGui.TextUnformatted(T("InputVisible") + ": " + T(reader.InputVisible ? "Yes" : "No"));
-							ImGui.TextUnformatted(T("InputFocused") + ": " + T(reader.InputFocused ? "Yes" : "No"));
-							ImGui.TextUnformatted(T("Sent") + ": " + typing.Sent);
-							ImGui.TextWrapped(T("Current") + ": " + typing.CurrentWord);
-							ImGui.BeginDisabled(loop.Active);
+    private readonly Interface.AutomationShell shell = new();
+
+    private void Draw()
+    {
+        uiCaptures = ImGui.GetIO().WantTextInput || ImGui.IsAnyItemActive();
+        if (stopping || !open) return;
+        fonts.Ensure(reader.Words.Append(typing.CurrentWord));
+        using (fonts.Push(config.Language))
+        {
+            shell.Draw(ref open, pi, typing.Running && !typing.ManualPaused,
+                T(typing.Status), typing.CurrentWord,
+                DrawBrawl, DrawSettingsPage, DrawDiagnostics, DrawChangelog, DrawAbout, DrawPlayback);
+        }
+    }
+
+    private void DrawBrawl()
+    {
+        Interface.AutomationShell.Card("REWARDS", () =>
+        {
+            ImGui.TextUnformatted($"Session    {rewards.Session.Games:N0} games    {rewards.Session.Mgp:N0} MGP    {rewards.Session.Mgc:N0} MGC");
+            ImGui.TextDisabled($"Saved total    {rewards.Total.Games:N0} games    {rewards.Total.Mgp:N0} MGP    {rewards.Total.Mgc:N0} MGC");
+            ImGui.TextDisabled(rewards.Status);
+            if (warning.Message != null) ImGui.TextColored(new Vector4(1f, .55f, .2f, 1f), warning.Message);
+            if (rewards.Error != null) ImGui.TextWrapped(rewards.Error);
+        });
+        bool columns = ImGui.GetContentRegionAvail().X > 760 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
+        if (columns && ImGui.BeginTable("brawl_columns", 2, ImGuiTableFlags.SizingStretchProp))
+        {
+            try
+            {
+                ImGui.TableSetupColumn("Live board", ImGuiTableColumnFlags.WidthStretch, 1.2f);
+                ImGui.TableSetupColumn("Quick controls", ImGuiTableColumnFlags.WidthStretch, 1f);
+                ImGui.TableNextColumn(); DrawLiveBoard();
+                ImGui.TableNextColumn(); DrawQuickControls();
+            }
+            finally { ImGui.EndTable(); }
+        }
+        else { DrawLiveBoard(); DrawQuickControls(); }
+    }
+
+    private void DrawLiveBoard()
+    {
+        Interface.AutomationShell.Card("LIVE BOARD", () =>
+        {
+            ImGui.TextDisabled($"{reader.Words.Count} prompts   •   {typing.Sent:N0} letters sent");
+            if (activity.Failed) ImGui.TextWrapped(T("ActivityUnavailable"));
+            if (reader.Words.Count == 0) ImGui.TextDisabled("Waiting for visible prompts…");
+            foreach (string word in reader.Words)
+            {
+                bool current = word == typing.CurrentWord;
+                ImGui.TextColored(current ? new Vector4(.32f,.78f,.78f,1) : new Vector4(.78f,.805f,.84f,1), (current ? "> " : "  ") + word);
+            }
+            ImGui.Separator();
+            ImGui.TextDisabled($"Input: {(reader.InputEnabled ? "Ready" : "Waiting")}  |  Focus: {(reader.InputFocused ? "Keybound" : "Waiting")}");
+        });
+    }
+
+    private void DrawQuickControls()
+    {
+        Interface.AutomationShell.Card("QUICK CONTROLS", () =>
+        {
+ImGui.BeginDisabled(loop.Active);
 							int loopCount = config.LoopCount;
 							ImGui.SetNextItemWidth(160f);
 							if (ImGui.InputInt(T("LoopCount") + "###LoopCount", ref loopCount))
@@ -859,36 +869,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 							{
 								ImGui.TextWrapped(string.Format(T("LoopProgress"), loop.Current, loop.Total, loop.Completed) + " / " + T(loop.Paused ? "UserPaused" : ("Loop" + loop.Phase)));
 							}
-							PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused : typing.ManualPaused, T, () =>
-							{
-								if (loop.Active)
-								{
-									loop.Resume();
-									typing.ResumeByUser();
-									reader.ResetFocus();
-								}
-								else
-								{
-									StartTyping(Environment.TickCount64, "button");
-								}
-							}, () =>
-							{
-								loop.Pause();
-								typing.PauseByUser();
-								controlGate = "ManualPause";
-								backgroundKeys.Release(force: true);
-            Keyboard.Release(force: true);
-							}, StopByUser, typing.Running || loop.Active);
-							ImGui.SameLine();
-							bool flag = !loop.Active && loopUi.Supported && client.IsLoggedIn;
-							if (flag)
-							{
-								uint territoryType = client.TerritoryType;
-								bool flag2 = territoryType - 1359 <= 1;
-								flag = flag2;
-							}
-							PlaybackControls.DrawLoop(flag, T("LoopStart"), StartLoop);
-							ImGui.SameLine();
+
 							if (ImGui.Button(T("Refresh") + "###Inspect"))
 							{
 								try
@@ -901,8 +882,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 									log.Error(exception, "Manual word inspection failed");
 								}
 							}
-							ImGui.TextWrapped(T("Guide"));
-							ImGui.TextWrapped(T("LoopHelp"));
+
+
 							ImGui.Separator();
 							bool v = config.AutoQueueOnLobbyEntry;
 							if (ImGui.Checkbox("Auto queue on lobby entry###AutoQueueOnLobbyEntry", ref v))
@@ -932,34 +913,79 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 								StopAutoQueue();
 							}
 							ImGui.TextWrapped("Pause holds new registration steps. Stop prevents further automatic queue actions; an existing duty queue is not cancelled. Play stays on.");
-							foreach (string word in reader.Words)
+
+        });
+    }
+
+    private void DrawPlayback()
+    {
+PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused : typing.ManualPaused, T, () =>
 							{
-								ImGui.TextUnformatted(word);
+								if (loop.Active)
+								{
+									loop.Resume();
+									typing.ResumeByUser();
+									reader.ResetFocus();
+								}
+								else
+								{
+									StartTyping(Environment.TickCount64, "button");
+								}
+							}, () =>
+							{
+								loop.Pause();
+								typing.PauseByUser();
+								controlGate = "ManualPause";
+								backgroundKeys.Release(force: true);
+            Keyboard.Release(force: true);
+							}, StopByUser, typing.Running || loop.Active);
+							ImGui.SameLine();
+							bool flag = !loop.Active && loopUi.Supported && client.IsLoggedIn;
+							if (flag)
+							{
+								uint territoryType = client.TerritoryType;
+								bool flag2 = territoryType - 1359 <= 1;
+								flag = flag2;
 							}
-							ImGui.EndTabItem();
-						}
-						if (ImGui.BeginTabItem(T("Diagnostics") + "###Diagnostics"))
-						{
-							DrawDiagnostics();
-							ImGui.EndTabItem();
-						}
-						StandardPluginTabs.DrawTrailingTabs(T("Settings"), DrawSettings, T("Language"), DrawLanguage);
-						ImGui.EndTabBar();
-					}
-				}
-				ImGui.End();
-			}
-			finally
-			{
-				CyberpunkTheme.Pop();
-			}
-		}
-	}
+							PlaybackControls.DrawLoop(flag, T("LoopStart"), StartLoop);
+    }
+
+    private void DrawSettingsPage()
+    {
+        DrawSettings();
+        ImGui.Separator();
+        DrawLanguage();
+    }
+
+    private void DrawChangelog()
+    {
+        ImGui.TextWrapped("Keybound Automation — interface update");
+        ImGui.BulletText("New navigation rail, status header and persistent playback dock.");
+        ImGui.BulletText("Compact mode; double-click the header or use its chevron.");
+        ImGui.BulletText("Existing automation, settings, diagnostics and rewards retained.");
+        ImGui.Separator();
+        ImGui.TextWrapped("Full release history: github.com/Jacob5800/DalamudPlugins/tree/main/plugins/TataruBrawler");
+    }
+
+    private void DrawAbout()
+    {
+        ImGui.TextWrapped("Keybound Automation");
+        ImGui.TextWrapped("Original Keybound Pilot: Roxyz0501. Custom Tataru Brawler: Tataru-business. Integration: Jacob5800.");
+        ImGui.Separator();
+        ImGui.TextWrapped("Based on Auto Keybound Brawler by XeldarAlz");
+        ImGui.TextWrapped("https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler");
+        ImGui.TextWrapped("Layout and palette adapted for Keybound Automation. This is an independent modified work, not maintained or endorsed by XeldarAlz.");
+        ImGui.TextWrapped("Combined UI distribution: AGPL-3.0. Original Apache-2.0 and BSD-3-Clause notices retained.");
+    }
 
 	private void DrawSettings()
     {
         bool illegalMode = config.IllegalMode;
-        if (ImGui.Checkbox("Illegal mode (insert whole word)", ref illegalMode))
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, .25f, .3f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.CheckMark, new Vector4(1f, .25f, .3f, 1f));
+        bool illegalChanged = ImGui.Checkbox("Danger: Illegal mode (insert whole word)", ref illegalMode);
+        ImGui.PopStyleColor(2);
+        if (illegalChanged)
         {
             config.IllegalMode = illegalMode;
             backgroundKeys.Release(force: true);

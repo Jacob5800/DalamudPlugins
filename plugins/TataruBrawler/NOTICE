@@ -13,3 +13,8 @@ Distribution changes: 2026 Jacob5800. Version 1.0.8.1 reconstructs source from t
 Keybound input-agent inactivity reset adapted from Saucy, Copyright (c) 2023 Puni.sh, BSD-3-Clause. Source: https://github.com/PunishXIV/Saucy/blob/b519867b5de20cd3159d7d06323b87c70485150a/Saucy/Games/KeyboundBrawler/KeyboundBrawlerAutomation.cs . See LICENSE-Saucy.md for the complete notice.
 
 Version 1.0.8.3 also references the same Saucy Keybound module for blocking action IDs and adapts its result/late-currency settlement approach; BSD-3-Clause notice remains in LICENSE-Saucy.md.
+
+Based on Auto Keybound Brawler by XeldarAlz
+https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler
+Copyright (c) 2026 Xeldar Alz. AGPL-3.0; see LICENSE-AGPL.md and NOTICE-AutoKeyboundBrawler.
+Modified 29-10-2026: adapted the default palette/layout and shell structure to Keybound Automation's existing controls and engine. Upstream name, internal name and icon are not reused. Combined derivative distributed under AGPL-3.0; original component notices retained.

@@ -50,3 +50,14 @@ Temporary input unavailability already pauses typing until ready. A SendFailed s
 ## Illegal mode
 
 Settings → **Illegal mode (insert whole word)** is experimental and off by default. It inserts the prepared answer into the owned Keybound field and invokes its Enter callback. It checks prompt visibility, field ownership/readiness, existing text and competing focus. Existing manual pause/stop and cast blocks remain active. Submission is throttled to at least 1.5 seconds (or the longer configured between-word delay). It does not use the system clipboard or OS typing. Clear partial text before switching modes. Actual whole-answer acceptance has not been verified in game.
+
+## Interface attribution and license
+
+Based on Auto Keybound Brawler by XeldarAlz
+https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler
+
+The 1.0.8.8 interface adapts the upstream layout/palette (commit `863e7532421bfd8460fdd903d71016b87a878edd`) for our engine, with an independent navigation/dock implementation. The user selected layout, controls and compact mode; themes, Glasswork effects and the upstream humanizer were excluded. Our existing controls and diagnostics are connected rather than importing a different gameplay engine. The window retains our name and icon and is not endorsed by the upstream author.
+
+The combined derivative from 1.0.8.8 is distributed under AGPL-3.0 (LICENSE-AGPL.md). Original Apache-2.0 and BSD-3-Clause licenses and notices remain applicable to their respective portions. Corresponding buildable source is available in this public folder and the release's `TataruBrawler-source.zip`. This license applies to this plugin, not the other independently packaged plugins in the feed.
+
+Double-click the header or click its chevron to enter/exit compact mode. Use the left rail for Brawl, Settings, Log, Changelog and About. Play/Pause/Stop/manual loop controls remain in the lower dock. All saved automation settings retain their existing identity. Illegal mode appears as **Danger: Illegal mode (insert whole word)** in red.

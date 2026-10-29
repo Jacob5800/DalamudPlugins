@@ -46,7 +46,9 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           body_path: plugins/TataruBrawler/CHANGELOG.md
-          files: TataruBrawler.zip
+          files: |
+            TataruBrawler.zip
+            plugins/TataruBrawler/dist/package/TataruBrawler-source.zip
       - name: Update combined feed
         shell: pwsh
         env:

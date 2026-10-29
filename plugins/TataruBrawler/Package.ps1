@@ -30,6 +30,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $output 'README.md') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'VALIDATION.md') -Destination (Join-Path $output 'VALIDATION.md') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE-Saucy.md') -Destination (Join-Path $output 'LICENSE-Saucy.md') -Force
+    foreach ($notice in @('LICENSE-AGPL.md','NOTICE-AutoKeyboundBrawler')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $notice) -Destination (Join-Path $output $notice) -Force }
     $assembly = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $output 'TataruBrawler.dll'))
     if ($assembly.Name -ne $manifest.InternalName -or $assembly.Version.ToString() -ne $manifest.AssemblyVersion) { throw 'DLL identity/version mismatch' }
     $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $output 'TataruBrawler.json') -Encoding utf8
@@ -38,7 +39,7 @@ try {
     $stream = [IO.File]::Open($zipPath, [IO.FileMode]::Create)
     $package = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create)
     try {
-        foreach ($name in @('TataruBrawler.dll','TataruBrawler.json','TataruBrawler.deps.json','LICENSE','LICENSE-Saucy.md','NOTICE','README.md','VALIDATION.md','images/icon.png')) {
+        foreach ($name in @('TataruBrawler.dll','TataruBrawler.json','TataruBrawler.deps.json','LICENSE','LICENSE-Saucy.md','LICENSE-AGPL.md','NOTICE-AutoKeyboundBrawler','NOTICE','README.md','VALIDATION.md','images/icon.png')) {
             [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($package,(Join-Path $output $name),$name) | Out-Null
         }
     } finally { $package.Dispose(); $stream.Dispose() }
@@ -55,3 +56,16 @@ try {
     if ($saved.LastUpdate -le 0 -or $saved.AssemblyVersion -ne $manifest.AssemblyVersion -or $saved.Changelog -ne $manifest.Changelog) { throw 'Packaged metadata mismatch' }
 } finally { $check.Dispose() }
 Write-Output "Packaged $($manifest.Name) $($manifest.AssemblyVersion); custom source built and packaged."
+
+# Corresponding source accompanies the AGPL derivative release. Exclude outputs and
+# build outputs; all required source/build scripts and original notices are included.
+$sourceZipPath = Join-Path $output 'TataruBrawler-source.zip'
+$sourceStream = [IO.File]::Open($sourceZipPath, [IO.FileMode]::Create)
+$sourceZip = [IO.Compression.ZipArchive]::new($sourceStream, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach ($file in Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File) {
+        $relative = [IO.Path]::GetRelativePath($PSScriptRoot, $file.FullName).Replace('\','/')
+        if ($relative -match '(^|/)(bin|obj|dist)/') { continue }
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($sourceZip,$file.FullName,$relative) | Out-Null
+    }
+} finally { $sourceZip.Dispose(); $sourceStream.Dispose() }
