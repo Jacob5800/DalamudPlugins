@@ -1000,12 +1000,10 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
     private void DrawAbout()
     {
         ImGui.TextWrapped("Keybound Automation");
-        ImGui.TextWrapped("Original Keybound Pilot: Roxyz0501. Custom Tataru Brawler: Tataru-business. Integration: Jacob5800.");
+        ImGui.TextWrapped("Keybound Automation by Jacob5800.");
+        ImGui.TextWrapped("Based on Tataru Brawler by Tataru-business.");
         ImGui.Separator();
-        ImGui.TextWrapped("Based on Auto Keybound Brawler by XeldarAlz");
-        ImGui.TextWrapped("https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler");
-        ImGui.TextWrapped("Layout and palette adapted for Keybound Automation. This is an independent modified work, not maintained or endorsed by XeldarAlz.");
-        ImGui.TextWrapped("Combined UI distribution: AGPL-3.0. Original Apache-2.0 and BSD-3-Clause notices retained.");
+        ImGui.TextWrapped("License and third-party notices are included with the plugin.");
     }
 
 	private void DrawSettings()

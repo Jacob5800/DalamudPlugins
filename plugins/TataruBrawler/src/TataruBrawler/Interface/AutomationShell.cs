@@ -62,7 +62,7 @@ internal sealed class AutomationShell
                 if (toggle) { compact = !compact; restoreSize = !compact; }
                 if (compact) return;
 
-                float dock = Layout.DockHeight * scale;
+                float dock = 0;
                 float rail = Layout.RailWidth * scale;
                 float body = Math.Max(1, size.Y - header - dock);
                 ImGui.SetCursorScreenPos(pos + new Vector2(0, header));
@@ -94,7 +94,17 @@ internal sealed class AutomationShell
                         switch (page)
                         {
                             case 0:
-                                DrawStatus(running, status, word, scale);
+                                if (ImGui.BeginTable("status_controls", 2, ImGuiTableFlags.SizingStretchProp))
+                                {
+                                    ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthStretch);
+                                    ImGui.TableSetupColumn("Controls", ImGuiTableColumnFlags.WidthFixed, 196 * scale);
+                                    ImGui.TableNextColumn();
+                                    DrawStatus(running, status, word, scale);
+                                    ImGui.TableNextColumn();
+                                    ImGui.Dummy(new Vector2(0, 25 * scale));
+                                    playback();
+                                    ImGui.EndTable();
+                                }
                                 brawl(); break;
                             case 1: settings(); break;
                             case 2: log(); break;
@@ -104,11 +114,7 @@ internal sealed class AutomationShell
                     }
                 }
                 finally { ImGui.EndChild(); }
-                dl.AddRectFilled(pos + new Vector2(0, size.Y - dock), pos + size, ImGui.GetColorU32(colors.Surface1), 12 * scale);
-                ImGui.SetCursorScreenPos(pos + new Vector2(16 * scale, size.Y - dock + 16 * scale));
-                bool dockVisible = ImGui.BeginChild("playback_dock", new Vector2(Math.Max(1, size.X - 32 * scale), dock - 20 * scale), false, ImGuiWindowFlags.NoScrollbar);
-                try { if (dockVisible) playback(); }
-                finally { ImGui.EndChild(); }
+
             }
             finally { ImGui.End(); }
         }
