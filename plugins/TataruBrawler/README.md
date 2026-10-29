@@ -6,15 +6,6 @@ The custom interface, English/Japanese typing, repeat queue controls and startup
 
 Disable any other plugin controlling Keybound Brawler before enabling this one.
 
-## Provenance
-
-- The user supplied the custom build with the original owner's permission.
-- Original source: https://github.com/Roxyz0501/KeyboundPilot (Roxyz0501).
-- Custom modifications credited to Tataru-business; see LICENSE and NOTICE.
-- Version 1.0.8.0 redistributed the supplied DLL byte-for-byte.
-- Version 1.0.8.1 builds `src/`, reconstructed from that custom DLL using ILSpy 11.2.0.10050, with server-bar integration added. This is not a build of the newer original repository, which differs from the supplied custom build.
-- Original archive is retained in `vendor/` for reference and rollback. SHA-256: `20A6FA784FF086DF349DE3C70AF0409A9D3855408D93D05EC84BA7E724E3A47C`.
-
 ## Build and package
 
 Run `./plugins/TataruBrawler/Package.ps1` from the repository root with .NET 10 and Dalamud API 15 references available. `DalamudLibPath` may point to the SDK directory; it defaults to the local XIVLauncher dev folder. Output: `plugins/TataruBrawler/dist/package/latest.zip`.
@@ -50,14 +41,3 @@ Temporary input unavailability already pauses typing until ready. A SendFailed s
 ## Illegal mode
 
 Settings → **Illegal mode (insert whole word)** is experimental and off by default. It inserts the prepared answer into the owned Keybound field and invokes its Enter callback. It checks prompt visibility, field ownership/readiness, existing text and competing focus. Existing manual pause/stop and cast blocks remain active. Submission is throttled to at least 1.5 seconds (or the longer configured between-word delay). It does not use the system clipboard or OS typing. Clear partial text before switching modes. Actual whole-answer acceptance has not been verified in game.
-
-## Interface attribution and license
-
-Based on Auto Keybound Brawler by XeldarAlz
-https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler
-
-The 1.0.8.8 interface adapts the upstream layout/palette (commit `863e7532421bfd8460fdd903d71016b87a878edd`) for our engine, with an independent navigation/dock implementation. The user selected layout, controls and compact mode; themes, Glasswork effects and the upstream humanizer were excluded. Our existing controls and diagnostics are connected rather than importing a different gameplay engine. The window retains our name and icon and is not endorsed by the upstream author.
-
-The combined derivative from 1.0.8.8 is distributed under AGPL-3.0 (LICENSE-AGPL.md). Original Apache-2.0 and BSD-3-Clause licenses and notices remain applicable to their respective portions. Corresponding buildable source is available in this public folder and the release's `TataruBrawler-source.zip`. This license applies to this plugin, not the other independently packaged plugins in the feed.
-
-Double-click the header or click its chevron to enter/exit compact mode. Use the left rail for Brawl, Settings, Log, Changelog and About. Play/Pause/Stop/manual loop controls remain in the lower dock. All saved automation settings retain their existing identity. Illegal mode appears as **Danger: Illegal mode (insert whole word)** in red.
