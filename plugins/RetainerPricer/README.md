@@ -156,3 +156,7 @@ The Desynthesis tab also offers **Grab carried inventory** and **Grab chocobo sa
 ### Selected-item Sniper scans
 
 When specific items are selected, Sniper loads their price references and configured sales history, checks up to 100 current listings per selected item in the chosen world/data-center/region, then continues live monitoring for those items only. Existing offers use the same HQ/NQ baselines, minimum-sales requirement and deal filters as incoming offers. The all-items discovery mode keeps its existing cache-and-live-candidate behaviour. Failed current-listing requests are reported rather than counted as empty successful results.
+
+### Sniper results layout
+
+**Sniper** contains scan controls; **Results here** opens **Sniper results**, which contains the deal search, server filter, fee assumptions and scrollable results. The optional **Hide below estimated sales/day** filter under Scan options hides lower or unknown estimates from Sniper results, including 1-gil alerts, without changing scanning or the saved Buy list. Its threshold and enabled state persist in settings backups.

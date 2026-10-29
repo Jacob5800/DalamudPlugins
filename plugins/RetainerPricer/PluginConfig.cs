@@ -61,6 +61,8 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool SniperSkipOneGilLookup { get; set; } = true;
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
+    public bool SniperMinimumSalesPerDayEnabled { get; set; }
+    public double SniperMinimumSalesPerDay { get; set; } = 1;
     public double SniperMinimumDiscountPercent { get; set; }
     public bool SniperMinimumProfitEnabled { get; set; }
     public int SniperMinimumUnitProfit { get; set; }
@@ -123,6 +125,7 @@ public sealed class PluginConfig : IPluginConfiguration
         UndercutMarketScope = Math.Clamp(UndercutMarketScope, 0, 2);
         SniperHistoryDays = Math.Clamp(SniperHistoryDays, 0, 14);
         SniperMinimumItemPrice = Math.Clamp(SniperMinimumItemPrice, 1, 999_999_999);
+        SniperMinimumSalesPerDay = double.IsFinite(SniperMinimumSalesPerDay) ? Math.Clamp(SniperMinimumSalesPerDay, 0, 1000000) : 1;
         SniperMinimumDiscountPercent = double.IsFinite(SniperMinimumDiscountPercent) ? Math.Clamp(SniperMinimumDiscountPercent, 0, 100) : 0;
         SniperMinimumUnitProfit = Math.Clamp(SniperMinimumUnitProfit, 0, 999_999_999);
         SniperMinimumUnitSaving = Math.Clamp(SniperMinimumUnitSaving, 0, 999_999_999);

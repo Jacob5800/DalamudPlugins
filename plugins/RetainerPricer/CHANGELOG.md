@@ -1,3 +1,9 @@
+## 0.5.1.26
+
+- Moved Sniper deals and deal search into a separate Sniper results tab, linked by Results here.
+- Added a results server filter and an optional customizable minimum estimated sales/day filter.
+- Fit the results table to remaining window space.
+
 ## 0.5.1.25
 
 - Selected-item Sniper scans now check current listings after loading selected-item price references and sales history, then continue live monitoring.

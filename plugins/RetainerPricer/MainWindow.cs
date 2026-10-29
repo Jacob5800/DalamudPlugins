@@ -44,6 +44,8 @@ internal sealed class MainWindow : Window
     private int buyListPage;
     private string buyListSearchMessage = "";
     private string sniperDealSearch = "";
+    private bool openSniperResultsTab;
+    private uint sniperResultsWorldId;
     private readonly List<ItemChoice> sniperItemSelections = [];
     private string backupPath = "";
     private string backupStatus = "";
@@ -339,6 +341,8 @@ internal sealed class MainWindow : Window
         {
             if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Sniper results", openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
+            { openSniperResultsTab = false; DrawSniperResults(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Buy list", openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
@@ -1268,6 +1272,18 @@ internal sealed class MainWindow : Window
         var isRunning = sniper.IsRunning;
         if (ImGui.CollapsingHeader("Scan options##sniper", ImGuiTreeNodeFlags.DefaultOpen))
         {
+        var hideSlowSales = config.SniperMinimumSalesPerDayEnabled;
+        if (ImGui.Checkbox("Hide below estimated sales/day", ref hideSlowSales))
+        { config.SniperMinimumSalesPerDayEnabled = hideSlowSales; sniperDealsPage = 0; save(); }
+        if (hideSlowSales)
+        {
+            var minimumSalesPerDay = config.SniperMinimumSalesPerDay;
+            ImGui.SetNextItemWidth(150);
+            if (ImGui.InputDouble("Minimum estimated sales/day", ref minimumSalesPerDay, .1, 1, "%.2f"))
+            { config.SniperMinimumSalesPerDay = minimumSalesPerDay; config.Normalize(); sniperDealsPage = 0; save(); }
+            ImGui.TextDisabled("Filters Sniper results immediately, including 1-gil alerts. Unknown estimates are hidden. Scanning and the Buy list are unchanged.");
+        }
+
         ImGui.BeginDisabled(isRunning);
         ImGui.SetNextItemWidth(300);
         ImGui.InputText("Search specific items##sniper", ref sniperItemSearch, 128);
@@ -1390,7 +1406,7 @@ internal sealed class MainWindow : Window
         else
             ImGui.TextUnformatted($"Search scope · all {sniper.MarketableItemCount:N0} marketable items · {marketScope}");
         ImGui.TextDisabled(sniperItemSelections.Count > 0
-            ? "Start watching fetches cached references for the selected items and verifies live candidates using detailed HQ/NQ history."
+            ? "Start watching checks selected-item references, history and current listings, then watches new listings."
             : "Cached discovery screens new live candidates for history verification and checks existing cached 1-gil offers.");
 
         ImGui.Separator();
@@ -1422,6 +1438,14 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped(sniper.Status);
         ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to {UniversalisClient.SniperHistoryEntryLimit:N0} recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
+        if (ImGui.Button("Results here")) openSniperResultsTab = true;
+        ImGui.SameLine(); ImGui.TextDisabled($"{sniper.Deals.Count:N0} received deals · search and server filters are in Sniper results.");
+    }
+
+    private void DrawSniperResults()
+    {
+        ImGui.TextUnformatted(sniper.IsRunning ? "Sniper is watching · results update live." : "Sniper is stopped · showing retained results.");
+        if (ImGui.CollapsingHeader("Scan status")) ImGui.TextWrapped(sniper.Status);
         var showProfit = config.SniperShowProfitEstimates;
         if (ImGui.Checkbox("Show estimated resale profit", ref showProfit))
         { config.SniperShowProfitEstimates = showProfit; if (!showProfit) config.SniperMinimumProfitEnabled = false; save(); }
@@ -1501,7 +1525,34 @@ internal sealed class MainWindow : Window
         if (buyList) deals = allDeals.ToArray();
         else if (config.SniperMinimumRoiPercent > 0)
             deals = deals.Where(deal => deal.MedianSalePrice > 0 && deal.RoiPercent(config.SniperResaleTaxPercent, config.SniperPurchaseFeePercent) >= (decimal)config.SniperMinimumRoiPercent).ToArray();
+        if (!buyList && config.SniperMinimumSalesPerDayEnabled)
+            deals = deals.Where(deal => deal.MedianSalePrice > 0 && deal.HasSalesPerDayEstimate
+                && deal.SalesPerDay >= (decimal)config.SniperMinimumSalesPerDay).ToArray();
         var hiddenByRules = allDeals.Count - deals.Length;
+        int hiddenByServer = 0;
+        if (!buyList)
+        {
+            var worlds = allDeals.GroupBy(deal => deal.WorldId)
+                .Select(group => (Id: group.Key, Name: group.First().WorldName))
+                .OrderBy(world => world.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            var selectedName = sniperResultsWorldId == 0 ? "All servers"
+                : worlds.FirstOrDefault(world => world.Id == sniperResultsWorldId).Name ?? $"World {sniperResultsWorldId}";
+            ImGui.SetNextItemWidth(240);
+            if (ImGui.BeginCombo("Server##sniperResults", selectedName))
+            {
+                if (ImGui.Selectable("All servers", sniperResultsWorldId == 0)) { sniperResultsWorldId = 0; sniperDealsPage = 0; }
+                foreach (var world in worlds)
+                    if (ImGui.Selectable(world.Name + "##world" + world.Id, sniperResultsWorldId == world.Id))
+                    { sniperResultsWorldId = world.Id; sniperDealsPage = 0; }
+                ImGui.EndCombo();
+            }
+            if (sniperResultsWorldId != 0)
+            {
+                var before = deals.Length;
+                deals = deals.Where(deal => deal.WorldId == sniperResultsWorldId).ToArray();
+                hiddenByServer = before - deals.Length;
+            }
+        }
         var search = sniperDealSearch.Trim();
         var compactSearch = search.Replace(" ", "").Replace("-", "");
         if (search.Length > 0)
@@ -1510,7 +1561,7 @@ internal sealed class MainWindow : Window
                 : search.Equals("deal", StringComparison.OrdinalIgnoreCase) || search.Equals("deals", StringComparison.OrdinalIgnoreCase)
                     ? !deal.IsOneGilAlert : deal.ItemName.Contains(search, StringComparison.CurrentCultureIgnoreCase)).ToArray();
         ImGui.Separator();
-        ImGui.TextUnformatted($"Deals · {deals.Length} shown · {hiddenByRules} hidden by filters · {allDeals.Count - hiddenByRules - deals.Length} hidden by search");
+        ImGui.TextUnformatted($"Deals · {deals.Length} shown · {hiddenByRules} hidden by filters · {hiddenByServer} hidden by server · {allDeals.Count - hiddenByRules - hiddenByServer - deals.Length} hidden by search");
         if (deals.Length == 0)
         {
             ImGui.TextDisabled(search.Length > 0 ? "No visible deals match this search. Clear it to show all alert types." : sniper.IsInitialScanRunning
@@ -1521,7 +1572,7 @@ internal sealed class MainWindow : Window
         if (ImGui.BeginTable(buyList ? "##buyListDealsV3" : "##sniperDealsLayoutV8", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.SortTristate | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
-                new Vector2(0, Math.Max(140, ImGui.GetContentRegionAvail().Y - 65))))
+                new Vector2(0, Math.Max(1, ImGui.GetContentRegionAvail().Y - 65))))
         {
             void SetupDealColumn(string heading, ImGuiTableColumnFlags flags, float width)
             {
