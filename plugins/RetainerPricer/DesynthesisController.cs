@@ -17,6 +17,35 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
+    public IReadOnlyList<uint> Snapshot(bool saddlebag, out string message)
+    {
+        var inventory = InventoryManager.Instance();
+        if (bridge.IsClientStateUnavailable || inventory == null)
+        { message = "Log in before grabbing inventory."; return []; }
+        InventoryType[] containers = saddlebag
+            ? [InventoryType.SaddleBag1, InventoryType.SaddleBag2, InventoryType.PremiumSaddleBag1, InventoryType.PremiumSaddleBag2]
+            : Bags;
+        HashSet<uint> ids = [];
+        int loaded = 0;
+        foreach (var type in containers)
+        {
+            var bag = inventory->GetInventoryContainer(type);
+            if (bag == null || !bag->IsLoaded) continue;
+            loaded++;
+            for (int i = 0; i < bag->Size; i++)
+            {
+                var slot = bag->GetInventorySlot(i);
+                if (slot == null || slot->IsEmpty() || slot->IsCollectable()) continue;
+                uint id = slot->GetBaseItemId();
+                if (data.GetExcelSheet<Item>().GetRowOrDefault(id) is { } item && item.Desynth > 0) ids.Add(id);
+            }
+        }
+        message = loaded == 0 ? "Inventory is not loaded. Open the saddlebag, then grab again."
+            : $"Captured {ids.Count} desynthesizable item type(s)." + (saddlebag
+                ? " Open the saddlebag and refresh if anything is missing. Move selected items into carried bags before running."
+                : " Use Add to include an item in your list.");
+        return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
+    }
     public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; Status = reason; }
     public void Start()
     {

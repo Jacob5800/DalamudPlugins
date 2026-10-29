@@ -28,6 +28,8 @@ internal sealed class MainWindow : Window
     private readonly DesynthesisController desynthesis;
     private readonly IReadOnlySet<uint> desynthesizableIds;
     private string desynthesisSearch = "";
+    private IReadOnlyList<uint> desynthesisSnapshot = [];
+    private string desynthesisSnapshotStatus = "";
     private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
@@ -181,19 +183,6 @@ internal sealed class MainWindow : Window
             : "your home world";
         ImGui.TextWrapped($"Universalis prices use {priceScope}. HQ and NQ are compared separately; your own retainers are excluded.");
         if (retainerError() is { } nativeError) ImGui.TextWrapped(nativeError);
-        ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .35f, .70f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.12f, .48f, .85f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
-        if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
-        ImGui.PopStyleColor(3);
-        ImGui.EndDisabled();
-        if (desynthesis.IsRunning)
-        {
-            ImGui.SameLine();
-            if (ImGui.Button("Stop Desynthesis")) dispatch(() => desynthesis.Stop());
-        }
-        ImGui.TextWrapped(desynthesis.Status);
         var busy = UiBusy || vendor.IsRunning || ventures.IsRunning;
         ImGui.BeginDisabled(busy);
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.75f, 0.35f, 0.08f, 1));
@@ -249,7 +238,19 @@ internal sealed class MainWindow : Window
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(config.RunVentures ? "Start the configured venture cycle. Also available in Ventures." : "Enable Run ventures in the Ventures tab first.");
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .35f, .70f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.12f, .48f, .85f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
+        if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
+        ImGui.PopStyleColor(3);
         ImGui.EndDisabled();
+        if (desynthesis.IsRunning)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Stop Desynthesis")) dispatch(() => desynthesis.Stop());
+        }
+        ImGui.TextWrapped(desynthesis.Status);
         if (ImGui.BeginPopupModal(EmptyBatchListPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextUnformatted(EmptyBatchListPopup);
@@ -1713,6 +1714,21 @@ internal sealed class MainWindow : Window
     {
         ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables, melded gear and items you cannot desynthesize are skipped. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
         ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
+        if (ImGui.Button("Grab carried inventory"))
+            dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(false, out desynthesisSnapshotStatus));
+        ImGui.SameLine();
+        if (ImGui.Button("Grab chocobo saddlebag"))
+            dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(true, out desynthesisSnapshotStatus));
+        ImGui.TextWrapped(desynthesisSnapshotStatus);
+        foreach (var id in desynthesisSnapshot)
+        {
+            ImGui.PushID("desynthSnapshot" + id);
+            bool listed = config.DesynthesisItemIds.Contains(id);
+            if (ImGui.SmallButton(listed ? "Remove" : "Add"))
+            { if (listed) config.DesynthesisItemIds.Remove(id); else config.DesynthesisItemIds.Add(id); save(); }
+            ImGui.SameLine(); ImGui.TextUnformatted(ItemName(id)); ImGui.PopID();
+        }
+        ImGui.Separator();
         ImGui.InputText("Search desynthesis items", ref desynthesisSearch, 128);
         if (!string.IsNullOrWhiteSpace(desynthesisSearch))
             foreach (var item in itemChoices.Where(item => desynthesizableIds.Contains(item.ItemId)

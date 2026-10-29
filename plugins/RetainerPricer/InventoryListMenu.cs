@@ -80,7 +80,7 @@ internal sealed class InventoryListMenu : IDisposable
     }
 
     private static SeString ColoredName(bool remove, string list) => new SeStringBuilder()
-        .AddUiForeground((ushort)(remove ? 17 : list == "desynthesis list" ? 3 : list is "retainer sale whitelist" or "don't vendor" ? 31 : 45))
+        .AddUiForeground((ushort)(remove ? 17 : list == "desynthesis list" ? 37 : list is "retainer sale whitelist" or "don't vendor" ? 31 : 45))
         .AddText($"{(remove ? "Remove from" : "Add to")} {list}")
         .AddUiForegroundOff().Build();
 

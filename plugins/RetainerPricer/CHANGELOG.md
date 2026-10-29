@@ -1,3 +1,9 @@
+## 0.5.1.22
+
+- Changed Add to desynthesis list to light blue.
+- Moved Run Desynthesis beside Start venture cycle.
+- Added carried-inventory and chocobo-saddlebag pickers to the Desynthesis list.
+
 ## 0.5.1.21
 
 - Added a saved desynthesis list, a grey inventory right-click entry, and a blue Run Desynthesis button.
