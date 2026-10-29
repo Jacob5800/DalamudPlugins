@@ -849,8 +849,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         {
 ImGui.BeginDisabled(loop.Active);
 							int loopCount = config.LoopCount;
-							ImGui.SetNextItemWidth(160f);
-							if (ImGui.InputInt(T("LoopCount") + "###LoopCount", ref loopCount))
+							ImGui.TextDisabled("Number of runs");
+                            ImGui.SetNextItemWidth(-18 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+							if (ImGui.InputInt("###LoopCount", ref loopCount))
 							{
 								config.LoopCount = Math.Clamp(loopCount, 1, 9999);
 								settings.Update(config);
@@ -886,7 +887,7 @@ ImGui.BeginDisabled(loop.Active);
 
 							ImGui.Separator();
 							bool v = config.AutoQueueOnLobbyEntry;
-							if (ImGui.Checkbox("Auto queue on lobby entry###AutoQueueOnLobbyEntry", ref v))
+							if (Interface.AutomationShell.Toggle("Auto queue on lobby entry", ref v))
 							{
 								config.AutoQueueOnLobbyEntry = v;
 								settings.Update(config);
@@ -900,7 +901,7 @@ ImGui.BeginDisabled(loop.Active);
 									StartLoop(automatic: true);
 								}
 							}
-							ImGui.TextWrapped("Auto queue waits until you are near the Keybound Registrar, then repeats until you press Stop auto queue. Number of runs applies only to the manual loop.");
+							if (ImGui.IsItemHovered()) ImGui.SetTooltip("Waits near the registrar and repeats until stopped. Number of runs applies only to the manual loop.");
 							ImGui.BeginDisabled(!autoQueueLoop || !loop.Active);
 							if (ImGui.Button((autoQueuePaused ? "Resume auto queue" : "Pause auto queue") + "###AutoQueuePause"))
 							{
@@ -912,7 +913,7 @@ ImGui.BeginDisabled(loop.Active);
 							{
 								StopAutoQueue();
 							}
-							ImGui.TextWrapped("Pause holds new registration steps. Stop prevents further automatic queue actions; an existing duty queue is not cancelled. Play stays on.");
+							if (ImGui.IsItemHovered()) ImGui.SetTooltip("Stops further automatic registrations. Does not cancel an existing queue or stop play.");
 
         });
     }
@@ -952,9 +953,8 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 
     private void DrawSettingsPage()
     {
-        DrawSettings();
-        ImGui.Separator();
-        DrawLanguage();
+        Interface.AutomationShell.Card("AUTOMATION SETTINGS", DrawSettings);
+        Interface.AutomationShell.Card("LANGUAGE", DrawLanguage);
     }
 
     private void DrawChangelog()
@@ -983,7 +983,7 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
         bool illegalMode = config.IllegalMode;
         ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, .25f, .3f, 1f));
         ImGui.PushStyleColor(ImGuiCol.CheckMark, new Vector4(1f, .25f, .3f, 1f));
-        bool illegalChanged = ImGui.Checkbox("Danger: Illegal mode (insert whole word)", ref illegalMode);
+        bool illegalChanged = Interface.AutomationShell.Toggle("Danger: Illegal mode (insert whole word)", ref illegalMode, danger: true);
         ImGui.PopStyleColor(2);
         if (illegalChanged)
         {
@@ -996,17 +996,17 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Experimental: insert the entire answer into Keybound's own field and submit it once. Off by default. Will wait if the field already contains text; clear it before switching modes.");
         bool skipPunctuation = config.SkipOptionalPunctuation;
-        if (ImGui.Checkbox("Skip optional English punctuation", ref skipPunctuation))
+        if (Interface.AutomationShell.Toggle("Skip optional English punctuation", ref skipPunctuation))
         { config.SkipOptionalPunctuation = skipPunctuation; settings.Update(config); }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Skip ? ! - and apostrophes in English answers. Keep spaces, periods and commas. Applies to the next word; Japanese is unchanged.");
         bool warnCap = config.WarnMgcCap;
-        if (ImGui.Checkbox("Warn when MGC approaches its cap", ref warnCap))
+        if (Interface.AutomationShell.Toggle("Warn when MGC approaches its cap", ref warnCap))
         { config.WarnMgcCap = warnCap; settings.Update(config); }
         int warnPercent = config.MgcWarningPercent;
         if (ImGui.SliderInt("MGC warning threshold (%)", ref warnPercent, 1, 100))
         { config.MgcWarningPercent = warnPercent; settings.Update(config); }
         bool showServerBar = config.ShowServerBarButton;
-        if (ImGui.Checkbox("Show button in the server info bar", ref showServerBar))
+        if (Interface.AutomationShell.Toggle("Show button in the server info bar", ref showServerBar))
         {
             config.ShowServerBarButton = showServerBar;
             serverBarEntry.Shown = showServerBar;
@@ -1015,7 +1015,7 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Show KB in the server info bar. Click it to open or close this window.");
 		bool v = config.BackgroundInput;
-		if (ImGui.Checkbox(T("BackgroundInput") + "###BackgroundInput", ref v))
+		if (Interface.AutomationShell.Toggle(T("BackgroundInput"), ref v))
 		{
 			config.BackgroundInput = v;
 			settings.Update(config);

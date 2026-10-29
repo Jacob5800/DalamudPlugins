@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.8",
+  "AssemblyVersion": "1.0.8.9",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Cyberpunk interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "## 1.0.8.8\n\n- Replaced the Cyberpunk interface with an adapted Auto Keybound Brawler layout, navigation rail and persistent playback dock.\n- Added compact mode, a live prompt board and dedicated Log, Changelog and About pages.\n- Illegal mode is now red and labeled Danger.\n",
+  "Changelog": "## 1.0.8.9\n\n- Fixed status text overlapping the activity ring.\n- Added rounded section cards and switch-style toggles, including the red Danger switch.\n- Reduced Quick Controls clutter and improved field spacing.\n",
   "IsHide": false,
   "IsTestingExclusive": false
 }

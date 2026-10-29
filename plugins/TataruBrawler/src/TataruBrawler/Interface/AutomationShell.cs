@@ -118,14 +118,55 @@ internal sealed class AutomationShell
     public static void Card(string title, Action content)
     {
         float scale = ImGuiHelpers.GlobalScale;
-        ImGui.BeginGroup();
-        ImGui.TextColored(new Vector4(.32f,.78f,.78f,1), title);
-        ImGui.Separator();
-        ImGui.Spacing();
-        content();
-        ImGui.Spacing();
-        ImGui.EndGroup();
-        ImGui.Dummy(new Vector2(0, 12 * scale));
+        var start = ImGui.GetCursorScreenPos();
+        float width = ImGui.GetContentRegionAvail().X;
+        var dl = ImGui.GetWindowDrawList();
+        dl.ChannelsSplit(2);
+        try
+        {
+            dl.ChannelsSetCurrent(1);
+            ImGui.BeginGroup();
+            ImGui.Dummy(new Vector2(0, 14 * scale));
+            ImGui.Indent(18 * scale);
+            ImGui.TextColored(new Vector4(.56f,.595f,.64f,1), title);
+            ImGui.Dummy(new Vector2(0, 10 * scale));
+            content();
+            ImGui.Unindent(18 * scale);
+            ImGui.Dummy(new Vector2(0, 14 * scale));
+            ImGui.EndGroup();
+            float height = Math.Max(60 * scale, ImGui.GetItemRectMax().Y - start.Y);
+            dl.ChannelsSetCurrent(0);
+            dl.AddRectFilled(start, start + new Vector2(width, height), ImGui.GetColorU32(new Vector4(.062f,.076f,.088f,.96f)), 10 * scale);
+            dl.AddRect(start, start + new Vector2(width, height), ImGui.GetColorU32(new Vector4(.16f,.20f,.22f,.5f)), 10 * scale);
+        }
+        finally { dl.ChannelsMerge(); }
+        ImGui.Dummy(new Vector2(0, 16 * scale));
+    }
+
+    public static bool Toggle(string label, ref bool value, bool danger = false)
+    {
+        float scale = ImGuiHelpers.GlobalScale;
+        ImGui.PushID(label);
+        try
+        {
+            var start = ImGui.GetCursorScreenPos();
+            float width = ImGui.GetContentRegionAvail().X;
+            float height = 34 * scale;
+            bool clicked = ImGui.InvisibleButton("switch", new Vector2(width, height));
+            if (clicked) value = !value;
+            var dl = ImGui.GetWindowDrawList();
+            var accent = danger ? new Vector4(1,.25f,.3f,1) : new Vector4(.32f,.78f,.78f,1);
+            dl.PushClipRect(start, start + new Vector2(Math.Max(1,width - 72 * scale), height), true);
+            dl.AddText(start + new Vector2(0,8 * scale), ImGui.GetColorU32(danger ? accent : new Vector4(.88f,.90f,.92f,1)), label);
+            dl.PopClipRect();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(label);
+            var min = start + new Vector2(Math.Max(0, width - 58 * scale), 4 * scale);
+            var max = min + new Vector2(44,26) * scale;
+            dl.AddRectFilled(min,max,ImGui.GetColorU32(value ? accent : new Vector4(.18f,.20f,.23f,1)),13 * scale);
+            dl.AddCircleFilled(min + new Vector2(value ? 31 : 13,13) * scale, 10 * scale, ImGui.GetColorU32(new Vector4(.015f,.025f,.03f,1)));
+            return clicked;
+        }
+        finally { ImGui.PopID(); }
     }
 
     private void DrawStatus(bool running, string status, string word, float scale)
@@ -133,7 +174,7 @@ internal sealed class AutomationShell
         var start = ImGui.GetCursorScreenPos();
         var dl = ImGui.GetWindowDrawList();
         float radius = 25 * scale;
-        var center = start + new Vector2(34, 37) * scale;
+        var center = start + new Vector2(38,43) * scale;
         dl.AddCircle(center, radius, ImGui.GetColorU32(colors.BorderDim), 48, 4 * scale);
         if (running)
         {
@@ -141,12 +182,15 @@ internal sealed class AutomationShell
             dl.PathArcTo(center, radius, angle, angle + 4.5f, 40);
             dl.PathStroke(ImGui.GetColorU32(colors.AccentTeal), ImDrawFlags.None, 4 * scale);
         }
-        ImGui.SetCursorScreenPos(start + new Vector2(78, 12) * scale);
+        ImGui.BeginGroup();
+        ImGui.Dummy(new Vector2(0, 18 * scale));
+        ImGui.Indent(84 * scale);
         ImGui.TextColored(running ? colors.AccentTeal : colors.TextDim, status);
         ImGui.TextWrapped(string.IsNullOrEmpty(word) ? "Ready for the next prompt" : word);
-        ImGui.SetCursorScreenPos(start + new Vector2(0, 82) * scale);
-        ImGui.Separator();
-        ImGui.Spacing();
+        ImGui.Unindent(84 * scale);
+        ImGui.Dummy(new Vector2(0, 24 * scale));
+        ImGui.EndGroup();
+        ImGui.Dummy(new Vector2(0,12 * scale));
     }
 
     private static bool IconButton(IDalamudPluginInterface pi, FontAwesomeIcon icon, string tip, float width = 32)
@@ -161,7 +205,7 @@ internal sealed class AutomationShell
     private void PushStyle()
     {
         ImGui.PushStyleColor(ImGuiCol.WindowBg, colors.WindowBg);
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, colors.CardBg);
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, Vector4.Zero);
         ImGui.PushStyleColor(ImGuiCol.Text, colors.TextStrong);
         ImGui.PushStyleColor(ImGuiCol.TextDisabled, colors.TextDim);
         ImGui.PushStyleColor(ImGuiCol.Button, colors.Surface2);

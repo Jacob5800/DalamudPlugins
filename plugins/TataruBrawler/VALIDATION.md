@@ -17,3 +17,5 @@ Version 1.0.8.5: offline checks cover punctuation enable/disable, required punct
 1.0.8.7: whole-word callback path compiled and package metadata verified; 62 existing offline checks pass. Native field insertion/submission and game acceptance remain unverified. No successful gameplay claim is made.
 
 1.0.8.8: navigation, compact expansion/restoration, header actions and callback bindings reviewed; all original Settings, queue, manual-loop, playback, diagnostics and language controls remain reachable. Local build and 62 gameplay policy checks pass. World/gameplay code is unchanged by this UI port. Live visual layout and native mouse interaction remain pending in-game observation; compilation is not a visual test.
+
+1.0.8.9: fixed the reported status-ring text overlap by indenting both status lines together; added measured rounded section backgrounds with draw-channel ordering and switch-style controls. Quick Controls long help moved to hover text. Build and 62 gameplay checks pass; live visual confirmation at the user's scale remains pending.
