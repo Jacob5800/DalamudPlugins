@@ -8,15 +8,16 @@ internal static class PlaybackControls
 {
 	public static void Draw(bool running, bool paused, Func<string, string> text, Action start, Action pause, Action stop, bool canPause = true)
 	{
-		Button("Start", 0, running && !paused, text(paused ? "Resume" : "Start"), start);
+		Button("Start", 0, running && !paused, text(paused ? "Resume" : "Start"), start, running && !paused);
 		ImGui.SameLine();
-		Button("Pause", 1, !canPause | paused, text("Pause"), pause);
+		Button("Pause", 1, !canPause | paused, text("Pause"), pause, paused);
 		ImGui.SameLine();
-		Button("Stop", 2, !running, text("Stop"), stop);
+		Button("Stop", 2, !running, text("Stop"), stop, !running);
 	}
 
-	public static void DrawLoop(bool enabled, string tooltip, Action action)
+	public static void DrawLoop(bool enabled, string tooltip, Action action, bool active = false)
 	{
+		PushActive(active);
 		ImGui.BeginDisabled(!enabled);
 		bool flag = ImGui.Button("###LoopStart", new Vector2(36f, 30f));
 		Vector2 itemRectMin = ImGui.GetItemRectMin();
@@ -29,6 +30,7 @@ internal static class PlaybackControls
 		windowDrawList.AddLine(itemRectMin + new Vector2(9f, 22f), itemRectMin + new Vector2(9f, 15f), colorU, 2f);
 		windowDrawList.AddTriangleFilled(itemRectMin + new Vector2(4f, 18f), itemRectMin + new Vector2(9f, 13f), itemRectMin + new Vector2(14f, 18f), colorU);
 		ImGui.EndDisabled();
+        PopActive(active);
 		if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
 		{
 			ImGui.SetTooltip(tooltip);
@@ -39,9 +41,24 @@ internal static class PlaybackControls
 		}
 	}
 
-	private static void Button(string id, int symbol, bool disabled, string tooltip, Action action)
+    private static void PushActive(bool active)
+    {
+        if (!active) return;
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .40f, .43f, 1));
+        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.25f, .85f, .86f, 1));
+        ImGui.PushStyleVar(ImGuiStyleVar.DisabledAlpha, 1f);
+    }
+    private static void PopActive(bool active)
+    {
+        if (!active) return;
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor(2);
+    }
+
+	private static void Button(string id, int symbol, bool disabled, string tooltip, Action action, bool active = false)
 	{
-		ImGui.BeginDisabled(disabled);
+		PushActive(active);
+        ImGui.BeginDisabled(disabled);
 		bool flag = ImGui.Button("###Playback" + id, new Vector2(36f, 30f));
 		Vector2 vector = ImGui.GetItemRectMin() + new Vector2(10f, 8f);
 		ImDrawListPtr windowDrawList = ImGui.GetWindowDrawList();
@@ -60,6 +77,7 @@ internal static class PlaybackControls
 			break;
 		}
 		ImGui.EndDisabled();
+        PopActive(active);
 		if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
 		{
 			ImGui.SetTooltip(tooltip);

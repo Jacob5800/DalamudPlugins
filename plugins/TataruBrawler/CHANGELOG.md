@@ -1,3 +1,9 @@
+## 1.0.8.15
+
+- Highlight active playback controls in teal and show loop status or availability in its tooltip.
+- Allow the Loop button to resume a paused loop.
+- Show Play as active only when automation is running.
+
 ## 1.0.8.14
 
 - Removed the fixed 1.5-second delay between different whole-word prompts in Illegal mode; the submission delay setting now controls pacing.

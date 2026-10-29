@@ -929,7 +929,7 @@ ImGui.BeginDisabled(loop.Active);
 
     private void DrawPlayback()
     {
-PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused : typing.ManualPaused, T, () =>
+PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused : typing.ManualPaused, T, () =>
 							{
 								if (loop.Active)
 								{
@@ -957,7 +957,17 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 								bool flag2 = territoryType - 1359 <= 1;
 								flag = flag2;
 							}
-							PlaybackControls.DrawLoop(flag, T("LoopStart"), StartLoop);
+							string loopHint = loop.Active
+                                ? "Loop active: " + T("Loop" + loop.Phase) + (loop.Paused ? " (paused; click to resume)" : "")
+                                : !client.IsLoggedIn ? "Log in to start a loop."
+                                : !loopUi.Supported ? "Loop unavailable: Keybound duty data could not be verified."
+                                : !flag ? "Enter the Keybound lobby or duty to start a loop."
+                                : "Start loop: runs the configured number of games. Stand near the Keybound Registrar in the lobby.";
+                            PlaybackControls.DrawLoop(flag || (loop.Active && loop.Paused), loopHint, () =>
+                            {
+                                if (loop.Active) { loop.Resume(); typing.ResumeByUser(); reader.ResetFocus(); }
+                                else StartLoop();
+                            }, loop.Active && !loop.Paused);
     }
 
     private static bool TealInputInt(string label, ref int value, int step = 1, int fastStep = 100)
