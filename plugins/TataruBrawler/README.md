@@ -41,3 +41,8 @@ Temporary input unavailability already pauses typing until ready. A SendFailed s
 ## Illegal mode
 
 Settings → **Illegal mode (insert whole word)** is experimental and off by default. It inserts the prepared answer into the owned Keybound field and invokes its Enter callback. It checks prompt visibility, field ownership/readiness, existing text and competing focus. Existing manual pause/stop and cast blocks remain active. Submission is throttled to at least 1.5 seconds (or the longer configured between-word delay). It does not use the system clipboard or OS typing. Clear partial text before switching modes. Actual whole-answer acceptance has not been verified in game.
+
+Based on Auto Keybound Brawler by XeldarAlz
+https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler
+
+Modified layout and controls; not endorsed by the original author. AGPL-3.0 derivative; see LICENSE-AGPL.md and preserved component notices.

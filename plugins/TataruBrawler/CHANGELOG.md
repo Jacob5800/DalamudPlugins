@@ -1,4 +1,4 @@
-## 1.0.8.11
+## 1.0.8.12
 
 - Moved playback controls to the bottom-left edge of the window.
 - Kept numeric values and interval labels white; only plus/minus symbols are teal-blue.
