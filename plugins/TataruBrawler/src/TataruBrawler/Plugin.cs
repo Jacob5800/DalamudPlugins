@@ -990,7 +990,7 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
     private void DrawChangelog()
     {
         ImGui.TextWrapped("Keybound Automation — interface update");
-        ImGui.BulletText("New navigation rail, status header and persistent playback dock.");
+        ImGui.BulletText("Playback controls now sit beside the status area.");
         ImGui.BulletText("Compact mode; double-click the header or use its chevron.");
         ImGui.BulletText("Existing automation, settings, diagnostics and rewards retained.");
         ImGui.Separator();

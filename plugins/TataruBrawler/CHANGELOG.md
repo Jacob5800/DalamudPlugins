@@ -1,3 +1,8 @@
+## 1.0.8.13
+
+- Moved playback controls beside the status area.
+- Simplified About to Keybound Automation and Tataru Brawler credits.
+
 ## 1.0.8.12
 
 - Moved playback controls to the bottom-left edge of the window.
