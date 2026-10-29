@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.20",
+  "AssemblyVersion": "0.5.1.21",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.20\n\n- Automatic listing now skips bound, untradeable, collectable, crested, and market-prohibited items before attempting to list them.\n",
+  "Changelog": "## 0.5.1.21\n\n- Added a saved desynthesis list, a grey inventory right-click entry, and a blue Run Desynthesis button.\n- Desynthesis respects Exceptions and saved gear sets and skips collectables and melded items.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

@@ -31,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly VentureController ventures;
     private readonly AutomationController automation;
     private readonly MainWindow window;
+    private readonly DesynthesisController desynthesis;
     private readonly InventoryListMenu inventoryMenus;
     private readonly UndercutNotifier undercuts;
     private readonly ICondition condition;
@@ -96,10 +97,13 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.RowId != 0)
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
+        desynthesis = new DesynthesisController(config, bridge, data, condition,
+            () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
+        inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
-            UndercutsPaused);
+            UndercutsPaused, desynthesis, inventoryMenus.DesynthesizableItemIds);
         inventoryMenus.SearchUniversalis = window.SearchMarketboardItem;
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
@@ -137,6 +141,7 @@ public sealed class Plugin : IDalamudPlugin
             catch (Exception ex)
             {
                 log.Error(ex, "Retainer Pricer operation failed");
+                desynthesis.Stop("Desynthesis stopped after an unexpected error.");
                 automation.Cancel("Full sequence stopped after an unexpected error.");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
                 vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
@@ -150,6 +155,8 @@ public sealed class Plugin : IDalamudPlugin
         if (disposed) return;
         try
         {
+            desynthesis.Update();
+            statusHistory.Observe("Desynthesis", desynthesis.Status);
             automation.Update();
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
                 ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
@@ -198,6 +205,7 @@ public sealed class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
+            desynthesis.Stop("Desynthesis stopped after an unexpected error.");
             automation.Cancel("Full sequence stopped after an unexpected error.");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
             vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
@@ -410,6 +418,7 @@ public sealed class Plugin : IDalamudPlugin
         commands.RemoveHandler("/retainer");
         if (rpAliasRegistered) commands.RemoveHandler("/rp");
         serverInfoBarEntry.Remove();
+        desynthesis.Stop();
         controller.Dispose();
         automation.Cancel();
         vendor.Dispose();

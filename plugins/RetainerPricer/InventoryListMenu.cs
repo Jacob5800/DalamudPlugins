@@ -11,6 +11,7 @@ internal sealed class InventoryListMenu : IDisposable
     private readonly Action save;
     private readonly IReadOnlyDictionary<uint, (bool Marketable, bool Vendorable)> eligibility;
     private readonly NativeMarketBridge bridge;
+    public IReadOnlySet<uint> DesynthesizableItemIds { get; set; } = new HashSet<uint>();
     public Action<uint>? SearchUniversalis { get; set; }
 
     public InventoryListMenu(IContextMenu menus, PluginConfig config, Action save, NativeMarketBridge bridge,
@@ -39,6 +40,7 @@ internal sealed class InventoryListMenu : IDisposable
         var vendorable = capabilities.Vendorable && !item.IsCollectable;
         var protectionsAvailable = ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out _);
         var eligibleForSale = protectionsAvailable && !protectedIds.Contains(id);
+        AddList(args, id, "desynthesis list", config.DesynthesisItemIds, DesynthesizableItemIds.Contains(id) && !item.IsCollectable);
         AddList(args, id, "exceptions", config.ExcludedItemIds, marketable || vendorable);
         AddList(args, id, "don't reprice", config.NoRepriceItemIds, marketable && eligibleForSale);
         var removeBatch = config.BatchSaleQuantities.ContainsKey(id);
@@ -78,7 +80,7 @@ internal sealed class InventoryListMenu : IDisposable
     }
 
     private static SeString ColoredName(bool remove, string list) => new SeStringBuilder()
-        .AddUiForeground((ushort)(remove ? 17 : list is "retainer sale whitelist" or "don't vendor" ? 31 : 45))
+        .AddUiForeground((ushort)(remove ? 17 : list == "desynthesis list" ? 3 : list is "retainer sale whitelist" or "don't vendor" ? 31 : 45))
         .AddText($"{(remove ? "Remove from" : "Add to")} {list}")
         .AddUiForegroundOff().Build();
 

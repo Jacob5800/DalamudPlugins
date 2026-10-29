@@ -1,3 +1,8 @@
+## 0.5.1.21
+
+- Added a saved desynthesis list, a grey inventory right-click entry, and a blue Run Desynthesis button.
+- Desynthesis respects Exceptions and saved gear sets and skips collectables and melded items.
+
 ## 0.5.1.20
 
 - Automatic listing now skips bound, untradeable, collectable, crested, and market-prohibited items before attempting to list them.

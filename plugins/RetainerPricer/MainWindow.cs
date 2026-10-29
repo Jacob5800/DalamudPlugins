@@ -25,7 +25,10 @@ internal sealed class MainWindow : Window
     private readonly Action<bool> setServerInfoBarShown;
     private readonly VentureController ventures;
     private readonly AutomationController automation;
-    private bool UiBusy => controller.Busy || automation.IsRunning;
+    private readonly DesynthesisController desynthesis;
+    private readonly IReadOnlySet<uint> desynthesizableIds;
+    private string desynthesisSearch = "";
+    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
@@ -92,10 +95,12 @@ internal sealed class MainWindow : Window
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
         Action<bool> setServerInfoBarShown, VentureController ventures, AutomationController automation, bool isTesting,
-        UndercutNotifier undercuts, Func<bool> undercutsPaused) : base("Retainer Pricer")
+        UndercutNotifier undercuts, Func<bool> undercutsPaused, DesynthesisController desynthesis, IReadOnlySet<uint> desynthesizableIds) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
+        this.desynthesis = desynthesis;
+        this.desynthesizableIds = desynthesizableIds;
         this.feedback = feedback;
         this.sniper = sniper;
         this.vendor = vendor;
@@ -176,6 +181,19 @@ internal sealed class MainWindow : Window
             : "your home world";
         ImGui.TextWrapped($"Universalis prices use {priceScope}. HQ and NQ are compared separately; your own retainers are excluded.");
         if (retainerError() is { } nativeError) ImGui.TextWrapped(nativeError);
+        ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .35f, .70f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.12f, .48f, .85f, 1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
+        if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
+        ImGui.PopStyleColor(3);
+        ImGui.EndDisabled();
+        if (desynthesis.IsRunning)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Stop Desynthesis")) dispatch(() => desynthesis.Stop());
+        }
+        ImGui.TextWrapped(desynthesis.Status);
         var busy = UiBusy || vendor.IsRunning || ventures.IsRunning;
         ImGui.BeginDisabled(busy);
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.75f, 0.35f, 0.08f, 1));
@@ -258,7 +276,8 @@ internal sealed class MainWindow : Window
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.55f, 0.08f, 0.08f, 1));
             if (ImGui.Button("Stop")) dispatch(() =>
             {
-                if (automation.IsRunning) automation.Cancel();
+                if (desynthesis.IsRunning) desynthesis.Stop();
+                else if (automation.IsRunning) automation.Cancel();
                 else if (vendor.IsRunning) vendor.Cancel();
                 else if (ventures.IsRunning) ventures.Cancel();
                 else controller.Cancel();
@@ -279,8 +298,8 @@ internal sealed class MainWindow : Window
         ImGui.EndDisabled();
         ImGui.Separator();
 
-        var operation = automation.IsRunning ? "Automation" : ventures.IsRunning ? "Ventures" : vendor.IsRunning ? "Retainer sales" : "Pricing";
-        var status = automation.IsRunning ? automation.Status : ventures.IsRunning ? ventures.Status : vendor.IsRunning ? vendor.Status : controller.Status;
+        var operation = desynthesis.IsRunning ? "Desynthesis" : automation.IsRunning ? "Automation" : ventures.IsRunning ? "Ventures" : vendor.IsRunning ? "Retainer sales" : "Pricing";
+        var status = desynthesis.IsRunning ? desynthesis.Status : automation.IsRunning ? automation.Status : ventures.IsRunning ? ventures.Status : vendor.IsRunning ? vendor.Status : controller.Status;
         var completed = StatusHistory.IsComplete(status);
         var failed = StatusHistory.IsFailure(status);
         var awaiting = controller.MateriaWarningItem is not null || status.Contains("Review", StringComparison.OrdinalIgnoreCase) || status.Contains("choose", StringComparison.OrdinalIgnoreCase);
@@ -315,6 +334,7 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Desynthesis")) { DrawDesynthesis(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Automation")) { DrawAutomation(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Ventures")) { DrawVentures(); ImGui.EndTabItem(); }
@@ -1103,6 +1123,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets, collectables and melded items stay protected. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
         {
             ImGui.EndChild();
@@ -1686,6 +1707,32 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted(message);
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();
+    }
+
+    private void DrawDesynthesis()
+    {
+        ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables, melded gear and items you cannot desynthesize are skipped. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
+        ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
+        ImGui.InputText("Search desynthesis items", ref desynthesisSearch, 128);
+        if (!string.IsNullOrWhiteSpace(desynthesisSearch))
+            foreach (var item in itemChoices.Where(item => desynthesizableIds.Contains(item.ItemId)
+                && item.Name.Contains(desynthesisSearch.Trim(), StringComparison.CurrentCultureIgnoreCase)).Take(25))
+            {
+                ImGui.PushID((int)item.ItemId);
+                bool listed = config.DesynthesisItemIds.Contains(item.ItemId);
+                if (ImGui.SmallButton(listed ? "Remove" : "Add"))
+                { if (listed) config.DesynthesisItemIds.Remove(item.ItemId); else config.DesynthesisItemIds.Add(item.ItemId); save(); }
+                ImGui.SameLine(); ImGui.TextUnformatted(item.Name); ImGui.PopID();
+            }
+        ImGui.Separator();
+        ImGui.TextUnformatted($"Desynthesis list · {config.DesynthesisItemIds.Count}");
+        foreach (var id in config.DesynthesisItemIds.ToArray())
+        {
+            ImGui.PushID("desynth" + id);
+            if (ImGui.SmallButton("Remove")) { config.DesynthesisItemIds.Remove(id); save(); }
+            ImGui.SameLine(); ImGui.TextUnformatted(ItemName(id)); ImGui.PopID();
+        }
+        ImGui.EndDisabled();
     }
 
     private void DrawAutoVendor()

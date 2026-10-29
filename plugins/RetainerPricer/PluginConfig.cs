@@ -6,6 +6,7 @@ public sealed class PluginConfig : IPluginConfiguration
 {
     public List<SniperDeal> SniperBuyList { get; set; } = [];
     public double SniperMinimumRoiPercent { get; set; } = 0;
+    public List<uint> DesynthesisItemIds { get; set; } = [];
     public int Version { get; set; } = 14;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
@@ -71,6 +72,7 @@ public sealed class PluginConfig : IPluginConfiguration
 
     public void Normalize()
     {
+        DesynthesisItemIds = (DesynthesisItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         if (!Enum.IsDefined(Source)) Source = PriceSource.Universalis;
         if (!Enum.IsDefined(PriceStrategy)) PriceStrategy = PriceStrategy.UndercutByOne;
         UndercutGilAmount = Math.Clamp(UndercutGilAmount, 1, 10_000);

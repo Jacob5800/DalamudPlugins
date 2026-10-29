@@ -144,3 +144,7 @@ An automatic run requires the picker to remain idle for one second. Opening a re
 **Stop** cancels the remaining sequence and does not immediately restart it. Already submitted prices/listings and collected rewards remain applied; retainers collected before a cancellation may be left idle until you manually reassign them or run another cycle. Close the bell UI and reopen the picker to permit another automatic run. Disconnects, character/world changes and controller failures stop progression. Price-drop and materia prompts still require a decision.
 
 Automatic market listing skips untradeable, market-prohibited, bound/spiritbonded, collectable, and company-crested inventory stacks. NPC sales retain their separate whitelist and protection rules.
+
+### Desynthesis list
+
+Add items with the grey **Add to desynthesis list** inventory context-menu entry, or search for them in the **Desynthesis** tab. The blue **Run Desynthesis** button at the top processes all matching copies in the four carried bags, one at a time. Exceptions, saved gear-set items, collectables, melded items and items without the required crafting level are skipped. Desynthesis must be unlocked. Close other interaction windows; Stop Desynthesis cancels further requests. The list persists and participates in settings export/import. A failed request stops the run rather than retrying indefinitely.
