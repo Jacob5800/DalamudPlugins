@@ -258,7 +258,10 @@ public sealed class UniversalisClient : IDisposable
         return result;
     }
 
-    internal async Task<IReadOnlyDictionary<uint, IReadOnlyList<MarketListing>>> FetchExistingOneGilAsync(SniperHistoryScope scope, IReadOnlyList<uint> itemIds, uint homeWorldId, CancellationToken ct)
+    internal Task<IReadOnlyDictionary<uint, IReadOnlyList<MarketListing>>> FetchExistingOneGilAsync(SniperHistoryScope scope, IReadOnlyList<uint> itemIds, uint homeWorldId, CancellationToken ct)
+        => FetchExistingListingsAsync(scope, itemIds, homeWorldId, ct, oneGilOnly: true);
+
+    internal async Task<IReadOnlyDictionary<uint, IReadOnlyList<MarketListing>>> FetchExistingListingsAsync(SniperHistoryScope scope, IReadOnlyList<uint> itemIds, uint homeWorldId, CancellationToken ct, bool oneGilOnly = false)
     {
         if (itemIds.Count is 0 or > 100) throw new ArgumentException("Existing listing batches must contain 1 to 100 items.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -268,7 +271,7 @@ public sealed class UniversalisClient : IDisposable
         try
         {
             var fields = itemIds.Count == 1 ? "itemID,worldID,dcName,regionName,listings.pricePerUnit,listings.quantity,listings.hq,listings.worldID" : "itemIDs,worldID,dcName,regionName,items.itemID,items.listings.pricePerUnit,items.listings.quantity,items.listings.hq,items.listings.worldID,unresolvedItems";
-            var json = await RequestJsonAsync($"{Uri.EscapeDataString(scope.Name)}/{ids}?entries=0&fields={fields}", scope.Name, deadline.Token, 8 * 1024 * 1024).ConfigureAwait(false);
+            var json = await RequestJsonAsync($"{Uri.EscapeDataString(scope.Name)}/{ids}?listings=100&entries=0&fields={fields}", scope.Name, deadline.Token, 8 * 1024 * 1024).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var scopeProperty = scope.Kind == SniperHistoryScopeKind.World ? "worldID" : scope.Kind == SniperHistoryScopeKind.DataCenter ? "dcName" : "regionName";
@@ -276,7 +279,7 @@ public sealed class UniversalisClient : IDisposable
                 (scope.Kind == SniperHistoryScopeKind.World
                     ? !returnedScope.TryGetUInt32(out var returnedWorld) || returnedWorld != homeWorldId
                     : returnedScope.ValueKind != JsonValueKind.String || !StringComparer.OrdinalIgnoreCase.Equals(returnedScope.GetString(), scope.Name)))
-                throw new InvalidOperationException("Existing 1-gil listings belong to a different market scope.");
+                throw new InvalidOperationException("Existing listings belong to a different market scope.");
             var results = new Dictionary<uint, IReadOnlyList<MarketListing>>();
             foreach (var itemId in itemIds)
             {
@@ -286,24 +289,24 @@ public sealed class UniversalisClient : IDisposable
                     !item.TryGetProperty("listings", out var listings) || listings.ValueKind != JsonValueKind.Array) continue;
                 var offers = new List<MarketListing>();
                 foreach (var listing in listings.EnumerateArray())
-                    if (listing.TryGetProperty("pricePerUnit", out var price) && price.TryGetUInt32(out var gil) && gil == 1 &&
+                    if (listing.TryGetProperty("pricePerUnit", out var price) && price.TryGetUInt32(out var gil) && gil > 0 && (!oneGilOnly || gil == 1) &&
                         listing.TryGetProperty("quantity", out var quantity) && quantity.TryGetUInt32(out var count) && count > 0 &&
                         listing.TryGetProperty("hq", out var hq) && hq.ValueKind is JsonValueKind.True or JsonValueKind.False)
                     {
                         var worldId = scope.Kind == SniperHistoryScopeKind.World ? homeWorldId :
                             listing.TryGetProperty("worldID", out var world) && world.TryGetUInt32(out var worldValue) ? worldValue : 0;
-                        if (worldId != 0) offers.Add(new MarketListing(itemId, hq.GetBoolean(), 1, count, 0, WorldId: worldId));
+                        if (worldId != 0) offers.Add(new MarketListing(itemId, hq.GetBoolean(), gil, count, 0, WorldId: worldId));
                     }
                 results[itemId] = offers;
             }
             if (root.TryGetProperty("unresolvedItems", out var unresolved) && unresolved.ValueKind == JsonValueKind.Array)
                 foreach (var id in unresolved.EnumerateArray())
-                    if (id.TryGetUInt32(out var itemId) && itemIds.Contains(itemId)) results.TryAdd(itemId, []);
-            RecordSniperRequest($"Sniper existing 1-gil success: scope={scope.Name}; ids={ids}; requested={itemIds.Count}; returned={results.Count}; confirmedListings={results.Values.Sum(offers => offers.Count)}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}");
+                    if (oneGilOnly && id.TryGetUInt32(out var itemId) && itemIds.Contains(itemId)) results.TryAdd(itemId, []);
+            RecordSniperRequest($"Sniper existing {(oneGilOnly ? "1-gil" : "selected-item")} success: scope={scope.Name}; ids={ids}; requested={itemIds.Count}; returned={results.Count}; confirmedListings={results.Values.Sum(offers => offers.Count)}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}");
             return results;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception ex) { RecordSniperRequest($"Sniper existing 1-gil failed: scope={scope.Name}; ids={ids}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}; error={ex.Message}"); throw; }
+        catch (Exception ex) { RecordSniperRequest($"Sniper existing {(oneGilOnly ? "1-gil" : "selected-item")} failed: scope={scope.Name}; ids={ids}; elapsedSeconds={Stopwatch.GetElapsedTime(started).TotalSeconds:F2}; error={ex.Message}"); throw; }
     }
 
     internal async Task<PriceSnapshot> FetchUndercutAsync(MarketWorld world, uint itemId, int marketScope, CancellationToken ct)

@@ -215,6 +215,26 @@ using (var cancellation = new CancellationTokenSource())
     catch (OperationCanceledException) { Assert(true, "Propagate caller cancellation without displaying service error"); }
 }
 
+// Selected-item discovery must fetch existing ordinary offers as well as 1-gil offers.
+using (var http = new HttpClient(new StubHandler((request, _) =>
+{
+    Assert(request.RequestUri!.AbsolutePath.EndsWith("/74/5333"), "Selected lookup requests only the selected ID and scope");
+    Assert(request.RequestUri.Query.Contains("listings=100"), "Selected lookup explicitly requests current listings");
+    return Task.FromResult(JsonResponse(JsonNode.Parse("""
+        {"worldID":74,"itemID":5333,"listings":[
+          {"pricePerUnit":1,"quantity":2,"hq":false},
+          {"pricePerUnit":50,"quantity":3,"hq":true}]}
+        """)!.AsObject()));
+})))
+using (var client = new UniversalisClient(http))
+{
+    var scope = new SniperHistoryScope("74", SniperHistoryScopeKind.World);
+    var all = await client.FetchExistingListingsAsync(scope, [5333], 74, default);
+    Assert(all[5333].Count == 2 && all[5333].Any(row => row.IsHq && row.PricePerUnit == 50), "Selected lookup preserves ordinary HQ/NQ prices");
+    var one = await client.FetchExistingOneGilAsync(scope, [5333], 74, default);
+    Assert(one[5333].Count == 1 && one[5333][0].PricePerUnit == 1, "Existing 1-gil path stays restricted to 1-gil offers");
+}
+
 Console.WriteLine($"PASS: {checks} standalone pricing and HTTP checks. No game interaction or live network requests.");
 
 sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
@@ -222,5 +242,3 @@ sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpRe
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         handler(request, cancellationToken);
 }
-
-

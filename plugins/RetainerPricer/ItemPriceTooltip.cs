@@ -9,9 +9,6 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace RetainerPricer;
 
-internal sealed record TooltipQuality(decimal? Price, DateTimeOffset? Uploaded, decimal? LastPrice, DateTimeOffset? Sold, decimal? SalesPerDay);
-internal sealed record TooltipMarketData(TooltipQuality Nq, TooltipQuality Hq);
-
 internal sealed class ItemPriceTooltip : IDisposable
 {
     private const uint PriceNodeId = 580001;

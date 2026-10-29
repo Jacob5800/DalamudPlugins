@@ -1,3 +1,7 @@
+## 0.5.1.25
+
+- Selected-item Sniper scans now check current listings after loading selected-item price references and sales history, then continue live monitoring.
+
 ## 0.5.1.24
 
 - Enable Skip 1-gil lookup for new and existing users once. Later changes to this setting remain saved.

@@ -152,3 +152,7 @@ Add items with the light-blue **Add to desynthesis list** inventory context-menu
 The Desynthesis tab also offers **Grab carried inventory** and **Grab chocobo saddlebag** with per-item Add/Remove buttons. Open the saddlebag before capturing it; only loaded containers are available. Premium saddlebags are included when loaded. These captures only populate the picker and never move or destroy items. Move saddlebag items into carried bags before running.
 
 **Use Bacon Broth** in Desynthesis is off by default. When enabled, an existing Bacon Broth food buff is reused; otherwise the run uses HQ from carried bags before falling back to NQ and waits for the buff. If none is found, a popup offers **Continue without Bacon Broth** for that run or **Stop**. The preference is saved and included in settings backups.
+
+### Selected-item Sniper scans
+
+When specific items are selected, Sniper loads their price references and configured sales history, checks up to 100 current listings per selected item in the chosen world/data-center/region, then continues live monitoring for those items only. Existing offers use the same HQ/NQ baselines, minimum-sales requirement and deal filters as incoming offers. The all-items discovery mode keeps its existing cache-and-live-candidate behaviour. Failed current-listing requests are reported rather than counted as empty successful results.

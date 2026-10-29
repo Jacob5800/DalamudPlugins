@@ -1282,6 +1282,7 @@ internal sealed class MainWindow : Window
         if (sniperItemSelections.Count > 0)
         {
             ImGui.TextColored(new Vector4(1f, 0.6f, 0.15f, 1f), $"Selected items only: {sniperItemSelections.Count} (HQ and NQ)");
+            ImGui.TextDisabled("Checks reference history and up to 100 current listings per selected item, then watches for new listings.");
             if (ImGui.Button("Clear selection — scan all items")) sniperItemSelections.Clear();
             if (ImGui.BeginChild("SelectedSniperItems", new Vector2(0, Math.Min(150, sniperItemSelections.Count * 28 + 8))))
                 foreach (var selected in sniperItemSelections.ToArray())

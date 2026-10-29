@@ -93,3 +93,6 @@ public sealed record PriceProposal(uint LowestPrice, uint SuggestedPrice, int Ma
 {
     public bool CanApply => Error is null;
 }
+
+internal sealed record TooltipQuality(decimal? Price, DateTimeOffset? Uploaded, decimal? LastPrice, DateTimeOffset? Sold, decimal? SalesPerDay);
+internal sealed record TooltipMarketData(TooltipQuality Nq, TooltipQuality Hq);

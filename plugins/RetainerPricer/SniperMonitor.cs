@@ -154,7 +154,7 @@ internal sealed class SniperMonitor : IDisposable
         }
         _ = Task.Run(() => RunAsync(world, useDataCenter, useRegion, watchedItems, Math.Clamp(config.SniperMinimumSales14Days, 1, 500),
             Math.Clamp(config.SniperThresholdFraction, 0.01, 1.0), Math.Clamp(config.SniperHistoryDays, 0, 14),
-            Math.Clamp(config.SniperMinimumItemPrice, 1, 999_999_999), run.Token));
+            Math.Clamp(config.SniperMinimumItemPrice, 1, 999_999_999), run.Token, selectedIds is { Count: > 0 }));
     }
 
     public void Stop()
@@ -167,7 +167,7 @@ internal sealed class SniperMonitor : IDisposable
 
     private async Task RunAsync(MarketWorld world, bool useDataCenter, bool useRegion,
         IReadOnlyList<ItemChoice> watchedItems, int minimumSales, double threshold, int historyDays, int minimumItemPrice,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool selectedItemMode)
     {
         try
         {
@@ -197,7 +197,7 @@ internal sealed class SniperMonitor : IDisposable
             // Start listening before the catalog scan completes. Live listings for unscanned
             // items are held until their history batch supplies a usable HQ/NQ baseline.
             var historyScanTask = ScanCachedCatalogAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
-                threshold, historyDays, minimumItemPrice, runState, cancellationToken);
+                threshold, historyDays, minimumItemPrice, runState, cancellationToken, selectedItemMode);
             HistoryScanSummary? historySummary = null;
 
             var backoffSeconds = 2;
@@ -293,7 +293,7 @@ internal sealed class SniperMonitor : IDisposable
 
     private async Task<HistoryScanSummary> ScanCachedCatalogAsync(SniperMarketScope scope,
         IReadOnlyList<ItemChoice> watchedItems, MarketWorld world, IReadOnlySet<uint> watchedWorlds,
-        int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState state, CancellationToken ct)
+        int minimumSales, double threshold, int historyDays, int minimumItemPrice, RunState state, CancellationToken ct, bool selectedItemMode)
     {
         var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
         var done = 0;
@@ -318,6 +318,32 @@ internal sealed class SniperMonitor : IDisposable
                 RefreshInitialScanStatusAndGetLocked(state);
             }
         }).ConfigureAwait(false);
+        if (selectedItemMode)
+        {
+            // Selected-item mode verifies all selected histories, then checks existing listings.
+            // The websocket remains connected while these requests run.
+            var history = await ScanHistoryAsync(scope, watchedItems, world, watchedWorlds, minimumSales,
+                threshold, historyDays, minimumItemPrice, state, ct).ConfigureAwait(false);
+            foreach (var failure in history.FailedBatches) errors.Add(failure);
+            foreach (var batch in watchedItems.Chunk(10))
+            {
+                ct.ThrowIfCancellationRequested();
+                lock (gate) initialScanProgress = $"Checking current listings for {batch.Length} selected item(s)…";
+                try
+                {
+                    var listings = await universalis.FetchExistingListingsAsync(scope.HistoryScopes.Single(),
+                        batch.Select(item => item.ItemId).ToArray(), world.WorldId, ct).ConfigureAwait(false);
+                    lock (gate)
+                        foreach (var offer in listings.Values.SelectMany(offers => offers))
+                            ProcessLiveListingLocked(new UniversalisListing(offer.ItemId, offer.WorldId, offer.IsHq,
+                                offer.PricePerUnit, offer.Quantity, null), world, scope, watchedWorlds, state, threshold, minimumItemPrice);
+                    var missing = batch.Where(item => !listings.ContainsKey(item.ItemId)).ToArray();
+                    if (missing.Length > 0) errors.Add($"Current listings missing for {missing.Length} selected item(s).");
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { errors.Add($"Selected-item listings: {ex.Message}"); }
+            }
+        }
         var summary = new HistoryScanSummary(0, errors.ToArray());
         lock (gate)
         {
