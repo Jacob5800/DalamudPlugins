@@ -1,3 +1,8 @@
+## 1.0.8.14
+
+- Removed the fixed 1.5-second delay between different whole-word prompts in Illegal mode; the submission delay setting now controls pacing.
+- Allow zero character intervals in Illegal mode and clarify that it bypasses character timing.
+
 ## 1.0.8.13
 
 - Moved playback controls beside the status area.

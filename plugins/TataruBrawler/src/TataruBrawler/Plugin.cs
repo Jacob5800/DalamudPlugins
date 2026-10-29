@@ -67,6 +67,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
     private long wholeWordDue;
+    private uint lastWholeWordEntity;
+    private string lastWholeWord = "";
+    private long lastWholeWordAt;
 
 	private long loopSample;
 
@@ -454,13 +457,19 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                     controlGate = "WholeWordWait";
                     if (typing.ManualPaused || loop.Paused || encounter.Paused(tickCount)
                         || !backgroundKeys.Ready || tickCount < wholeWordDue) break;
-                    string word = reader.Words.FirstOrDefault();
+                    string word = reader.Words.FirstOrDefault(candidate =>
+                        reader.Source(candidate) != lastWholeWordEntity || candidate != lastWholeWord
+                        || tickCount - lastWholeWordAt >= 1500);
                     uint entity = word == null ? 0 : reader.Source(word);
-                    if (word != null && entity != 0)
+                    if (word != null && entity != 0
+                        && (entity != lastWholeWordEntity || word != lastWholeWord || tickCount - lastWholeWordAt >= 1500))
                     {
                         if (reader.SubmitWholeWord(word, config.SkipOptionalPunctuation))
                         {
-                            wholeWordDue = tickCount + Math.Max(1500, config.BetweenWordsMs);
+                            lastWholeWordEntity = entity;
+                            lastWholeWord = word;
+                            lastWholeWordAt = tickCount;
+                            wholeWordDue = tickCount + Math.Max(0, config.BetweenWordsMs);
                             controlGate = "WholeWordSubmitted";
                         }
                     }
@@ -1055,14 +1064,14 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 		bool flag = TealInputInt(T("Min") + "###Minimum", ref num, 5, 20);
 		if (flag)
 		{
-			num = Math.Clamp(num, 20, 5000);
+			num = Math.Clamp(num, config.IllegalMode ? 0 : 20, 5000);
 			num2 = Math.Max(num, num2);
 		}
 		ImGui.SetNextItemWidth(200f);
 		bool flag2 = TealInputInt(T("Max") + "###Maximum", ref num2, 5, 20);
 		if (flag2)
 		{
-			num2 = Math.Clamp(num2, 20, 5000);
+			num2 = Math.Clamp(num2, config.IllegalMode ? 0 : 20, 5000);
 			num = Math.Min(num, num2);
 		}
 		if (flag | flag2)
@@ -1070,7 +1079,9 @@ PlaybackControls.Draw(config.AutoStart || loop.Active, loop.Active ? loop.Paused
 			config.SetRange(num, num2);
 			settings.Update(config);
 		}
-		ImGui.TextWrapped(T("RangeHelp"));
+		ImGui.TextWrapped(config.IllegalMode
+            ? "Whole-word mode ignores character intervals. Delay after submission controls the next answer; 0 means no added delay. Repeated copies of the same prompt are protected against duplicate submission."
+            : T("RangeHelp"));
 		int betweenWordsMs = config.BetweenWordsMs;
 		ImGui.SetNextItemWidth(200f);
 		if (TealInputInt(T("BetweenWordsMs") + "###BetweenWordsMs", ref betweenWordsMs, 50, 250))

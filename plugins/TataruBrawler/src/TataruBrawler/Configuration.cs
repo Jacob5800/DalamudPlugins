@@ -35,7 +35,7 @@ public sealed class Configuration
 
 	public void SetRange(int min, int max)
 	{
-		MinimumMs = Math.Clamp(min, 20, 5000);
+		MinimumMs = Math.Clamp(min, IllegalMode ? 0 : 20, 5000);
 		MaximumMs = Math.Clamp(max, MinimumMs, 5000);
 	}
 }
