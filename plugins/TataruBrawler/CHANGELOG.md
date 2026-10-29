@@ -1,3 +1,9 @@
+## 1.0.8.9
+
+- Fixed status text overlapping the activity ring.
+- Added rounded section cards and switch-style toggles, including the red Danger switch.
+- Reduced Quick Controls clutter and improved field spacing.
+
 ## 1.0.8.8
 
 - Replaced the Cyberpunk interface with an adapted Auto Keybound Brawler layout, navigation rail and persistent playback dock.
