@@ -8,7 +8,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public double SniperMinimumRoiPercent { get; set; } = 0;
     public bool UseBaconBroth { get; set; }
     public List<uint> DesynthesisItemIds { get; set; } = [];
-    public int Version { get; set; } = 14;
+    public int Version { get; set; } = 15;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -58,7 +58,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public int SniperMinimumSales14Days { get; set; } = 5;
     public int UndercutMarketScope { get; set; }
     public bool SniperHideOneGilDeals { get; set; } = false;
-    public bool SniperSkipOneGilLookup { get; set; } = false;
+    public bool SniperSkipOneGilLookup { get; set; } = true;
     public int SniperHistoryDays { get; set; } = 7;
     public int SniperMinimumItemPrice { get; set; } = 1;
     public double SniperMinimumDiscountPercent { get; set; }

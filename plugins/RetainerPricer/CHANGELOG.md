@@ -1,3 +1,7 @@
+## 0.5.1.24
+
+- Enable Skip 1-gil lookup for new and existing users once. Later changes to this setting remain saved.
+
 ## 0.5.1.23
 
 - Coloured Ventures yellow, Desynthesis blue, and Automation red.
