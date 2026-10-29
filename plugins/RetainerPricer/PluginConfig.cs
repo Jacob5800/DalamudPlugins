@@ -6,6 +6,7 @@ public sealed class PluginConfig : IPluginConfiguration
 {
     public List<SniperDeal> SniperBuyList { get; set; } = [];
     public double SniperMinimumRoiPercent { get; set; } = 0;
+    public bool UseBaconBroth { get; set; }
     public List<uint> DesynthesisItemIds { get; set; } = [];
     public int Version { get; set; } = 14;
     public bool AutoPriceNewListings { get; set; } = true;

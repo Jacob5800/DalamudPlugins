@@ -9,7 +9,7 @@ using Item = Lumina.Excel.Sheets.Item;
 namespace RetainerPricer;
 
 internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMarketBridge bridge,
-    IDataManager data, ICondition condition, Func<bool> otherBusy)
+    IDataManager data, ICondition condition, IObjectTable objects, Func<bool> otherBusy)
 {
     private static readonly InventoryType[] Bags = [InventoryType.Inventory1, InventoryType.Inventory2, InventoryType.Inventory3, InventoryType.Inventory4];
     public bool IsRunning { get; private set; }
@@ -17,6 +17,46 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
+    public bool WaitingForBroth { get; private set; }
+    private bool brothHandled, brothRequested;
+    private DateTimeOffset brothDeadline;
+    public void ContinueWithoutBroth() { WaitingForBroth = false; brothHandled = true; }
+    private bool HasBrothBuff => objects.LocalPlayer?.StatusList.Any(status => status.StatusId == 48
+        && status.Param % 10000 == 270 && status.RemainingTime > 5) == true;
+    private bool EnsureBroth(InventoryManager* inventory, DateTimeOffset now)
+    {
+        if (!config.UseBaconBroth || brothHandled) return true;
+        if (HasBrothBuff) { brothHandled = true; brothRequested = false; return true; }
+        if (brothRequested)
+        {
+            if (now >= brothDeadline) Stop("Bacon Broth buff was not confirmed. Check the game error before retrying.");
+            return false;
+        }
+        if (WaitingForBroth) return false;
+        bool nq = false, hq = false;
+        foreach (var type in Bags)
+        {
+            var bag = inventory->GetInventoryContainer(type);
+            if (bag == null || !bag->IsLoaded) { Stop("Carried inventory is loading."); return false; }
+            for (int i = 0; i < bag->Size; i++)
+            {
+                var item = bag->GetInventorySlot(i);
+                if (item == null || item->IsEmpty() || item->GetBaseItemId() != 9335) continue;
+                if (item->IsHighQuality()) hq = true; else nq = true;
+            }
+        }
+        if (!hq && !nq)
+        {
+            WaitingForBroth = true;
+            Status = "Bacon Broth not found. Choose Continue without Bacon Broth or Stop.";
+            return false;
+        }
+        if (!ActionManager.Instance()->UseAction(ActionType.Item, hq ? 1009335u : 9335u, 0xE0000000, 65535))
+        { Stop("Bacon Broth could not be used. No items were desynthesized by this request."); return false; }
+        brothRequested = true; brothDeadline = now.AddSeconds(15);
+        Status = hq ? "Using HQ Bacon Broth..." : "Using NQ Bacon Broth...";
+        return false;
+    }
     public IReadOnlyList<uint> Snapshot(bool saddlebag, out string message)
     {
         var inventory = InventoryManager.Instance();
@@ -46,7 +86,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; WaitingForBroth = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
@@ -55,6 +95,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (config.DesynthesisItemIds.Count == 0) { Status = "Add items to the desynthesis list first."; return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out _, out _, out var error)) { Status = error; return; }
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
+        brothHandled = brothRequested = WaitingForBroth = false;
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
     }
     public void Update()
@@ -101,6 +142,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 bool melded = false;
                 for (int m = 0; m < 5; m++) if (slot->Materia[m] != 0) melded = true;
                 if (melded) continue;
+                if (!EnsureBroth(inventory, now)) return;
                 var agent = AgentSalvage.Instance();
                 if (agent == null) { Stop("Desynthesis agent unavailable."); return; }
                 pending = (type, i, id, slot->GetQuantity()); deadline = now.AddSeconds(15);

@@ -1533,6 +1533,7 @@ internal sealed class PricingController : IDisposable
             preListingSlots = listedBefore.Select(row => row.Slot).ToHashSet();
             if (!bridge.TryOpenInventoryItem(candidate, out var openError))
             { Cancel($"Automatic listing stopped before opening {candidate.Name}: {openError}"); return; }
+            Status = $"Opening {candidate.Name} (item {candidate.ItemId}, inventory {candidate.InventoryType}, slot {candidate.Slot}) for market listing...";
             workingItem = null;
             deadline = now.AddSeconds(8);
             step = Step.Opening;
@@ -1543,7 +1544,12 @@ internal sealed class PricingController : IDisposable
         {
             if (!bridge.TryReadSellItem(out var opened, out _))
             {
-                if (now > deadline) Cancel("Automatic listing stopped because the next item sale window did not open in time. No item was skipped; check the retainer UI before retrying.");
+                if (now > deadline)
+                {
+                    var pending = listingCandidate is { } item
+                        ? $" for {item.Name} (item {item.ItemId}, inventory {item.InventoryType}, slot {item.Slot})" : "";
+                    Cancel($"Automatic listing stopped because the sale window{pending} did not open in time. No price was submitted; check the game error and retainer UI before retrying.");
+                }
                 return;
             }
             // The game pre-fills its sale dialog at the per-listing cap for stacks larger than 99.

@@ -251,6 +251,17 @@ internal sealed class MainWindow : Window
             if (ImGui.Button("Stop Desynthesis")) dispatch(() => desynthesis.Stop());
         }
         ImGui.TextWrapped(desynthesis.Status);
+        const string missingBrothPopup = "Bacon Broth not found";
+        if (desynthesis.WaitingForBroth) ImGui.OpenPopup(missingBrothPopup);
+        if (ImGui.BeginPopupModal(missingBrothPopup, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextWrapped("Use Bacon Broth is enabled, but neither HQ nor NQ Bacon Broth was found in carried inventory.");
+            if (ImGui.Button("Continue without Bacon Broth")) { desynthesis.ContinueWithoutBroth(); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine();
+            if (ImGui.Button("Stop")) { desynthesis.Stop(); ImGui.CloseCurrentPopup(); }
+            if (!desynthesis.WaitingForBroth) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
         if (ImGui.BeginPopupModal(EmptyBatchListPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextUnformatted(EmptyBatchListPopup);
@@ -335,10 +346,10 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Desynthesis")) { DrawDesynthesis(); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Automation")) { DrawAutomation(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Ventures")) { DrawVentures(); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
@@ -1710,9 +1721,24 @@ internal sealed class MainWindow : Window
         ImGui.EndTooltip();
     }
 
+    private static bool BeginColoredTab(string name, Vector4 color)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Tab, color * new Vector4(.60f, .60f, .60f, 1));
+        ImGui.PushStyleColor(ImGuiCol.TabHovered, Vector4.Min(color * new Vector4(1.25f, 1.25f, 1.25f, 1), Vector4.One));
+        ImGui.PushStyleColor(ImGuiCol.TabActive, color);
+        bool visible = ImGui.BeginTabItem(name);
+        ImGui.PopStyleColor(3);
+        return visible;
+    }
+
     private void DrawDesynthesis()
     {
         ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables, melded gear and items you cannot desynthesize are skipped. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
+        var useBroth = config.UseBaconBroth;
+        ImGui.BeginDisabled(desynthesis.IsRunning);
+        if (ImGui.Checkbox("Use Bacon Broth", ref useBroth)) { config.UseBaconBroth = useBroth; save(); }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Bacon Broth before desynthesis. Prefer HQ over NQ; an existing Bacon Broth food buff is reused. If none is carried, choose Continue or Stop.");
         ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
         if (ImGui.Button("Grab carried inventory"))
             dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(false, out desynthesisSnapshotStatus));
@@ -1720,7 +1746,7 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Grab chocobo saddlebag"))
             dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(true, out desynthesisSnapshotStatus));
         ImGui.TextWrapped(desynthesisSnapshotStatus);
-        foreach (var id in desynthesisSnapshot)
+        foreach (var id in desynthesisSnapshot.Where(id => !config.DesynthesisItemIds.Contains(id)).ToArray())
         {
             ImGui.PushID("desynthSnapshot" + id);
             bool listed = config.DesynthesisItemIds.Contains(id);

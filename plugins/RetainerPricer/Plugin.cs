@@ -48,7 +48,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
         ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
-        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat)
+        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         statusHistory = new StatusHistory(log);
@@ -97,7 +97,7 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.RowId != 0)
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
-        desynthesis = new DesynthesisController(config, bridge, data, condition,
+        desynthesis = new DesynthesisController(config, bridge, data, condition, objects,
             () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
         inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
@@ -156,6 +156,7 @@ public sealed class Plugin : IDalamudPlugin
         try
         {
             desynthesis.Update();
+            if (desynthesis.WaitingForBroth) window.IsOpen = true;
             statusHistory.Observe("Desynthesis", desynthesis.Status);
             automation.Update();
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)

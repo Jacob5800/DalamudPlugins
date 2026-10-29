@@ -1,3 +1,11 @@
+## 0.5.1.23
+
+- Coloured Ventures yellow, Desynthesis blue, and Automation red.
+
+- Added optional Bacon Broth use before desynthesis, preferring HQ, with Continue/Stop choices when missing.
+- Hide already-listed items from desynthesis inventory captures.
+- Include the exact item and inventory slot in market-listing opening and timeout messages.
+
 ## 0.5.1.22
 
 - Changed Add to desynthesis list to light blue.
