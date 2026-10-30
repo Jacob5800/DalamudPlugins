@@ -131,7 +131,7 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
                 .ToHashSet();
         else
             gearsetsToCount = gearsetsToCount
-                .Where(g => gearsetsService.CurrentGearsets.Contains(g))
+                .Where(g => g.IsActive && gearsetsService.CurrentGearsets.Contains(g))
                 .ToHashSet();
         calculateGearsetsWithOverlap();
         calculateMateriaRequiredCounts();
@@ -141,6 +141,7 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
     {
         var inCommonGroups = gearsetsService
             .CurrentGearsets
+            .Where(g => g.IsActive && gearsetsToCount.Contains(g))
             .SelectMany(gs => gs.Gearpieces.Select(gp => (Gearpiece: gp, Gearset: gs)).DistinctBy(g => g.Gearpiece.ItemId))
             .GroupBy(g => g.Gearpiece.ItemId)
             .Where(g => g.Count() > 1)
@@ -160,10 +161,11 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
 
     private void calculateMateriaRequiredCounts()
     {
+        calculateGearsetsWithOverlap();
         materiaRequiredCounts.Clear();
         materiaRequiredCounts = gearsetsService
             .CurrentGearsets
-            .Where(gearsetsToCount.Contains)
+            .Where(g => g.IsActive && gearsetsToCount.Contains(g))
             .SelectMany(gs => gs.Gearpieces)
             .SelectMany(gp => gp.ItemMateria)
             .Where(m => !m.IsCollected)
@@ -217,7 +219,11 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
 
     public void PreDraw()
     {
-
+        if (gearsetsToCount.RemoveWhere(g => !g.IsActive || !gearsetsService.CurrentGearsets.Contains(g)) > 0)
+        {
+            calculateMateriaRequiredCounts();
+            calculateGearsetsWithOverlap();
+        }
     }
 
     private static double calcProbabilityLog(double probability) =>
@@ -335,7 +341,7 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
                 $"{1 - meldConfidenceRate:P1}"
             ));
 
-        var comboPreview = (gearsetsToCount.Count, gearsetsService.CurrentGearsets.Count) switch
+        var comboPreview = (gearsetsToCount.Count, gearsetsService.CurrentGearsets.Count(g => g.IsActive)) switch
         {
             (_, 0) => Resource.MateriaCountsGearsetsComboNoneLoadedPreview,
             (0, _) => Resource.MateriaCountsGearsetsComboNoneSelectedPreview,
@@ -350,14 +356,14 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
 
         using (ImRaii.PushStyle(ImGuiStyleVar.PopupBorderSize, 1f))
         using (ImRaii.PushStyle(ImGuiStyleVar.PopupRounding, 5f))
-        using (ImRaii.Disabled(gearsetsService.CurrentGearsets.Count == 0))
+        using (ImRaii.Disabled(!gearsetsService.CurrentGearsets.Any(g => g.IsActive)))
         using (var combo = ImRaii.Combo("##gearset_materia_select_combo", comboPreview))
         {
             if (combo)
             {
                 using var vAlign = ImRaii.PushStyle(ImGuiStyleVar.SelectableTextAlign, new Vector2(0, 0.5f));
                 var selectableSize = new Vector2(0, ImGui.GetTextLineHeight() + 5f * ImGuiHelpers.GlobalScale);
-                var allSelected = gearsetsToCount.Count == gearsetsService.CurrentGearsets.Count;
+                var allSelected = gearsetsToCount.Count == gearsetsService.CurrentGearsets.Count(g => g.IsActive);
                 if (allSelected && ImGui.Selectable(Resource.MateriaCountsGearsetsComboNoneOption, selected: true, ImGuiSelectableFlags.DontClosePopups, size: selectableSize))
                 {
                     gearsetsToCount.Clear();
@@ -365,7 +371,7 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
                 }
                 else if (!allSelected && ImGui.Selectable(Resource.MateriaCountsGearsetsComboAllOption, selected: true, ImGuiSelectableFlags.DontClosePopups, size: selectableSize))
                 {
-                    gearsetsToCount = gearsetsService.CurrentGearsets.ToHashSet();
+                    gearsetsToCount = gearsetsService.CurrentGearsets.Where(g => g.IsActive).ToHashSet();
                     calculateMateriaRequiredCounts();
                 }
 
@@ -375,7 +381,7 @@ public class MateriaCountsTab : TabRenderer<MainWindowTab>, IDisposable
 
                 using var headerCol = ImRaii.PushColor(ImGuiCol.Header, configurationService.UiTheme.ObtainedCompleteTextColor with { W = 0.25f });
 
-                foreach (var gearset in gearsetsService.CurrentGearsets)
+                foreach (var gearset in gearsetsService.CurrentGearsets.Where(g => g.IsActive))
                 {
                     var selected = gearsetsToCount.Contains(gearset);
                     using var alpha = ImRaii.PushStyle(ImGuiStyleVar.Alpha, 0.6f, !gearset.IsActive);

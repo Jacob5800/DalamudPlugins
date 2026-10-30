@@ -254,7 +254,7 @@ namespace BiSplanner.Ui.Renderers.Components
 
             if (wrongMateria || collectionStatus >= CollectionStatusType.ObtainedPartial)
             {
-                var innerCol = ImGui.GetColorU32(materiaColor * MateriaFillColorMult);
+                var innerCol = ImGui.GetColorU32(wrongMateria ? materiaColor : materiaColor * MateriaFillColorMult);
                 drawList.AddCircleFilled(circlePos, radius, innerCol);
             }
 

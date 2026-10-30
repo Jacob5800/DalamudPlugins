@@ -62,7 +62,7 @@ namespace BiSplanner.Gear
         public Dictionary<int, uint> GetWrongMateria()
         {
             var wrong = new Dictionary<int, uint>();
-            if (ObservedMateriaIds is null || !IsCollected)
+            if (ObservedMateriaIds is null)
                 return wrong;
 
             var remaining = ObservedMateriaIds.Where(id => id != 0).ToList();

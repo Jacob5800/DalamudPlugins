@@ -101,6 +101,9 @@ namespace BiSplanner.ItemAssignment
 
                 if (assignPrerequisiteMateria && itemData.ItemIsMeldable(item.ItemId))
                 {
+                    // An owned upgrade precursor can carry the melds too. Keep the
+                    // observation tied to this assigned item rather than any copy by name.
+                    gearpiece.ObservedMateriaIds = item.MateriaIds.ToArray();
                     if (item.MateriaIds.Count > 0)
                     {
                         gearpiece.ItemMateria.UnmeldAllMateria();

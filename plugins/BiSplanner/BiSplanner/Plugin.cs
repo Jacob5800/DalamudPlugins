@@ -178,6 +178,7 @@ public sealed partial class Plugin : IDalamudPlugin
                 builder.Register(resolveWithScopeTagged<MeldPlanSelectorWindow>(windowScopeTag)).Keyed<Func<Window>>(WindowType.MeldPlanSelector).SingleInstance();
 
                 // main window tabs
+                builder.RegisterType<RecommendedImportTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.RecommendedImport).InstancePerMatchingLifetimeScope(windowScopeTag);
                 builder.RegisterType<UserGearsetsTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.UserGearsets).InstancePerMatchingLifetimeScope(windowScopeTag);
                 //builder.RegisterType<ItemPlannerTab>().Keyed<TabRenderer>(MainWindowTab.ItemPlanner).InstancePerMatchingLifetimeScope(windowScopeTag);
                 //builder.RegisterType<ItemExchangesTab>().Keyed<TabRenderer>(MainWindowTab.ItemExchanges).InstancePerMatchingLifetimeScope(windowScopeTag);

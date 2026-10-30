@@ -9,6 +9,9 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
         [Display(ResourceType = typeof(Resource), Name = nameof(Resource.UserGearsetsTabName))]
         UserGearsets = 0,
 
+        [Display(Name = "Import")]
+        RecommendedImport = 5,
+
         // add and view items to be highlighted that don't belong to a gearset
         [Display(ResourceType = typeof(Resource), Name = nameof(Resource.ItemTrackerTabName))]
         ItemTracker = 1,

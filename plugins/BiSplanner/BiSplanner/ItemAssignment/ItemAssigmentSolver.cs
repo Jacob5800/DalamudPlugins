@@ -167,6 +167,10 @@ namespace BiSplanner.ItemAssignment
 
         public List<Gearpiece> SolveAndAssign()
         {
+            // Refresh observations even when a previous run used a different inventory copy.
+            foreach (var piece in allGearsets.SelectMany(set => set.Gearpieces))
+                piece.ObservedMateriaIds = null;
+
             // stage 1: solve gearpiece assignments
             generateGearpieceEdges();
             int[] gearpieceAssignments;

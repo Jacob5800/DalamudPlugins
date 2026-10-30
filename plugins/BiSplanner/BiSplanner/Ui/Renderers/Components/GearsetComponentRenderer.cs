@@ -221,6 +221,11 @@ namespace BiSplanner.Ui.Renderers.Components
 
         private void DrawPropertiesTab(Gearset gearset)
         {
+            using (var fightChoice = ImRaii.Combo("Fight / content", gearset.Fight))
+                if (fightChoice)
+                    foreach (var fight in new[] { "Unspecified", "Current raid", "FRU", "TOP", "DSR", "TEA", "UWU", "UCOB" })
+                        if (ImGui.Selectable(fight, gearset.Fight == fight)) gearset.Fight = fight;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("For example TOP, FRU, DSR or Current raid. Used by the gearset list filter.");
             ImGui.Spacing();
 
             var size = new Vector2(0, ImGui.GetTextLineHeight() + ImGui.GetStyle().FramePadding.Y * 2);

@@ -25,6 +25,13 @@ namespace BiSplanner.Items
 
         private ILookup<uint, (uint ItemId, CofferSourceType SourceType)>? itemsCoffers = null;
         private ILookup<uint, (List<uint> ItemIds, uint SourceShopId)>? itemsPrerequisites = null;
+        private bool purchaseCurrencyCostsReady;
+        private readonly Dictionary<uint, List<(uint CurrencyId, uint Amount, uint ShopId)>> purchaseCurrencyCosts = [];
+        public IReadOnlyList<(uint CurrencyId, uint Amount, uint ShopId)> GetPurchaseCurrencyCosts(uint itemId)
+        {
+            if (!purchaseCurrencyCostsReady) _ = ItemsPrerequisites;
+            return purchaseCurrencyCosts.GetValueOrDefault(itemId) ?? [];
+        }
 
         public static readonly int MaxItemPrerequisites = 25;
         private ExcelSheet<Item> ItemSheet { get; init; }
@@ -110,6 +117,7 @@ namespace BiSplanner.Items
         public uint ConvertItemIdToHq(uint id);
         public string SeStringToString(ReadOnlySeString input);
         public string GetItemNameById(uint id);
+        public IReadOnlyList<(uint CurrencyId, uint Amount, uint ShopId)> GetPurchaseCurrencyCosts(uint itemId);
         public uint GetItemIdByName(string name);
         public string GetShopNameById(uint shopId);
         public uint GetMateriaItemId(ushort materiaTypeId, byte materiaGrade);

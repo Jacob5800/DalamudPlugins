@@ -14,6 +14,8 @@ namespace BiSplanner.Gear
         private string id;
         private bool isActive;
         private string name;
+        private string fight = "Unspecified";
+        public string Fight { get => fight; set { var next = string.IsNullOrWhiteSpace(value) ? "Unspecified" : value.Trim(); if (next == fight) return; fight = next; triggerGearsetChange(effectsAssignments: false); } }
         private int? priority;
         private DateTime importDate;
         private HighlightColor? highlightColor;

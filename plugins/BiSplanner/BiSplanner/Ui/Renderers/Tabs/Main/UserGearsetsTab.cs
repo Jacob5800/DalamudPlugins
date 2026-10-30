@@ -38,6 +38,7 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
         private Gearset? gearsetToDelete = null;
         private GearsetSortType activeSortType = GearsetSortType.ImportDate;
         private bool sortDescending = false;
+        private string fightFilter = "All fights";
         private bool firstLoggedInDrawCall = true;
         private UiTheme uiTheme => configurationService.UiTheme;
 
@@ -177,6 +178,20 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
             using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(0, 0)))
             using (ImRaii.Child("gearsets_selector", panelSize * ImGuiHelpers.GlobalScale))
             {
+                ImGui.SetNextItemWidth(-1);
+                using (var fights = ImRaii.Combo("##fight_filter", fightFilter))
+                {
+                    if (fights)
+                        foreach (var fight in new[] { "All fights", "Unspecified", "Current raid", "FRU", "TOP", "DSR", "TEA", "UWU", "UCOB" }
+                            .Concat(gearsetsService.CurrentGearsets.Select(g => g.Fight)).Distinct())
+                            if (ImGui.Selectable(fight, fightFilter == fight))
+                            {
+                                fightFilter = fight;
+                                if (activeGearset is not null && fight != "All fights" && activeGearset.Fight != fight)
+                                    activeGearset = gearsetsService.CurrentGearsets.FirstOrDefault(g => g.Fight == fight);
+                            }
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Filter saved sets by fight. Assign a fight in the set's Properties tab.");
                 // draw the list of gearsets to select from
                 var panelSelectableSize = new Vector2(panelSize.X, 35) * ImGuiHelpers.GlobalScale;
                 var availHeight = ImGui.GetContentRegionAvail().Y;
@@ -201,7 +216,7 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
                         ImGuiHelpers.CenteredText(Resource.UserGearsetsTabNoGearsetsTextNavigation);
                     }
 
-                    var gearsetsToDraw = gearsetsService.CurrentGearsets.ToList();
+                    var gearsetsToDraw = gearsetsService.CurrentGearsets.Where(g => fightFilter == "All fights" || g.Fight == fightFilter).ToList();
                     foreach (var gearset in gearsetsToDraw)
                     {
                         using var _ = ImRaii.PushId(gearset.Id);

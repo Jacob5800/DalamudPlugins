@@ -208,6 +208,30 @@ namespace BiSplanner.Items
                             itemReceive.ReceiveCount
                         );
 
+                    // Keep currency costs as compact display information, outside the
+                    // assignment graph (hundreds of tomestones must not become nodes).
+                    foreach (var cost in shopItem.ItemCosts)
+                    {
+                        var currencyId = cost.ItemCost.RowId;
+                        if (currencyId == 0 || cost.CurrencyCost == 0) continue;
+                        if (currencyId < 10 && (shop.UseCurrencyType == 2 || shop.UseCurrencyType == 4))
+                        {
+                            if (currencyId == 1) currencyId = 28; // Poetics
+                            else currencyId = dataManager.GetExcelSheet<TomestonesItem>()
+                                .Where(t => t.Tomestones.RowId == currencyId).Select(t => t.Item.RowId).FirstOrDefault();
+                        }
+                        else if (currencyId < 10) continue; // Other virtual currencies need their own mapping.
+                        if (currencyId == 0 || !ItemSheetEn.TryGetRow(currencyId, out var currencyItem)) continue;
+                        if (currencyId > MaxCurrencyId && currencyItem.ItemUICategory.Value.Name != "Currency") continue;
+                        foreach (var received in receiveItems)
+                        {
+                            var amount = (uint)((cost.CurrencyCost + Math.Max(received.ReceiveCount, 1u) - 1) / Math.Max(received.ReceiveCount, 1u));
+                            if (!purchaseCurrencyCosts.TryGetValue(received.Item.RowId, out var costs))
+                                purchaseCurrencyCosts[received.Item.RowId] = costs = [];
+                            if (!costs.Contains((currencyId, amount, shop.RowId))) costs.Add((currencyId, amount, shop.RowId));
+                        }
+                    }
+
                     var itemCosts = shopItem.ItemCosts
                         .Where(itemCost =>
                             itemCost.ItemCost.RowId > MaxCurrencyId
@@ -229,6 +253,7 @@ namespace BiSplanner.Items
                 }
             }
 
+            purchaseCurrencyCostsReady = true;
             return itemPrerequisiteOptions
                 .DistinctBy(i => $"{i.ItemId}|{string.Join("", i.ShopCostIds)}")
                 .ToLookup(i => i.ItemId, i => (i.ShopCostIds, i.SourceShopId));

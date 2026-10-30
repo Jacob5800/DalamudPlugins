@@ -138,7 +138,7 @@ namespace BiSplanner.Services.Gearsets
         public async Task<ImportGearsetsResult> AddGearsetsFromSource(ImportGearsetSourceType sourceType, string sourceString)
         {
             var gearsetCapacity = Constants.MaxGearsetCount - CurrentGearsets.Count;
-            var importResult = await importGearsetService.ImportGearsets(sourceType, sourceString, gearsetCapacity);
+            var importResult = await importGearsetService.ImportGearsets(sourceType, sourceString, int.MaxValue);
 
             if (importResult.StatusType != GearsetImportStatusType.Success)
                 return importResult;
@@ -161,6 +161,8 @@ namespace BiSplanner.Services.Gearsets
                         set.Name = $"{originalName} ({suffix++})";
                     unique.Add(set);
                 }
+                if (unique.Count > gearsetCapacity)
+                    return new ImportGearsetsResult { StatusType = GearsetImportStatusType.TooManyGearsets, SkippedDuplicates = importResult.SkippedDuplicates };
                 importResult.Gearsets = unique;
                 if (unique.Count > 0)
                     addGearsets(unique);

@@ -26,6 +26,7 @@ namespace BiSplanner.Converters
             // gearset properties to deserialize
             string? id = null;
             string? name = null;
+            var fight = "Unspecified";
             List<Gearpiece>? gearpieces = null;
             ImportGearsetSourceType? sourceType = null;
             uint? classJobId = null;
@@ -48,6 +49,9 @@ namespace BiSplanner.Converters
                 {
                     case nameof(Gearset.Id):
                         id = reader.GetString();
+                        break;
+                    case nameof(Gearset.Fight):
+                        fight = reader.GetString() ?? "Unspecified";
                         break;
                     case nameof(Gearset.Name):
                         name = reader.GetString();
@@ -100,7 +104,7 @@ namespace BiSplanner.Converters
                     classJobId = validJobIds.First();
             }
 
-            return gearsetFactory.Create(
+            var result = gearsetFactory.Create(
                 id: id ?? throw new JsonException($"Gearset with no id found"),
                 name: name ?? throw new JsonException($"No gearset {nameof(Gearset.Name)} found for {id}"),
                 gearpieces: gearpieces ?? throw new JsonException($"No gearset {nameof(Gearset.Gearpieces)} found for {id}"),
@@ -113,6 +117,8 @@ namespace BiSplanner.Converters
                 importDate: importDate,
                 highlightColor: highlightColor
                 );
+            result.Fight = fight;
+            return result;
         }
 
         public override void Write(Utf8JsonWriter writer, Gearset value, JsonSerializerOptions options)
@@ -121,6 +127,7 @@ namespace BiSplanner.Converters
 
             writer.WriteString(nameof(Gearset.Id), value.Id);
             writer.WriteString(nameof(Gearset.Name), value.Name);
+            writer.WriteString(nameof(Gearset.Fight), value.Fight);
 
             writer.WritePropertyName(nameof(Gearset.SourceType));
             JsonSerializer.Serialize(writer, value.SourceType, options);

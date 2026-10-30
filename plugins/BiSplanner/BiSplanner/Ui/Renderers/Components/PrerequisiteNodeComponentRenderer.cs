@@ -250,6 +250,31 @@ public class PrerequisiteNodeComponentRenderer(
         }
 
 
+        if (!node.IsCollected)
+        {
+            var costs = itemDataService.GetPurchaseCurrencyCosts(node.ItemId);
+            if (costs.Count > 0)
+            {
+                var start = ImGui.GetCursorScreenPos() + new Vector2(10, -2);
+                using (ImRaii.PushIndent(25f, scaled: false))
+                {
+                    var groups = costs.GroupBy(c => c.ShopId)
+                        .DistinctBy(group => string.Join(";", group.Select(c => $"{c.CurrencyId}:{c.Amount}").Order()));
+                    foreach (var group in groups)
+                    {
+                        ImGui.TextWrapped("Buy with: " + string.Join(" + ", group.Select(c =>
+                            $"{(long)c.Amount * parentCount:N0}x {itemDataService.GetItemNameById(c.CurrencyId)}")));
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Purchase cost from the game's exchange data. Each line is an alternative shop offer. Currency is informational and is not counted as a gear item.");
+                    }
+                }
+                var end = ImGui.GetCursorScreenPos() + new Vector2(10, -ImGui.GetStyle().ItemSpacing.Y - ImGui.GetTextLineHeight() / 2);
+                var line = ImGui.GetWindowDrawList();
+                var color = ImGui.GetColorU32(textColor with { W = 0.4f });
+                line.AddLine(start, end, color, 2);
+                line.AddLine(end, end + new Vector2(12, 0), color, 2);
+            }
+        }
+
         if (node.CompletePrerequisiteTree.Count > 0 && !node.IsCollected)
         {
             // draw a L shape for parent-child relationship
