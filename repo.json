@@ -193,7 +193,7 @@
     "Author": "Lily; Jacob5800 (BiSplanner fork)",
     "Name": "BiSplanner",
     "InternalName": "BiSplanner",
-    "AssemblyVersion": "0.3.0.2",
+    "AssemblyVersion": "0.3.0.3",
     "Description": "Highlights gear, coffers, and materia needed for all your gearsets\r\nImport from from Etro, Xivgear, or Teamcraft for easy setup\r\n\r\nHighlights items needed for gearsets on:\r\n    - Need/Greed Loot Windows\r\n    - NPC Shops and Exchanges\r\n    - Marketboard\r\n    - Player Inventories\r\n    - Item Tooltips\r\n\r\nWhen melding materia, highlights:\r\n    - Items to meld\r\n    - Materia to meld to item\r\n\r\nAutomatically syncs gearsets with player inventory",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -224,15 +224,15 @@
       "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/itemtooltip.png"
     ],
     "Punchline": "Gearing, simplified.",
-    "Changelog": "## 0.3.0.2\r\n\r\n- Add an Import tab for guide-recommended sets: The Balance lookup, Icy Veins guide lookup where accessible, and direct Xivgear/Etro set-link import. Clearly explain refused lookups and provide a manual-link fallback.\r\n- Add a fight filter above the gearset list. Assign existing sets to TOP, FRU, DSR and other content in Properties; guide imports can assign the fight automatically or use your selection.\r\n- Show tomestone and other supported exchange currency costs beneath unowned prerequisite gear, using the game's shop data.\r\n- Exclude disabled sets from materia totals, selection and overlap warnings.\r\n- Fill incorrect meld circles yellow, including melds on owned upgrade precursor gear. Matching materia still count in any order.\r\n- Check import capacity after removing duplicate builds.\n",
+    "Changelog": "## 0.3.0.3\r\n\r\n- Fix the Import fight selector: TOP, FRU and other choices now filter matching builds instead of relabelling current-raid gear.\r\n- Add a metadata-checked Balance Discord gear index for all combat jobs and Blue Mage, including the supplied BLM, BRD and RPR links. Individual sheet variants keep their set indexes and source links.\r\n- Add separate controls for historical Endwalker sets and community submissions, plus set/GCD search. Ambiguous fight assignments remain Unspecified.\r\n- Add DMU, AMR and AAI fight filters, including shared AMR/AAI recommendations.\r\n- Display [fight] beside saved set names when viewing All fights.\r\n- When a duplicate build already exists, retain it and add the imported recommendation's fight tag.\r\n- Validate the provider job before saving recommended imports and accept Xivgear's www/path-style links.\n",
     "AcceptsFeedback": true,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.2/BiSplanner.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.2/BiSplanner.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.3/BiSplanner.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.3/BiSplanner.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": 1793381682,
+    "LastUpdate": 1793387093,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png",
     "TestingDalamudApiLevel": null
   }
