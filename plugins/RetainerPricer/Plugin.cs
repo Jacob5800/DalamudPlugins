@@ -98,7 +98,7 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.RowId != 0)
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
-        desynthesis = new DesynthesisController(config, bridge, data, condition, objects,
+        desynthesis = new DesynthesisController(config, bridge, data, condition, objects, gameGui,
             () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
         inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,

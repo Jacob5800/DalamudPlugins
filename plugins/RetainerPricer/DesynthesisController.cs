@@ -9,7 +9,7 @@ using Item = Lumina.Excel.Sheets.Item;
 namespace RetainerPricer;
 
 internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMarketBridge bridge,
-    IDataManager data, ICondition condition, IObjectTable objects, Func<bool> otherBusy)
+    IDataManager data, ICondition condition, IObjectTable objects, IGameGui gui, Func<bool> otherBusy)
 {
     private static readonly InventoryType[] Bags = [InventoryType.Inventory1, InventoryType.Inventory2, InventoryType.Inventory3, InventoryType.Inventory4];
     public bool IsRunning { get; private set; }
@@ -17,6 +17,22 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
+    public bool WaitingForMateria { get; private set; }
+    public string MateriaItemName { get; private set; } = "";
+    private (InventoryType Bag, int Slot, uint Id, bool Hq, string Melds)? materiaItem;
+    private readonly HashSet<(InventoryType, int, uint)> skippedMateria = [];
+    private bool retrieveApproved, retrievalSent, retrievalConfirmed;
+    private string retrievalBefore = "";
+    private DateTimeOffset retrievalDeadline;
+    public void AnswerMateria(bool retrieve)
+    {
+        if (!WaitingForMateria || materiaItem is not { } item) return;
+        WaitingForMateria = false;
+        if (retrieve) retrieveApproved = true;
+        else { skippedMateria.Add((item.Bag,item.Slot,item.Id)); materiaItem = null; }
+    }
+    private static string Melds(InventoryItem* slot) => string.Join(",", Enumerable.Range(0,5).Select(i => $"{slot->Materia[i]}:{slot->MateriaGrades[i]}"));
+
     public bool WaitingForBroth { get; private set; }
     private bool brothHandled, brothRequested;
     private DateTimeOffset brothDeadline;
@@ -86,7 +102,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; WaitingForBroth = false; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
@@ -94,10 +110,49 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         { Status = "Log in and unlock desynthesis first."; return; }
         if (config.DesynthesisItemIds.Count == 0) { Status = "Add items to the desynthesis list first."; return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out _, out _, out var error)) { Status = error; return; }
+        skippedMateria.Clear(); materiaItem = null; retrieveApproved = retrievalSent = WaitingForMateria = false;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
         brothHandled = brothRequested = WaitingForBroth = false;
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
     }
+    private void UpdateMateria(InventoryManager* inventory, DateTimeOffset now)
+    {
+        if (materiaItem is not { } item || WaitingForMateria) return;
+        var bag = inventory->GetInventoryContainer(item.Bag);
+        var slot = bag == null || !bag->IsLoaded ? null : bag->GetInventorySlot(item.Slot);
+        if (slot == null || slot->IsEmpty() || slot->GetBaseItemId() != item.Id || slot->IsHighQuality() != item.Hq)
+        { Stop("Materia retrieval stopped: the selected inventory item changed."); return; }
+        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out var error))
+        { Stop(error); return; }
+        if (protectedIds.Contains(item.Id) || !config.DesynthesisItemIds.Contains(item.Id))
+        { Stop("Materia retrieval stopped: this item is now protected or removed from the list."); return; }
+        string current = Melds(slot);
+        if (!retrieveApproved) return;
+        if (retrievalSent)
+        {
+            if (current != retrievalBefore)
+            {
+                retrievalSent = false;
+                materiaItem = item with { Melds = current };
+                next = now.AddSeconds(1);
+            }
+            else if (!retrievalConfirmed && MateriaRetrieval.TryConfirm(gui, item.Bag, item.Slot, slot)) retrievalConfirmed = true;
+            else if (now >= retrievalDeadline) Stop("Materia retrieval did not complete. Check the game error and inventory space.");
+            return;
+        }
+        bool melded = false;
+        for (int m=0;m<5;m++) if (slot->Materia[m]!=0) melded = true;
+        if (!melded) { materiaItem = null; retrieveApproved = false; Status = "Materia removed; continuing desynthesis."; return; }
+        if (current != item.Melds) { Stop("Materia retrieval stopped: the selected item's melds changed."); return; }
+        if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
+            || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return;
+        if (inventory->GetEmptySlotsInBag() < 5) { Stop("Free at least five carried inventory slots before retrieving materia."); return; }
+        if (!MateriaRetrieval.TryBegin(gui, data, item.Bag, item.Slot, slot))
+        { Stop("Could not open and confirm materia retrieval for this item. No desynthesis was attempted."); return; }
+        retrievalBefore = current; retrievalSent = true; retrievalConfirmed = false; retrievalDeadline = now.AddSeconds(15);
+        Status = $"Retrieving materia from {MateriaItemName}...";
+    }
+
     public void Update()
     {
         if (!IsRunning) return;
@@ -108,6 +163,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         next = now.AddMilliseconds(250);
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
+        if (materiaItem != null) { UpdateMateria(inventory, now); return; }
         if (pending is { } wait)
         {
             var bag = inventory->GetInventoryContainer(wait.Bag);
@@ -138,10 +194,19 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 var index = item.ClassJobRepair.Value.ExpArrayIndex;
                 var player = PlayerState.Instance();
                 if (player == null || index < 0 || index >= player->ClassJobLevels.Length || player->ClassJobLevels[index] < 30) continue;
-                // Materia is valuable; leave melded items for explicit manual handling.
+                if (skippedMateria.Contains((type,i,id))) continue;
+                // Ask for this exact melded copy before removing its materia.
                 bool melded = false;
                 for (int m = 0; m < 5; m++) if (slot->Materia[m] != 0) melded = true;
-                if (melded) continue;
+                if (melded)
+                {
+                    materiaItem = (type,i,id,slot->IsHighQuality(),Melds(slot));
+                    MateriaItemName = item.Name.ToString();
+                    WaitingForMateria = true;
+                    retrieveApproved = retrievalSent = false;
+                    Status = $"Materia found on {MateriaItemName}. Choose Retrieve materia or Skip item.";
+                    return;
+                }
                 if (!EnsureBroth(inventory, now)) return;
                 var agent = AgentSalvage.Instance();
                 if (agent == null) { Stop("Desynthesis agent unavailable."); return; }
@@ -156,6 +221,6 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 return;
             }
         }
-        Stop($"Desynthesis complete: {completed} item(s). Protected, melded and ineligible items skipped.");
+        Stop($"Desynthesis complete: {completed} item(s). Protected, declined and ineligible items skipped.");
     }
 }

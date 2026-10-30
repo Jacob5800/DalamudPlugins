@@ -254,6 +254,20 @@ internal sealed class MainWindow : Window
             if (ImGui.Button("Stop Desynthesis")) dispatch(() => desynthesis.Stop());
         }
         ImGui.TextWrapped(desynthesis.Status);
+        const string materiaPopup = "Retrieve materia before desynthesis?";
+        if (desynthesis.WaitingForMateria) ImGui.OpenPopup(materiaPopup);
+        if (ImGui.BeginPopupModal(materiaPopup, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted(desynthesis.MateriaItemName);
+            ImGui.TextWrapped("This listed item has materia melded. Retrieve its materia automatically, then desynthesize it? Retrieval can fail and destroy materia depending on its grade. Free at least five carried inventory slots first.");
+            if (ImGui.Button("Yes - retrieve materia")) { dispatch(() => desynthesis.AnswerMateria(true)); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine();
+            if (ImGui.Button("No - skip this item")) { dispatch(() => desynthesis.AnswerMateria(false)); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine();
+            if (ImGui.Button("Stop desynthesis")) { dispatch(() => desynthesis.Stop()); ImGui.CloseCurrentPopup(); }
+            if (!desynthesis.WaitingForMateria) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
         const string missingBrothPopup = "Bacon Broth not found";
         if (desynthesis.WaitingForBroth) ImGui.OpenPopup(missingBrothPopup);
         if (ImGui.BeginPopupModal(missingBrothPopup, ImGuiWindowFlags.AlwaysAutoResize))
@@ -1140,7 +1154,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
-        ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets, collectables and melded items stay protected. Stop Desynthesis cancels further requests.");
+        ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
         {
             ImGui.EndChild();
@@ -1796,7 +1810,7 @@ internal sealed class MainWindow : Window
 
     private void DrawDesynthesis()
     {
-        ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables, melded gear and items you cannot desynthesize are skipped. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
+        ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables and items you cannot desynthesize are skipped. Melded copies ask before retrieving materia and continuing; No skips that copy. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
         var useBroth = config.UseBaconBroth;
         ImGui.BeginDisabled(desynthesis.IsRunning);
         if (ImGui.Checkbox("Use Bacon Broth", ref useBroth)) { config.UseBaconBroth = useBroth; save(); }

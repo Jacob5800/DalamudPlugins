@@ -1,3 +1,7 @@
+## 0.5.1.28
+
+- Ask before retrieving materia from each melded desynthesis item, with Retrieve, Skip and Stop choices. Approved retrieval waits for materia removal before desynthesis.
+
 ## 0.5.1.27
 
 - Added Exclude my server to the Sniper results server filter.
