@@ -4,7 +4,9 @@ namespace TataruBrawler;
 
 public sealed class Configuration
 {
-	public bool IllegalMode { get; set; }
+	public bool AutoLeaveDuty { get; set; }
+
+    public bool IllegalMode { get; set; }
     public bool SkipOptionalPunctuation { get; set; }
     public bool WarnMgcCap { get; set; } = true;
     public int MgcWarningPercent { get; set; } = 90;

@@ -67,6 +67,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
     private long wholeWordDue;
+    private readonly RoundLoop autoLeave = new();
+    private bool autoLeaveAttempted;
+    private long autoLeaveSample;
 
 	private long loopSample;
 
@@ -321,6 +324,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
             chat.Print("[Keybound Automation] " + warning.Message);
+        UpdateAutoLeave(Environment.TickCount64);
         typing.SkipOptionalPunctuation = config.SkipOptionalPunctuation;
 		if (mapEntry.Observe(client.IsLoggedIn, client.TerritoryType) && config.AutoEnableOnMap)
 		{
@@ -567,6 +571,27 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			}
 		}
 	}
+
+    private void UpdateAutoLeave(long now)
+    {
+        if (!client.IsLoggedIn || client.TerritoryType != 1359)
+        { autoLeave.Stop(); autoLeaveAttempted = false; return; }
+        if (!config.AutoLeaveDuty || loop.Active) { autoLeave.Stop(); return; }
+        if (now - autoLeaveSample < 200) return;
+        autoLeaveSample = now;
+        var state = loopUi.Read(client.IsLoggedIn, client.TerritoryType,
+            condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
+        if (!autoLeaveAttempted && state.Result && !state.Loading)
+        {
+            rewards.Tick(now, true, client.TerritoryType, false, force: true);
+            autoLeaveAttempted = true;
+            autoLeave.Start(now, 1, true);
+        }
+        if (!autoLeave.Active) return;
+        var action = autoLeave.Tick(now, state);
+        if (action != LoopAction.None && !loopUi.Execute(action, client.TerritoryType))
+        { autoLeave.Stop(error: true); log.Warning("Automatic duty exit failed; use the game's exit button."); }
+    }
 
 	private void StartLoop()
 	{
@@ -1025,6 +1050,7 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
         if (illegalChanged)
         {
             config.IllegalMode = illegalMode;
+            config.SetRange(config.MinimumMs, config.MaximumMs);
             backgroundKeys.Release(force: true);
             Keyboard.Release(force: true);
             wholeWordDue = 0;
@@ -1032,6 +1058,10 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
             settings.Update(config);
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Experimental: insert the entire answer into Keybound's own field and submit it once. Off by default. Will wait if the field already contains text; clear it before switching modes.");
+        bool leaveDuty = config.AutoLeaveDuty;
+        if (Interface.AutomationShell.Toggle("Automatically leave duty when finished", ref leaveDuty))
+        { config.AutoLeaveDuty = leaveDuty; settings.Update(config); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Leave through the result screen after the duty finishes. Off by default. Active loops already handle leaving.");
         bool skipPunctuation = config.SkipOptionalPunctuation;
         if (Interface.AutomationShell.Toggle("Skip optional English punctuation", ref skipPunctuation))
         { config.SkipOptionalPunctuation = skipPunctuation; settings.Update(config); }

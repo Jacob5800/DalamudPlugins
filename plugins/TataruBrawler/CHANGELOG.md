@@ -1,3 +1,8 @@
+## 1.0.8.18
+
+- Added Automatically leave duty when finished, disabled by default.
+- Fixed saving Illegal mode settings with zero-millisecond intervals.
+
 ## 1.0.8.17
 
 - Illegal mode refreshes prompts every framework update and bypasses mechanic pauses and background-key readiness waits. Normal typing is unchanged.

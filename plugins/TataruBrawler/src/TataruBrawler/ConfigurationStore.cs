@@ -8,11 +8,11 @@ namespace TataruBrawler;
 
 public sealed class ConfigurationStore : IDisposable
 {
-	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode)
+	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode, bool AutoLeaveDuty)
 	{
 		public static Snapshot From(Configuration c)
 		{
-			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode);
+			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode, c.AutoLeaveDuty);
 		}
 
 		public Configuration ToConfig()
@@ -34,7 +34,8 @@ public sealed class ConfigurationStore : IDisposable
                 SkipOptionalPunctuation = SkipOptionalPunctuation,
                 WarnMgcCap = WarnMgcCap,
                 MgcWarningPercent = MgcWarningPercent,
-                IllegalMode = IllegalMode
+                IllegalMode = IllegalMode,
+                AutoLeaveDuty = AutoLeaveDuty
 			};
 		}
 	}
@@ -189,6 +190,7 @@ public sealed class ConfigurationStore : IDisposable
                 Configuration.WarnMgcCap = configuration.WarnMgcCap;
                 Configuration.MgcWarningPercent = configuration.MgcWarningPercent;
                 Configuration.IllegalMode = configuration.IllegalMode;
+                Configuration.AutoLeaveDuty = configuration.AutoLeaveDuty;
 				current = Snapshot.From(configuration);
 			}
 			failures = 0;
@@ -488,7 +490,7 @@ public sealed class ConfigurationStore : IDisposable
 				if (loopCount >= 1 && loopCount <= 9999)
 				{
 					loopCount = config.BetweenWordsMs;
-					if (loopCount >= 0 && loopCount <= 60000 && config.MinimumMs >= 20 && config.MaximumMs <= 5000 && config.MinimumMs <= config.MaximumMs)
+					if (loopCount >= 0 && loopCount <= 60000 && config.MinimumMs >= (config.IllegalMode ? 0 : 20) && config.MaximumMs <= 5000 && config.MinimumMs <= config.MaximumMs)
 					{
 						result = ((config.Language == null || Loc.IsSupported(config.Language)) ? 1 : 0);
 						goto IL_00f9;
