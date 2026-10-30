@@ -1,3 +1,7 @@
+## 1.0.8.22
+
+- Show the once-per-session MGC warning as an on-screen popup that stays open until dismissed.
+
 ## 1.0.8.21
 
 - Show the MGC cap warning as a notification once per session when the configured threshold is reached, including at startup outside Keybound.

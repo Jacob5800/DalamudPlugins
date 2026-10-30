@@ -8,7 +8,6 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Interface;
-using Dalamud.Interface.ImGuiNotification;
 
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -68,8 +67,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
     private readonly IChatGui chat;
-    private readonly INotificationManager notifications;
     private bool mgcNoticeShown;
+    private bool mgcPopupPending;
+    private string mgcPopupMessage = "";
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
     private long wholeWordDue;
@@ -122,7 +122,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool autoQueueVisitArmed = true;
 
-	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState, INotificationManager notifications)
+	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState)
 	{
 		Plugin plugin = this;
 		this.pi = pi;
@@ -136,7 +136,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         this.party = party;
         this.playerState = playerState;
         this.chat = chat;
-        this.notifications = notifications;
         rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
 		Loc.CheckCompleteness();
@@ -329,20 +328,15 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
-        pi.UiBuilder.DisableAutomaticUiHide = config.ShowDutyButton && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory;
+        pi.UiBuilder.DisableAutomaticUiHide = mgcPopupPending || (config.ShowDutyButton && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory);
         pi.UiBuilder.DisableUserUiHide = pi.UiBuilder.DisableAutomaticUiHide;
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
             chat.Print("[Keybound Automation] " + warning.Message);
         if (!mgcNoticeShown && config.WarnMgcCap && client.IsLoggedIn && warning.Message != null)
         {
-            notifications.AddNotification(new Notification
-            {
-                Title = "Keybound Automation — MGC warning",
-                Content = warning.Message,
-                Type = NotificationType.Warning,
-                InitialDuration = TimeSpan.FromSeconds(10)
-            });
+            mgcPopupMessage = warning.Message;
+            mgcPopupPending = true;
             mgcNoticeShown = true;
         }
         UpdateAutoLeave(Environment.TickCount64);
@@ -856,6 +850,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     {
         uiCaptures = ImGui.GetIO().WantTextInput || ImGui.IsAnyItemActive();
         if (stopping) return;
+        DrawMgcPopup();
         DrawDutyButton();
         if (!open) return;
         fonts.Ensure(reader.Words.Append(typing.CurrentWord));
@@ -865,6 +860,22 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                 T(typing.Status), typing.CurrentWord,
                 DrawBrawl, DrawSettingsPage, DrawDiagnostics, DrawChangelog, DrawAbout, DrawPlayback);
         }
+    }
+
+    private void DrawMgcPopup()
+    {
+        const string title = "Keybound Automation - MGC warning";
+        if (mgcPopupPending) ImGui.OpenPopup(title);
+        ImGui.SetNextWindowSize(new Vector2(440, 0) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale, ImGuiCond.Appearing);
+        if (!ImGui.BeginPopupModal(title, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        ImGui.TextWrapped(mgcPopupMessage);
+        ImGui.Spacing();
+        if (ImGui.Button("OK", new Vector2(100, 0) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale))
+        {
+            mgcPopupPending = false;
+            ImGui.CloseCurrentPopup();
+        }
+        ImGui.EndPopup();
     }
 
     private void DrawDutyButton()

@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.21",
+  "AssemblyVersion": "1.0.8.22",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Keybound Automation interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "## 1.0.8.21\n\n- Show the MGC cap warning as a notification once per session when the configured threshold is reached, including at startup outside Keybound.\n- Enlarge the floating duty keyboard button and click area.\n- Retry registration after five seconds when a queue has not started, including when a party member is still leaving.\n- Start with Illegal mode disabled on each plugin load; it can still be enabled for the session.\n",
+  "Changelog": "## 1.0.8.22\n\n- Show the once-per-session MGC warning as an on-screen popup that stays open until dismissed.\n",
   "IsHide": false,
   "IsTestingExclusive": false
 }
