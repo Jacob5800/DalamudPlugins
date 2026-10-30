@@ -54,15 +54,23 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin main
-          git switch --force-create feed-update --track origin/main
-          ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'PortraitAtelier.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'PortraitAtelier.zip'
-          git add repo.json
-          git diff --cached --quiet
-          if ($LASTEXITCODE -ne 0) {
+          $published = $false
+          for ($attempt = 1; $attempt -le 8; $attempt++) {
+            git fetch origin main
+            if ($LASTEXITCODE -ne 0) { throw 'Feed fetch failed' }
+            git switch --force-create feed-update --track origin/main
+            if ($LASTEXITCODE -ne 0) { throw 'Feed branch setup failed' }
+            ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'PortraitAtelier.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'PortraitAtelier.zip'
+            git add repo.json
+            git diff --cached --quiet
+            if ($LASTEXITCODE -eq 0) { $published = $true; break }
             git commit -m "chore: update feed for $env:GITHUB_REF_NAME"
+            if ($LASTEXITCODE -ne 0) { throw 'Feed commit failed' }
             git push origin HEAD:main
+            if ($LASTEXITCODE -eq 0) { $published = $true; break }
+            Start-Sleep -Seconds 2
           }
+          if (!$published) { throw 'Feed publication failed after concurrent-update retries' }
       - name: Announce release changelog on Discord
         shell: pwsh
         continue-on-error: true

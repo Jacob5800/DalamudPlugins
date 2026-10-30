@@ -9,5 +9,6 @@ tags:
   - Utility
 icon_url: https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/HousingTimeoutReminder/HousingTimeoutReminder/images/icon.png
 changelog: |-
-  ### 1.0.5.3
-  - Updated compatibility for FFXIV patch 7.57.
+  ## 1.0.5.15
+
+  - Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.

@@ -46,7 +46,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool ventureVisitHandled;
     private DateTimeOffset? venturePickerReadyAt;
     private DateTimeOffset? ventureInteractionClosedAt;
-    private bool disposed;
+    private volatile bool disposed;
+    private readonly ShutdownSequence shutdown = new();
     private readonly bool rpAliasRegistered;
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
@@ -187,7 +188,7 @@ public sealed class Plugin : IDalamudPlugin
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
                 ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
             controller.Update();
-            if (controller.MateriaWarningItem is not null) window.IsOpen = true;
+            if (controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null || controller.BelowVendorItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
             UpdateAutomaticVentures();
@@ -320,6 +321,7 @@ public sealed class Plugin : IDalamudPlugin
     private string clipboardSearchMessage = "";
     private void DrawMarketboardClipboard()
     {
+        if (disposed) return;
         if (disposed || !bridge.TryGetMarketboardMenuPosition(out var position)) return;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(new System.Numerics.Vector2(position.X, Math.Max(0, position.Y - 62)), Dalamud.Bindings.ImGui.ImGuiCond.Always);
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowBgAlpha(1);
@@ -344,6 +346,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawRetainerListingButton()
     {
+        if (disposed) return;
         if ((!config.ShowRetainerListingButton && !config.ShowRetainerVendorButton) || disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
         var vendorWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Retainer vendor items").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
         position.X -= vendorWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
@@ -382,6 +385,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawRetainerVentureButton()
     {
+        if (disposed) return;
         if ((!config.ShowRetainerUpdateButton && !config.ShowRetainerVentureButton) || disposed || !bridge.TryGetRetainerVentureButtonPosition(out var position)) return;
         var updateWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Update existing listings").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
         position.X -= updateWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
@@ -419,43 +423,45 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
     }
 
-    private void Toggle() => window.Toggle();
+    private void Toggle() { if (!disposed) window.Toggle(); }
     private bool UndercutsPaused() => !config.ShowUndercutNotifier || config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
     private void Save() => pluginInterface.SavePluginConfig(config);
 
     public void Dispose()
     {
-        if (disposed) return;
         disposed = true;
-        inventoryMenus.Dispose();
-        undercuts.Dispose();
-        framework.Update -= Update;
-        pluginInterface.UiBuilder.Draw -= windows.Draw;
-        pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard;
-        pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton;
-        pluginInterface.UiBuilder.Draw -= DrawRetainerListingButton;
-        pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw;
-        itemPriceTooltip.Dispose();
-        pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw;
-        marketboardRoi.Dispose();
-        pluginInterface.UiBuilder.OpenMainUi -= Toggle;
-        pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
-        commands.RemoveHandler("/retainerpricer");
-        commands.RemoveHandler("/retainer");
-        if (rpAliasRegistered) commands.RemoveHandler("/rp");
-        serverInfoBarEntry.Remove();
-        ttCards.Stop();
-        desynthesis.Stop();
-        // Automation.Cancel calls pricing.Cancel; keep the controller alive until cancellation finishes.
-        automation.Cancel();
-        controller.Dispose();
-        vendor.Dispose();
-        ventures.Cancel();
-        sniper.Dispose();
-        bridge.Dispose();
-        universalis.Dispose();
-        feedback.Dispose();
-        windows.RemoveAllWindows();
+        var failures = shutdown.Run(
+            ("Framework update", () => framework.Update -= Update),
+            ("Window drawing", () => pluginInterface.UiBuilder.Draw -= windows.Draw),
+            ("Clipboard drawing", () => pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard),
+            ("Venture button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton),
+            ("Listing button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerListingButton),
+            ("Tooltip drawing", () => pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw),
+            ("ROI drawing", () => pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw),
+            ("Main UI", () => pluginInterface.UiBuilder.OpenMainUi -= Toggle),
+            ("Config UI", () => pluginInterface.UiBuilder.OpenConfigUi -= Toggle),
+            ("Inventory menus", inventoryMenus.Dispose),
+            ("Main command", () => commands.RemoveHandler("/retainerpricer")),
+            ("Retainer command", () => commands.RemoveHandler("/retainer")),
+            ("RP command", () => { if (rpAliasRegistered) commands.RemoveHandler("/rp"); }),
+            ("Server bar", () => { serverInfoBarEntry.OnClick = null; serverInfoBarEntry.Remove(); }),
+            ("TT cards", () => ttCards.Stop()),
+            ("Desynthesis", () => desynthesis.Stop()),
+            // Cancel the parent before disposing controllers it calls.
+            ("Automation", () => automation.Cancel()),
+            ("Pricing", controller.Dispose),
+            ("Vendor", vendor.Dispose),
+            ("Ventures", () => ventures.Cancel()),
+            ("Sniper", sniper.Dispose),
+            ("Undercut notifier", undercuts.Dispose),
+            ("Tooltip", itemPriceTooltip.Dispose),
+            ("ROI", marketboardRoi.Dispose),
+            ("Native hooks", bridge.Dispose),
+            ("Market HTTP client", universalis.Dispose),
+            ("Feedback HTTP client", feedback.Dispose),
+            ("Windows", windows.RemoveAllWindows));
+        foreach (var (step, error) in failures)
+            log.Error(error, "Retainer Pricer shutdown cleanup failed: {Step}. Other cleanup steps were still attempted.", step);
     }
 }

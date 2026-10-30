@@ -53,6 +53,7 @@ namespace BiSplanner.Services.Gearsets
 
             framework.RunOnFrameworkThread(() =>
             {
+                if (stopping) return;
                 OnGearsetsChange?.Invoke();
                 if (saveToFile)
                     scheduleSaveCurrentGearsets();

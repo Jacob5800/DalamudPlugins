@@ -338,11 +338,14 @@ public sealed partial class Plugin : IDalamudPlugin
         };
     }
 
+    private readonly ShutdownSequence shutdown = new();
     private void stopAndDispose()
     {
-        KamiToolKitLibrary.Dispose();
-        host.StopAsync().GetAwaiter().GetResult();
-        host.Dispose();
+        var failures = shutdown.Run(
+            ("Stop hosted services", () => host.StopAsync().GetAwaiter().GetResult()),
+            ("Dispose services", host.Dispose),
+            ("KamiToolKit", KamiToolKitLibrary.Dispose));
+        foreach (var (step, error) in failures) logger.Error(error, $"Shutdown cleanup failed: {step}; remaining cleanup attempted.");
     }
 
     public void Dispose()

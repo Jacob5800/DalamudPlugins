@@ -18,6 +18,7 @@ namespace BiSplanner.Services.Configuration
 
     public class ConfigurationService : IConfigurationService, IDisposable
     {
+        private volatile bool disposed;
         private readonly ITypedLogger<ConfigurationService> logger;
         private readonly IFramework framework;
         private readonly IConfigurationLoaderService configurationLoaderService;
@@ -47,6 +48,8 @@ namespace BiSplanner.Services.Configuration
 
         public void Dispose()
         {
+            if (disposed) return;
+            disposed = true;
             configuration.DefaultHighlightColor.OnColorChange -= handleDefaultHighlightColorChange;
             configuration.UiTheme.PropertyChanged -= handleUiThemePropertyChange;
         }
@@ -58,7 +61,7 @@ namespace BiSplanner.Services.Configuration
         private void triggerConfigurationChange(bool affectsAssignments)
         {
             logger.Verbose($"OnConfigurationChange (affectsAssignments: {affectsAssignments})");
-            framework.RunOnFrameworkThread(() => OnConfigurationChange?.Invoke(affectsAssignments));
+            framework.RunOnFrameworkThread(() => { if (!disposed) OnConfigurationChange?.Invoke(affectsAssignments); });
         }
 
         private void updateConfigProperty<T>(

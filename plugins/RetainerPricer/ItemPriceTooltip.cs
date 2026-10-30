@@ -30,6 +30,7 @@ internal sealed class ItemPriceTooltip : IDisposable
     private uint worldId;
     private DateTimeOffset nextBatch;
     private DateTimeOffset nextPrefetch;
+    private bool disposed;
     private string? rendered;
     private int addedHeight;
     private nint attachedAddon;
@@ -57,8 +58,8 @@ internal sealed class ItemPriceTooltip : IDisposable
         lifecycle.RegisterListener(AddonEvent.PreFinalize, "ItemDetail", BeforeFinalize);
     }
 
-    private unsafe void BeforeUpdate(AddonEvent _, AddonArgs args) => Restore((AtkUnitBase*)args.Addon.Address);
-    private unsafe void BeforeFinalize(AddonEvent _, AddonArgs args) { Restore((AtkUnitBase*)args.Addon.Address); RemoveNode((AtkUnitBase*)args.Addon.Address); }
+    private unsafe void BeforeUpdate(AddonEvent _, AddonArgs args) { if (!disposed) Restore((AtkUnitBase*)args.Addon.Address); }
+    private unsafe void BeforeFinalize(AddonEvent _, AddonArgs args) { if (disposed) return; Restore((AtkUnitBase*)args.Addon.Address); RemoveNode((AtkUnitBase*)args.Addon.Address); }
     private bool Fresh(uint id) => cache.TryGetValue(id, out var entry) && DateTimeOffset.UtcNow - entry.At < TimeSpan.FromMinutes(90);
     private void Queue(uint id, bool refreshMissing = false)
     {
@@ -86,6 +87,7 @@ internal sealed class ItemPriceTooltip : IDisposable
     }
     public unsafe void Draw()
     {
+        if (disposed) return;
         var addon = (AtkUnitBase*)gameGui.GetAddonByName("ItemDetail").Address;
         if (request is { IsCompleted: true })
         {
@@ -308,10 +310,16 @@ internal sealed class ItemPriceTooltip : IDisposable
     }
     public unsafe void Dispose()
     {
-        lifecycle.UnregisterListener(BeforeUpdate);
-        lifecycle.UnregisterListener(BeforeFinalize);
-        var addon = (AtkUnitBase*)gameGui.GetAddonByName("ItemDetail").Address;
-        Restore(addon); RemoveNode(addon);
-        lifetime.Cancel(); lifetime.Dispose();
+        if (disposed) return;
+        disposed = true;
+        var failures = new ShutdownSequence().Run(
+            ("Tooltip update listener", () => lifecycle.UnregisterListener(BeforeUpdate)),
+            ("Tooltip finalize listener", () => lifecycle.UnregisterListener(BeforeFinalize)),
+            ("Tooltip text restoration", () => Restore((AtkUnitBase*)gameGui.GetAddonByName("ItemDetail").Address)),
+            ("Tooltip node removal", () => RemoveNode((AtkUnitBase*)gameGui.GetAddonByName("ItemDetail").Address)),
+            ("Tooltip cancellation", lifetime.Cancel),
+            ("Tooltip cancellation disposal", lifetime.Dispose));
+        request = null; queued.Clear();
+        if (failures.Count > 0) throw new AggregateException(failures.Select(x => x.Error));
     }
 }

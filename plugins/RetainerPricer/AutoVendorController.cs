@@ -2,6 +2,7 @@ namespace RetainerPricer;
 
 internal sealed class AutoVendorController : IDisposable
 {
+    private bool disposed;
     private enum Step { Idle, Begin, Price, Sell, Verify }
 
     private readonly NativeMarketBridge bridge;
@@ -322,6 +323,7 @@ internal sealed class AutoVendorController : IDisposable
 
     public void Cancel(string message = "Retainer sell stopped. Check the retainer selling screen before continuing.")
     {
+        if (disposed) return;
         try { cancellation.Cancel(); }
         catch (ObjectDisposedException) { }
         step = Step.Idle;
@@ -336,7 +338,9 @@ internal sealed class AutoVendorController : IDisposable
 
     public void Dispose()
     {
+        if (disposed) return;
         Cancel();
+        disposed = true;
         cancellation.Dispose();
     }
 }

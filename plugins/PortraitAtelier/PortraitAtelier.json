@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Portrait Atelier",
   "InternalName": "PortraitAtelier",
-  "AssemblyVersion": "0.1.5.2",
+  "AssemblyVersion": "0.1.5.3",
   "Description": "Create and apply curated portrait designs from your own character in one click.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -18,6 +18,6 @@
   "LoadPriority": 0,
   "Punchline": "Make and apply a portrait in one click.",
   "AcceptsFeedback": true,
-  "Changelog": "## 0.1.5.2\n\n- Added Undo last apply and named local presets, included in settings backups.\n- Added independent camera, lighting, pose and expression locks.\n- Added a camera icon beside the optional PA server-bar button.\n",
+  "Changelog": "## 0.1.5.3\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/PortraitAtelier/images/icon.png"
 }

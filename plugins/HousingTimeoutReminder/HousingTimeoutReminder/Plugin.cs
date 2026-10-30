@@ -78,26 +78,33 @@ public class Plugin : IDalamudPlugin {
   /// <summary>
   /// Dispose of the Dalamud Plugin safely.
   /// </summary>
+  private readonly ShutdownSequence shutdown = new();
+  private volatile bool disposed;
   public void Dispose() {
-    housingBar.Remove();
-    System.WindowSystem.RemoveAllWindows();
-    System.WarningUI.Dispose();
-    System.SettingsUI.Dispose();
+    disposed = true;
+    var failures = shutdown.Run(
+      ("Draw", () => Svc.PluginInterface.UiBuilder.Draw -= DrawUI),
+      ("Config UI", () => Svc.PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI),
+      ("Main UI", () => Svc.PluginInterface.UiBuilder.OpenMainUi -= DrawConfigUI),
+      ("Territory", () => Svc.ClientState.TerritoryChanged -= OnTerritoryChanged),
+      ("Framework", () => Svc.Framework.Update -= OnFrameworkUpdate),
+      ("Logout", () => Svc.ClientState.Logout -= OnLogout),
+      ("Command", () => Svc.Commands.RemoveHandler(CommandName)),
+      ("Alias", () => { if (aliasRegistered) Svc.Commands.RemoveHandler(CommandAlias); }),
+      ("Server bar", () => { housingBar.OnClick = null; housingBar.Remove(); }),
+      ("Windows", () => System.WindowSystem.RemoveAllWindows()),
+      ("Warning UI", () => System.WarningUI.Dispose()),
+      ("Settings UI", () => System.SettingsUI.Dispose())
 #if DEBUG
-    System.DebugUI.Dispose();
+      , ("Debug UI", () => System.DebugUI.Dispose())
 #endif
-    Svc.PluginInterface.UiBuilder.Draw -= DrawUI;
-    Svc.PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
-    Svc.PluginInterface.UiBuilder.OpenMainUi -= DrawConfigUI;
-    Svc.ClientState.TerritoryChanged -= OnTerritoryChanged;
-    Svc.Framework.Update -= OnFrameworkUpdate;
-    Svc.ClientState.Logout -= OnLogout;
-    Svc.Commands.RemoveHandler(CommandName);
-    if (aliasRegistered) Svc.Commands.RemoveHandler(CommandAlias);
+    );
+    foreach (var (step, error) in failures) Svc.Log.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
     ECommons.ECommonsMain.Dispose();
     GC.SuppressFinalize(this);
   }
   private void OnFrameworkUpdate(IFramework framework) {
+    if (disposed) return;
     housingBar.Shown = System.PluginConfig.ShowServerBar;
     System.CachedCurrentPlayerId = System.GetAuthoritativePlayerID();
     if (System.IsLoggedIn && System.GetCurrentPlayerID() is not null &&

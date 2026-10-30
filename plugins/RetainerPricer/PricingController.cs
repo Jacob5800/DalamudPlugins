@@ -133,7 +133,7 @@ internal sealed class PricingController : IDisposable
     public PriceRow? PriceDropReviewItem => index >= Rows.Count && (work is Work.Scan or Work.AutoUpdateAllRetainers)
         ? Rows.FirstOrDefault(row => row.AwaitingPriceDropDecision)
         : null;
-    public bool Busy => work != Work.Idle || PriceIncreaseItem is not null;
+    public bool Busy => work != Work.Idle || PriceIncreaseItem is not null || BelowVendorItem is not null || vendorListing is not null;
     public bool IsListingItemsRunning => work == Work.BatchListing;
     public bool IsBatchSellingOnlyRunning => work == Work.BatchListing && batchSellingOnly;
     public bool IsUpdatingListings => work is Work.Scan or Work.AutoUpdateAllRetainers;
@@ -201,7 +201,12 @@ internal sealed class PricingController : IDisposable
     public void Update()
     {
         var now = DateTimeOffset.UtcNow;
-        if (MateriaWarningItem is not null || PriceIncreaseItem is not null) return;
+        if (vendorListing is not null)
+        {
+            if (now >= nextTick) { nextTick = now.AddMilliseconds(250); TickReviewedVendor(now); }
+            return;
+        }
+        if (MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -515,6 +520,87 @@ internal sealed class PricingController : IDisposable
         Status = $"Checking {target.Name} on {target.Session.WorldName}...";
     }
 
+    private SellItem? vendorListing;
+    private int vendorStage;
+    private DateTimeOffset vendorDeadline;
+    private uint vendorBeforeTotal;
+    private IReadOnlyList<CarriedItemCandidate> vendorBeforeInventory = [];
+    public void VendorReviewedListing()
+    {
+        if (BelowVendorItem is not { } item) return;
+        if (config.DontVendorItemIds.Contains(item.ItemId)) { Status = "Item is protected by Don't vendor; choose Approve or Skip."; return; }
+        if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(item, current))
+        { Cancel("Listing changed before vendor approval."); return; }
+        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var excluded, out _, out var error)) { Status = error; return; }
+        if (excluded.Contains(item.ItemId)) { Status = "Item is protected; no withdrawal or sale submitted."; return; }
+        vendorBeforeInventory = bridge.ReadCarriedInventory(marketableItemIds, new HashSet<uint>(), out _, out _, out error);
+        if (error.Length != 0) { Status = error; return; }
+        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out vendorBeforeTotal, out error)) { Status = error; return; }
+        if (!bridge.TryClosePriceWindows(item, out error)) { Status = error; return; }
+        BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null;
+        vendorListing = item; vendorStage = 1; vendorDeadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        Status = $"Withdrawing {item.Name} for the approved NPC sale...";
+    }
+    private void TickReviewedVendor(DateTimeOffset now)
+    {
+        if (vendorListing is not { } item) return;
+        if (bridge.IsSessionIdentityChanged(item.Session)) { Cancel("Retainer changed; approved vendor operation stopped."); return; }
+        if (now > vendorDeadline) { Cancel("Approved vendor operation timed out. Check inventory and listing before retrying; no automatic retry was sent."); return; }
+        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var excluded, out _, out var error)) { Cancel(error); return; }
+        if (excluded.Contains(item.ItemId) || config.DontVendorItemIds.Contains(item.ItemId)) { Cancel("Item protection changed; vendor operation stopped."); return; }
+        if (vendorStage == 1)
+        {
+            if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible) return;
+            if (!bridge.TryReturnListingToInventory(item, out error)) { Cancel(error); return; }
+            vendorStage = 2; return;
+        }
+        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var total, out error)) return;
+        if (vendorStage == 2)
+        {
+            if (total != (ulong)vendorBeforeTotal + item.Quantity) return;
+            var listings = bridge.ReadExistingListings(out error);
+            if (error.Length != 0 || listings.Any(x => SameListingIdentity(x, item))) return;
+            var inventory = bridge.ReadCarriedInventory(marketableItemIds, new HashSet<uint>(), out _, out _, out error);
+            if (error.Length != 0) return;
+            var returned = inventory.Where(x => x.ItemId == item.ItemId && x.IsHq == item.IsHq && x.Quantity == item.Quantity &&
+                !vendorBeforeInventory.Any(b => b.InventoryType == x.InventoryType && b.Slot == x.Slot && b.ItemId == x.ItemId && b.IsHq == x.IsHq)).ToArray();
+            if (returned.Length != 1) { Cancel("Listing returned, but its stack merged or could not be isolated safely. No NPC sale submitted; check inventory."); return; }
+            if (!bridge.TrySellInventoryItemThroughRetainer(returned[0], item.Session, false, out error)) { Cancel(error); return; }
+            vendorStage = 3; vendorDeadline = now.AddSeconds(15); return;
+        }
+        if (vendorStage == 3 && total == vendorBeforeTotal)
+        {
+            // Withdrawing listings can change subsequent native slots. Stop rather than use stale queued rows.
+            Cancel($"Sold the approved {item.Name} x {item.Quantity} to the NPC. Restart Update existing listings to refresh the remaining listing slots.");
+        }
+    }
+
+    public SellItem? BelowVendorItem { get; private set; }
+    public uint BelowVendorTarget { get; private set; }
+    public uint BelowVendorValue { get; private set; }
+    private (SellItem Item, uint Price)? approvedBelowVendor;
+    private Action? belowVendorProceed, belowVendorSkip;
+    private bool AwaitBelowVendor(SellItem item, uint price, Action proceed, Action skip)
+    {
+        uint vendor = bridge.VendorUnitPrice(item.ItemId, item.IsHq);
+        if (!item.IsExisting || price >= item.CurrentPrice || price >= vendor || approvedBelowVendor == (item, price)) return false;
+        BelowVendorItem = item; BelowVendorTarget = price; BelowVendorValue = vendor;
+        belowVendorProceed = proceed; belowVendorSkip = skip;
+        Status = $"Review {item.Name}: proposed price is below its NPC sale value.";
+        return true;
+    }
+    public void ResolveBelowVendor(bool approve)
+    {
+        if (BelowVendorItem is not { } item) return;
+        var price = BelowVendorTarget;
+        var action = approve ? belowVendorProceed : belowVendorSkip;
+        BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null;
+        if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(item, current))
+        { Cancel("Listing changed while awaiting below-vendor review; no price applied."); return; }
+        if (approve) approvedBelowVendor = (item, price);
+        action?.Invoke();
+    }
+
     public SellItem? PriceIncreaseItem { get; private set; }
     public uint PriceIncreaseTarget { get; private set; }
     private Action? increaseProceed, increaseSkip;
@@ -554,6 +640,8 @@ internal sealed class PricingController : IDisposable
         { Status = $"{workingItem.Name} is protected by Don't reprice. The plugin will not change its existing price."; return; }
         CurrentProposal = Calculate(CurrentSnapshot, workingItem);
         if (!CurrentProposal.CanApply) { Status = CurrentProposal.Error!; return; }
+        if (AwaitBelowVendor(workingItem, CurrentProposal.SuggestedPrice, FillCurrent,
+            () => Status = "Skipped below-vendor price; listing unchanged.")) return;
         if (AwaitPriceIncrease(workingItem, CurrentProposal.SuggestedPrice, FillCurrent,
             () => Status = "Price increase declined; listing left unchanged.")) return;
         Status = bridge.TryFillPrice(workingItem, CurrentProposal.SuggestedPrice, out var error)
@@ -1467,6 +1555,9 @@ internal sealed class PricingController : IDisposable
             {
                 if (workSource == PriceSource.Local && !bridge.TryCloseCompare(workingItem, out var closeError))
                 { Cancel($"Could not close the price comparison before updating {row.Item.Name}: {closeError}"); return; }
+                if (AwaitBelowVendor(workingItem, proposal.SuggestedPrice, () => { }, () => {
+                    row.Proposal = null; row.Status = "Skipped below-vendor price; unchanged";
+                })) return;
                 if (AwaitPriceIncrease(workingItem, proposal.SuggestedPrice, () => { }, () => {
                     row.Proposal = null;
                     row.Status = "Price increase declined; unchanged";
@@ -1986,6 +2077,8 @@ internal sealed class PricingController : IDisposable
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
         if (disposed) return;
+        vendorListing = null; vendorStage = 0; vendorBeforeInventory = [];
+        BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null; approvedBelowVendor = null;
         PriceIncreaseItem = null;
         increaseProceed = increaseSkip = null;
         approvedIncrease = null;

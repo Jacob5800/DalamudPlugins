@@ -180,3 +180,7 @@ Automatic bell visits can run any selected steps, in this order: collect venture
 Desynthesis extracts materia from eligible 100%-spiritbond items first and waits for the spiritbond reset. Existing prompts for retrieving melded materia remain separate. A failed extraction stops without desynthesizing that item.
 
 With **Hold Shift to stop automation** enabled (the default), hold Shift during automation while the retainer picker, retainer menu or selling list is open to stop that run. Submitted actions remain applied. Saved automatic settings stay enabled, but the visit will not restart automatically until the bell interaction ends. Shift outside those retainer menus does not stop automation.
+
+When lowering an existing listing below its NPC sale value, review **Approve this price**, **Vendor item instead**, or **Skip**. Vendor returns the listed stack to carried inventory, verifies it, and uses the retainer NPC-sale action. Item protections and Don't vendor still apply. If it merges into another stack or cannot be isolated, no sale is submitted. A completed vendor sale stops the current update run; restart it to refresh listing slots. This compares per-item prices before market tax.
+
+Shutdown detaches update/UI callbacks before cancelling operations and disposing their dependencies. Cleanup failures are logged per step while remaining cleanup is still attempted. Repeated shutdown calls are ignored. Pending network cancellation may finish asynchronously; this is not a runtime unload guarantee.

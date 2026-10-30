@@ -1,3 +1,8 @@
+## 0.1.2.3
+
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Cancel pending strategy-page downloads when the plugin is disabled.
+
 ## 0.1.2.2
 
 - Fixed FFXIVStrats URL imports by reading the site's strategy API instead of searching the initial HTML. Strategy page titles and share codes are retrieved directly.

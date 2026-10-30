@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
     <PropertyGroup>
         <TargetFramework>net10.0-windows</TargetFramework>
-        <Version>0.3.0.3</Version>
+        <Version>0.3.0.4</Version>
         <Description>Gearing, simplified.</Description>
         <PackageProjectUrl>https://github.com/Jacob5800/DalamudPlugins</PackageProjectUrl>
         <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>
@@ -38,7 +38,7 @@ Automatically syncs gearsets with player inventory</Description>
         <IconUrl>https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png</IconUrl>
         <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
         <IsPackable>false</IsPackable>
-        <Changelog>Fix fight selection to show matching gearsets instead of relabelling current-raid builds. Add a metadata-checked Balance Discord gear index across combat jobs, with historical and community controls, source links and individual set variants. Add DMU, AMR and AAI filters, show fight labels in the unfiltered gearset list, and preserve fight tags when a duplicate build already exists.</Changelog>
+        <Changelog>## 0.3.0.4  - Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls. - Fix the inventory event handler remaining attached after disabling the plugin, guard pending refreshes, and stop queued actions during shutdown. </Changelog>
         <NeutralLanguage>en</NeutralLanguage>
     </PropertyGroup>
 

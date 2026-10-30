@@ -12,6 +12,8 @@ namespace TugOfWar;
 
 public sealed class Plugin : IDalamudPlugin
 {
+    private readonly ShutdownSequence shutdown = new();
+    private volatile bool disposed;
     private const string Command = "/tugofwar";
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly ICommandManager commandManager;
@@ -54,15 +56,18 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        chatGui.ChatMessage -= OnChatMessage;
-        pluginInterface.UiBuilder.Draw -= windowSystem.Draw;
-        pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow;
-        pluginInterface.UiBuilder.OpenConfigUi -= ToggleWindow;
-        commandManager.RemoveHandler(Command);
-        windowSystem.RemoveAllWindows();
+        disposed = true;
+        var failures = shutdown.Run(
+            ("Chat listener", () => { chatGui.ChatMessage -= OnChatMessage; }),
+            ("Draw listener", () => { pluginInterface.UiBuilder.Draw -= windowSystem.Draw; }),
+            ("Main UI listener", () => { pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow; }),
+            ("Config UI listener", () => { pluginInterface.UiBuilder.OpenConfigUi -= ToggleWindow; }),
+            ("Command", () => { commandManager.RemoveHandler(Command); }),
+            ("Windows", () => { windowSystem.RemoveAllWindows(); }));
+        foreach (var (step, error) in failures) log.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
     }
 
-    private void ToggleWindow() => mainWindow.Toggle();
+    private void ToggleWindow() { if (!disposed) mainWindow.Toggle(); }
     private void SaveConfig() => pluginInterface.SavePluginConfig(mainWindow.Config);
 
     private IReadOnlyList<string> ReadPartyMembers()
@@ -97,6 +102,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnChatMessage(IHandleableChatMessage message)
     {
+        if (disposed) return;
         var text = message.Message.TextValue;
         var parsed = MatchEngine.TryReadRandom100(text, out var roll);
         if (message.LogKind != XivChatType.RandomNumber && !parsed) return;

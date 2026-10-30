@@ -1,3 +1,8 @@
+## 9.3.13.4
+
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Keep attempting transfer cancellation and external-plugin setting restoration if another cleanup step fails.
+
 ## 9.3.13.3
 
 - Added a Settings tab inside the /ws menu with the existing Workshoppa options and settings backup controls.

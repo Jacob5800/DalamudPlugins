@@ -29,6 +29,7 @@ namespace BiSplanner.Services
                 while (await reader.WaitToReadAsync(token))
                 {
                     var (taskName, task) = await reader.ReadAsync(token);
+                    token.ThrowIfCancellationRequested();
                     logger.Verbose($"[{taskName}] Executing task");
                     try
                     {
@@ -49,6 +50,7 @@ namespace BiSplanner.Services
 
         public bool Enqueue(string taskName, Action task)
         {
+            if (tokenSource.IsCancellationRequested) return false;
             var count = taskChannel.Reader.CanCount
                 ? $"{taskChannel.Reader.Count}"
                 : "?";
@@ -77,33 +79,13 @@ namespace BiSplanner.Services
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            if (!taskChannel.Writer.TryComplete())
-            {
-                logger.Warning($"Failed to complete task channel writer, force stopping");
-                tokenSource.Cancel();
-                return;
-            }
-
-            // set up a force stop in case the worker loop takes too long
-            var forceStopCancelToken = new CancellationTokenSource();
-            _ = Task.Delay(1000, forceStopCancelToken.Token).ContinueWith(_ =>
-            {
-                logger.Warning($"Cancelling queue worker loop");
-                tokenSource.Cancel();
-            }, forceStopCancelToken.Token);
-
-            // try waiting for the loop to complete all tasks
-            if (workerLoop != null)
-            {
-                logger.Verbose($"Awaiting worker loop completion");
-                await workerLoop;
-            }
-
-            // worker loop exited gracefully, don't force stop
-            forceStopCancelToken.Cancel();
-
-            logger.Verbose($"Queue service complete");
+            // Do not drain queued plugin actions after shutdown starts.
+            taskChannel.Writer.TryComplete();
+            tokenSource.Cancel();
+            if (workerLoop != null) await workerLoop.WaitAsync(cancellationToken);
+            logger.Verbose($"Queue service stopped; queued actions abandoned");
         }
+
     }
 
     public interface IQueueService : IHostedService

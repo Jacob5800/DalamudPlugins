@@ -1,3 +1,8 @@
+## 1.0.8.23
+
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Keep attempting key release and IME restoration even if another shutdown step fails.
+
 ## 1.0.8.22
 
 - Show the once-per-session MGC warning as an on-screen popup that stays open until dismissed.

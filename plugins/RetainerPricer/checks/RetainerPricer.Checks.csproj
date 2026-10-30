@@ -6,9 +6,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ShutdownSequence.cs" Link="ShutdownSequence.cs" />
     <Compile Include="../PricingModels.cs" Link="PricingModels.cs" />
     <Compile Include="../PriceCalculator.cs" Link="PriceCalculator.cs" />
     <Compile Include="../UniversalisClient.cs" Link="UniversalisClient.cs" />
     <Compile Include="../SniperModels.cs" Link="SniperModels.cs" />
+    <Compile Include="../../PortraitAtelier/ShutdownSequence.cs" Link="PortraitAtelierShutdownSequence.cs" />
+    <Compile Include="../../StrategyBoardLibrary/ShutdownSequence.cs" Link="StrategyBoardLibraryShutdownSequence.cs" />
+    <Compile Include="../../TugOfWar/ShutdownSequence.cs" Link="TugOfWarShutdownSequence.cs" />
+    <Compile Include="../../Workshoppa/Workshoppa/ShutdownSequence.cs" Link="WorkshoppaShutdownSequence.cs" />
+    <Compile Include="../../HousingTimeoutReminder/HousingTimeoutReminder/ShutdownSequence.cs" Link="HousingTimeoutReminderShutdownSequence.cs" />
+    <Compile Include="../../TataruBrawler/src/TataruBrawler/ShutdownSequence.cs" Link="TataruBrawlerShutdownSequence.cs" />
+    <Compile Include="../../BiSplanner/BiSplanner/ShutdownSequence.cs" Link="BiSplannerShutdownSequence.cs" />
   </ItemGroup>
 </Project>

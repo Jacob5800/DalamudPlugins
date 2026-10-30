@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.34",
+  "AssemblyVersion": "0.5.1.35",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.34\n\n- Add an enabled-by-default option to stop the current automation run by holding Shift while a retainer menu is open. Automatic runs remain stopped for that bell visit; saved settings are unchanged.\n",
+  "Changelog": "## 0.5.1.35\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n- Add review choices when lowering an existing listing below NPC sale value: approve, vendor instead, or skip. Vendor verifies the returned stack and stops afterward to refresh listing slots.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

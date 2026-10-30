@@ -1,3 +1,3 @@
-## 1.0.5.14
+## 1.0.5.15
 
-- Replaced the palm tree beside HT with the Ishgard building icon.
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.

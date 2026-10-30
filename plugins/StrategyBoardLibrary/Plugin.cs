@@ -7,6 +7,9 @@ namespace StrategyBoardLibrary;
 
 public sealed class Plugin : IDalamudPlugin
 {
+    private readonly ShutdownSequence shutdown = new();
+    private volatile bool disposed;
+    private readonly IPluginLog log;
     private const string Command = "/stratlib";
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly ICommandManager commandManager;
@@ -14,8 +17,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CatalogStore catalog;
     private readonly MainWindow mainWindow;
 
-    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager)
+    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, IPluginLog log)
     {
+        this.log = log;
         this.pluginInterface = pluginInterface;
         this.commandManager = commandManager;
         catalog = new CatalogStore(pluginInterface.GetPluginConfigDirectory());
@@ -32,11 +36,15 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        pluginInterface.UiBuilder.Draw -= windowSystem.Draw;
-        pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow;
-        commandManager.RemoveHandler(Command);
-        windowSystem.RemoveAllWindows();
+        disposed = true;
+        var failures = shutdown.Run(
+            ("Draw listener", () => { pluginInterface.UiBuilder.Draw -= windowSystem.Draw; }),
+            ("Main UI listener", () => { pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow; }),
+            ("Command", () => { commandManager.RemoveHandler(Command); }),
+            ("Pending import", () => { mainWindow.Dispose(); }),
+            ("Windows", () => { windowSystem.RemoveAllWindows(); }));
+        foreach (var (step, error) in failures) log.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
     }
 
-    private void ToggleWindow() => mainWindow.Toggle();
+    private void ToggleWindow() { if (!disposed) mainWindow.Toggle(); }
 }

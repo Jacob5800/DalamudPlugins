@@ -12,6 +12,7 @@ namespace BiSplanner.Services
 {
     public class InventoryItemsService : IInventoryItemsService, IDisposable
     {
+        private volatile bool disposed;
         private readonly ITypedLogger<InventoryItemsService> logger;
         private readonly IFramework framework;
         private readonly IClientState clientState;
@@ -50,9 +51,11 @@ namespace BiSplanner.Services
 
         public void Dispose()
         {
+            if (disposed) return;
+            disposed = true;
             this.clientState.Login -= handleLogin;
             this.clientState.Logout -= handleLogout;
-            this.gameInventory.InventoryChanged -= handleInventoryChanged;
+            this.gameInventory.InventoryChangedRaw -= handleInventoryChanged;
         }
 
         private void handleInventoryChanged(IReadOnlyCollection<InventoryEventArgs> _) =>
@@ -69,10 +72,12 @@ namespace BiSplanner.Services
 
         private void updateInventoryItemsCache()
         {
+            if (disposed) return;
             Dictionary<uint, (InventoryItem Item, int Count)> newCountCache = [];
             List<InventoryItem> newListCache = [];
             var invItemsTask = framework.RunOnFrameworkThread(() =>
             {
+                if (disposed) return;
                 foreach (var source in Constants.InventorySources)
                 {
                     var items = gameInventory.GetInventoryItems(source);

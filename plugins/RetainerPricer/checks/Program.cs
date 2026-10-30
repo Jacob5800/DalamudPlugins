@@ -5,6 +5,67 @@ using System.Text.Json.Nodes;
 using RetainerPricer;
 
 var checks = 0;
+var shutdown = new ShutdownSequence();
+var cleanupOrder = new List<string>();
+var failure = new InvalidOperationException("simulated cancellation failure");
+var cleanupFailures = shutdown.Run(("Stop callbacks", () => cleanupOrder.Add("callbacks")),
+    ("Cancel automation", () => { cleanupOrder.Add("cancel"); throw failure; }),
+    ("Dispose controller", () => cleanupOrder.Add("controller")), ("Remove hooks", () => cleanupOrder.Add("hooks")));
+Assert(cleanupOrder.SequenceEqual(new[] { "callbacks", "cancel", "controller", "hooks" }), "shutdown continues in dependency order after failure");
+Assert(cleanupFailures.Count == 1 && ReferenceEquals(cleanupFailures[0].Error, failure) && cleanupFailures[0].Step == "Cancel automation", "shutdown preserves named failure diagnostics");
+Assert(shutdown.Run(("Repeated cleanup", () => throw new Exception("must not run"))).Count == 0, "repeated shutdown is a no-op");
+var simultaneous = new ShutdownSequence(); int cleanupCount = 0;
+Parallel.For(0, 32, _ => simultaneous.Run(("once", () => Interlocked.Increment(ref cleanupCount))));
+Assert(cleanupCount == 1, "concurrent shutdown executes cleanup once");
+{
+ var helper = new PortraitAtelier.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "PortraitAtelier cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "PortraitAtelier disposal is repeat-safe");
+}
+{
+ var helper = new StrategyBoardLibrary.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "StrategyBoardLibrary cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "StrategyBoardLibrary disposal is repeat-safe");
+}
+{
+ var helper = new TugOfWar.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "TugOfWar cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "TugOfWar disposal is repeat-safe");
+}
+{
+ var helper = new Workshoppa.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "Workshoppa cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "Workshoppa disposal is repeat-safe");
+}
+{
+ var helper = new NekoBoiNick.FFXIV.DalamudPlugin.HousingTimeoutReminder.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "NekoBoiNick.FFXIV.DalamudPlugin.HousingTimeoutReminder cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "NekoBoiNick.FFXIV.DalamudPlugin.HousingTimeoutReminder disposal is repeat-safe");
+}
+{
+ var helper = new TataruBrawler.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "TataruBrawler cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "TataruBrawler disposal is repeat-safe");
+}
+{
+ var helper = new BiSplanner.ShutdownSequence(); int called = 0;
+ var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
+ Assert(errors.Count == 1 && called == 1, "BiSplanner cleanup survives failure");
+ helper.Run(("duplicate", () => called++));
+ Assert(called == 1, "BiSplanner disposal is repeat-safe");
+}
 var now = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
 var own = new HashSet<ulong> { 21, 22 };
 var age = TimeSpan.FromMinutes(15);

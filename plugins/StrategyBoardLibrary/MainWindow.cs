@@ -24,6 +24,9 @@ internal sealed class MainWindow : Window
     private string shareCode = string.Empty;
     private string libraryJson = string.Empty;
     private CatalogEntry? selected;
+    private readonly CancellationTokenSource lifetime = new();
+    private bool disposed;
+    public void Dispose() { if (disposed) return; disposed = true; try { lifetime.Cancel(); } finally { lifetime.Dispose(); pageFetchTask = null; } }
     private Task<PageImportResult>? pageFetchTask;
     private string status = "Paste a share code, or try importing a FFXIVStrats page URL.";
     private bool favoritesOnly;
@@ -39,6 +42,7 @@ internal sealed class MainWindow : Window
 
     public override void Draw()
     {
+        if (disposed) return;
         DrawStatus();
         ImGui.Separator();
         DrawSearch();
@@ -78,7 +82,7 @@ internal sealed class MainWindow : Window
         ImGui.SetNextItemWidth(-130f);
         ImGui.InputTextWithHint("##stratSearch", "Search title, encounter, or tags...", ref search, 256);
         ImGui.SameLine();
-        if (ImGui.Button(favoritesOnly ? "★ Favorites" : "☆ Favorites"))
+        if (ImGui.Button(favoritesOnly ? "â˜… Favorites" : "â˜† Favorites"))
             favoritesOnly = !favoritesOnly;
         if (ImGui.BeginCombo("Folder", string.IsNullOrEmpty(folderFilter) ? "All folders" : folderFilter)) {
             if (ImGui.Selectable("All folders", folderFilter.Length == 0)) folderFilter = "";
@@ -114,7 +118,7 @@ internal sealed class MainWindow : Window
             {
                 ImGui.PushID(entry.Id.ToString("N"));
                 var isSelected = selected?.Id == entry.Id;
-                if (ImGui.Selectable($"{(entry.Favorite ? "★ " : string.Empty)}{entry.Title}##entry", isSelected))
+                if (ImGui.Selectable($"{(entry.Favorite ? "â˜… " : string.Empty)}{entry.Title}##entry", isSelected))
                     selected = entry;
                 ImGui.SameLine(320f);
                 ImGui.TextDisabled(entry.Encounter);
@@ -319,7 +323,7 @@ internal sealed class MainWindow : Window
 
     private void StartPageImport()
     {
-        pageFetchTask = FfxivStratsPageImporter.FetchAsync(sourceUrl);
+        pageFetchTask = FfxivStratsPageImporter.FetchAsync(sourceUrl, lifetime.Token);
         status = "Checking the page for its share code...";
     }
 

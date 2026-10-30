@@ -1,3 +1,7 @@
+## 0.2.0.5
+
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+
 ## 0.2.0.4
 
 - Fixed your own rolls being ignored: "You roll" now identifies your logged-in character.

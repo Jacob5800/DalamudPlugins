@@ -159,6 +159,22 @@ internal sealed class MainWindow : Window
     public override void Draw()
     {
         if (startListingFromShortcut) { startListingFromShortcut = false; RequestListingStart(controller.StartListingItems); }
+        if (controller.BelowVendorItem is { } cheap)
+        {
+            ImGui.OpenPopup("Below NPC sale value");
+            if (ImGui.BeginPopupModal("Below NPC sale value", ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.TextUnformatted($"{cheap.Name} ({(cheap.IsHq ? "HQ" : "NQ")}) x {cheap.Quantity}");
+                ImGui.TextUnformatted($"Current: {cheap.CurrentPrice:N0} | Proposed: {controller.BelowVendorTarget:N0} | NPC: {controller.BelowVendorValue:N0} gil each");
+                if (ImGui.Button("Approve this price")) { controller.ResolveBelowVendor(true); ImGui.CloseCurrentPopup(); }
+                ImGui.SameLine();
+                if (ImGui.Button("Skip")) { controller.ResolveBelowVendor(false); ImGui.CloseCurrentPopup(); }
+                if (ImGui.Button("Vendor item instead")) { controller.VendorReviewedListing(); if (controller.BelowVendorItem is null) ImGui.CloseCurrentPopup(); }
+                ImGui.TextWrapped("Vendor withdraws this stack and sells it through the retainer, then stops the run so remaining listing slots can be refreshed. Don't vendor and item protections still apply.");
+                ImGui.TextWrapped(controller.Status);
+                ImGui.EndPopup();
+            }
+        }
         if (controller.PriceIncreaseItem is { } increasing)
         {
             ImGui.OpenPopup("Confirm listing price increase");

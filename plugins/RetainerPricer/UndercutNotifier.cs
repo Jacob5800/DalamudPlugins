@@ -7,6 +7,7 @@ internal sealed class UndercutNotifier : IDisposable
 {
     private readonly UniversalisClient client;
     private readonly PluginConfig config;
+    private bool disposed;
     private readonly CancellationTokenSource lifetime = new();
     private Task<(List<UndercutRow> Rows, string Status)>? pending;
     private HashSet<(ulong, uint, bool, uint)> alerted = [];
@@ -41,6 +42,7 @@ internal sealed class UndercutNotifier : IDisposable
     // Called on the framework thread; only copied data is read by the async request worker.
     public void Update(MarketWorld? world, bool paused, Action<UndercutRow> notify)
     {
+        if (disposed) return;
         if (world is null || paused)
         {
             scanCancellation?.Cancel();
@@ -83,7 +85,7 @@ internal sealed class UndercutNotifier : IDisposable
             }).ToArray();
         if (snapshots.Length == 0) { Status = "No saved listings. Refresh all retainer listings first."; nextCheck = DateTimeOffset.UtcNow.AddSeconds(60); return; }
         nextCheck = DateTimeOffset.UtcNow.AddSeconds(60);
-        Status = "Checking selected market scope with Universalis…";
+        Status = "Checking selected market scope with Universalisâ€¦";
         pendingWorld = world.WorldId;
         scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         pending = Scan(world, config.UndercutMarketScope, snapshots, config.UniversalisRetainerListings.Keys.ToHashSet(), scanCancellation.Token);
@@ -124,8 +126,16 @@ internal sealed class UndercutNotifier : IDisposable
             catch (OperationCanceledException) { break; }
             catch (Exception) { failed++; }
         }
-        return (rows, $"Last check {DateTimeOffset.Now:HH:mm:ss} · {rows.Count} undercut listing(s) · {failed} item check(s) unavailable. Checks repeat every 60 seconds.");
+        return (rows, $"Last check {DateTimeOffset.Now:HH:mm:ss} Â· {rows.Count} undercut listing(s) Â· {failed} item check(s) unavailable. Checks repeat every 60 seconds.");
     }
 
-    public void Dispose() { lifetime.Cancel(); scanCancellation?.Dispose(); lifetime.Dispose(); }
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true; ManualWatching = WatchingWithSniper = false; pending = null;
+        var failures = new ShutdownSequence().Run(("Scan cancellation", () => scanCancellation?.Cancel()),
+            ("Lifetime cancellation", lifetime.Cancel), ("Scan disposal", () => scanCancellation?.Dispose()),
+            ("Lifetime disposal", lifetime.Dispose));
+        if (failures.Count > 0) throw new AggregateException(failures.Select(x => x.Error));
+    }
 }

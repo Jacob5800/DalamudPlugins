@@ -4,7 +4,7 @@
   "Punchline": "Better Company Workshop Turn-In",
   "Description": "Dalamud API 15 continuation of Workshoppa. Automates workshop material turn-ins, offers retainer deposits with item exclusions, and can skip cutscenes between production phases.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-  "Changelog": "## 9.3.13.3\n\n- Added a Settings tab inside the /ws menu with the existing Workshoppa options and settings backup controls.\n",
-  "AssemblyVersion": "9.3.13.3",
+  "Changelog": "## 9.3.13.4\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n- Keep attempting transfer cancellation and external-plugin setting restoration if another cleanup step fails.\n",
+  "AssemblyVersion": "9.3.13.4",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/Workshoppa/images/icon.png"
 }

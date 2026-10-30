@@ -1,3 +1,4 @@
-## 0.5.1.34
+## 0.5.1.35
 
-- Add an enabled-by-default option to stop the current automation run by holding Shift while a retainer menu is open. Automatic runs remain stopped for that bell visit; saved settings are unchanged.
+- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Add review choices when lowering an existing listing below NPC sale value: approve, vendor instead, or skip. Vendor verifies the returned stack and stops afterward to refresh listing slots.

@@ -17,8 +17,10 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
     private string status = "Loading home prices...";
     public string Diagnostics { get; private set; } = "Open marketboard search results to inspect ROI.";
 
+    private bool disposed;
     public unsafe void Draw()
     {
+        if (disposed) return;
         if (request is { IsCompleted: true })
         {
             if (request.IsCompletedSuccessfully) { snapshot = request.Result; status = ""; }
@@ -93,5 +95,5 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
         }
         Diagnostics = $"ROI: item={id}; list rows={list->ListLength}; listings={proxy->ListingCount}; visible={visible}; labels={shown}; native loading={proxy->WaitingForListings}; home prices={(matching ? "ready" : status)}";
     }
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public void Dispose() { if (disposed) return; disposed = true; try { lifetime.Cancel(); } finally { lifetime.Dispose(); request = null; } }
 }

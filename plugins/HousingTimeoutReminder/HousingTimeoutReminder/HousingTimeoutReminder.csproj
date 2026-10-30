@@ -33,7 +33,7 @@
 
   <PropertyGroup Label="Feature">
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <Version>1.0.5.14</Version>
+    <Version>1.0.5.15</Version>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -18,6 +18,7 @@ namespace TataruBrawler;
 
 public sealed class Plugin : IDalamudPlugin, IDisposable
 {
+	private readonly ShutdownSequence disposal = new();
 	private const string Command = "/tatarubrawler";
 
 	private readonly IDalamudPluginInterface pi;
@@ -209,6 +210,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void Open()
 	{
+        if (disposed) return;
 		open = true;
 	}
 
@@ -271,6 +273,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void Update(IFramework _)
 	{
+        if (disposed) return;
 		lock (executionGate)
 		{
 			UpdateCore();
@@ -848,6 +851,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
     private void Draw()
     {
+        if (disposed) return;
         uiCaptures = ImGui.GetIO().WantTextInput || ImGui.IsAnyItemActive();
         if (stopping) return;
         DrawMgcPopup();
@@ -1228,23 +1232,26 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
 	}
 
 	public void Dispose()
-	{
-		if (!disposed)
-		{
-			disposed = true;
-			serverBarEntry.Remove();
-			Stop();
-			framework.Update -= Update;
-			pi.UiBuilder.Draw -= Draw;
-			pi.UiBuilder.OpenMainUi -= Open;
-			pi.UiBuilder.OpenConfigUi -= Open;
-			client.Logout -= Logout;
-			commands.RemoveHandler("/tatarubrawler");
-			shutdown.Dispose();
-			unload.Dispose();
-			settings.Dispose();
-			fonts.Dispose();
-			reader.Clear();
-		}
-	}
+    {
+        disposed = true;
+        var failures = disposal.Run(
+            ("Framework", () => framework.Update -= Update),
+            ("Draw", () => pi.UiBuilder.Draw -= Draw),
+            ("Main UI", () => pi.UiBuilder.OpenMainUi -= Open),
+            ("Config UI", () => pi.UiBuilder.OpenConfigUi -= Open),
+            ("Logout", () => client.Logout -= Logout),
+            ("Command", () => commands.RemoveHandler("/tatarubrawler")),
+            ("Server bar", () => serverBarEntry.Remove()),
+            ("Game shutdown registration", shutdown.Dispose),
+            ("Dalamud unload registration", unload.Dispose),
+            ("Stop automation", Stop),
+            ("Release background keys", () => backgroundKeys.Release(force: true)),
+            ("Release keyboard", () => Keyboard.Release(force: true)),
+            ("Restore IME", ime.Restore),
+            ("Diagnostics", diagnostics.Dispose),
+            ("Settings", settings.Dispose),
+            ("Fonts", fonts.Dispose),
+            ("Reader", reader.Clear));
+        foreach (var (step, error) in failures) log.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
+    }
 }

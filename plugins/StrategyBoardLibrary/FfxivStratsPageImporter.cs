@@ -13,7 +13,7 @@ internal static class FfxivStratsPageImporter
     private static readonly HttpClient Client = CreateClient();
     private const int MaximumPageBytes = 3_000_000;
 
-    public static async Task<PageImportResult> FetchAsync(string rawUrl)
+    public static async Task<PageImportResult> FetchAsync(string rawUrl, CancellationToken cancellationToken = default)
     {
         if (!TryGetAllowedUri(rawUrl, out var uri))
         {
@@ -27,7 +27,7 @@ internal static class FfxivStratsPageImporter
         {
             for (var redirectCount = 0; redirectCount <= 3; redirectCount++)
             {
-                using var response = await Client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                using var response = await Client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (IsRedirect(response.StatusCode))
                 {
                     if (redirectCount == 3 || response.Headers.Location is null
@@ -43,12 +43,12 @@ internal static class FfxivStratsPageImporter
                 if (response.Content.Headers.ContentLength is > MaximumPageBytes)
                     return new PageImportResult(null, null, "That page is too large to inspect safely.");
 
-                await using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
                 using var output = new MemoryStream();
                 var buffer = new byte[16 * 1024];
                 while (true)
                 {
-                    var read = await input.ReadAsync(buffer).ConfigureAwait(false);
+                    var read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                     if (read == 0)
                         break;
                     if (output.Length + read > MaximumPageBytes)

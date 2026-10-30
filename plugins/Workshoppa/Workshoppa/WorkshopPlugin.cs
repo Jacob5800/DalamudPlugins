@@ -33,6 +33,8 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
     private readonly IClientState _clientState;
     private readonly IObjectTable _objectTable;
     private readonly ICommandManager _commandManager;
+    private readonly ShutdownSequence shutdown = new();
+    private volatile bool disposed;
     private readonly IPluginLog _pluginLog;
     private readonly IAddonLifecycle _addonLifecycle;
     private readonly IChatGui _chatGui;
@@ -171,6 +173,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     private void FrameworkUpdate(IFramework framework)
     {
+        if (disposed) return;
         _serverBar.Shown = _configuration.ShowServerBar;
         _retainerDepositWindow.UpdateRetainerWindowState();
         _retainerDepositWindow.UpdateTransfer();
@@ -342,28 +345,27 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     public void Dispose()
     {
-        _serverBar.Remove();
-        _serverBar.Dispose();
-        _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, "ContextIconMenu",
-            _addonEventHandler.ContextIconMenuPostReceiveEvent);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "Request", _addonEventHandler.RequestPostRefresh);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "Request", _addonEventHandler.RequestPostSetup);
-        _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno",
-            _addonEventHandler.SelectYesNoPostSetup);
-        _commandManager.RemoveHandler("/fill-tanks");
-        _commandManager.RemoveHandler("/buy-tanks");
-        _commandManager.RemoveHandler("/workshoppa");
-        _commandManager.RemoveHandler("/ws");
-        _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
-        _pluginInterface.UiBuilder.OpenConfigUi -= _configWindow.Toggle;
-        _pluginInterface.UiBuilder.OpenMainUi -= OpenMainUi;
-        _framework.Update -= FrameworkUpdate;
-
-        _ceruleumTankWindow.Dispose();
-        _repairKitWindow.Dispose();
-        _retainerDepositWindow.StopTransfer();
-
-        _externalPluginHandler.RestoreTextAdvance();
-        _externalPluginHandler.Restore();
+        disposed = true;
+        var failures = shutdown.Run(
+            ("Framework", () => _framework.Update -= FrameworkUpdate),
+            ("Draw", () => _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw),
+            ("Config UI", () => _pluginInterface.UiBuilder.OpenConfigUi -= _configWindow.Toggle),
+            ("Main UI", () => _pluginInterface.UiBuilder.OpenMainUi -= OpenMainUi),
+            ("Context listener", () => _addonLifecycle.UnregisterListener(AddonEvent.PostUpdate, "ContextIconMenu", _addonEventHandler.ContextIconMenuPostReceiveEvent)),
+            ("Request refresh", () => _addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "Request", _addonEventHandler.RequestPostRefresh)),
+            ("Request setup", () => _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "Request", _addonEventHandler.RequestPostSetup)),
+            ("Yes/no listener", () => _addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno", _addonEventHandler.SelectYesNoPostSetup)),
+            ("Fill command", () => _commandManager.RemoveHandler("/fill-tanks")),
+            ("Buy command", () => _commandManager.RemoveHandler("/buy-tanks")),
+            ("Main command", () => _commandManager.RemoveHandler("/workshoppa")),
+            ("Alias", () => _commandManager.RemoveHandler("/ws")),
+            ("Server bar", () => _serverBar.Remove()),
+            ("Server bar disposal", () => _serverBar.Dispose()),
+            ("Retainer transfer", () => _retainerDepositWindow.StopTransfer()),
+            ("Tank window", _ceruleumTankWindow.Dispose),
+            ("Repair window", _repairKitWindow.Dispose),
+            ("TextAdvance restoration", _externalPluginHandler.RestoreTextAdvance),
+            ("External settings restoration", _externalPluginHandler.Restore));
+        foreach (var (step, error) in failures) _pluginLog.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
     }
 }

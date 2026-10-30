@@ -102,8 +102,10 @@ namespace BiSplanner.Services.Gearsets
                 scheduleGearsetsChange(updateAssignments: true);
         }
 
+        private volatile bool stopping;
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            stopping = true;
             // updating gearset data per framework update
             framework.Update -= onUpdate;
 

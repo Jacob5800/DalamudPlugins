@@ -38,6 +38,7 @@ internal sealed class SniperMonitor : IDisposable
     private sealed record HistoryScanSummary(int EligibleItems, IReadOnlyList<string> FailedBatches,
         string? FatalError = null, int FailedItems = 0);
 
+    private bool disposed;
     private readonly object gate = new();
     private readonly SemaphoreSlim historyVerificationGate = new(1, 1);
     private bool verifyingCandidate;
@@ -70,6 +71,7 @@ internal sealed class SniperMonitor : IDisposable
     {
         lock (gate)
         {
+            if (disposed) return;
             if (initialScanRunning || cancellation is null || failedHistoryItemCount == 0 || retryFailedHistory is null) return;
             initialScanRunning = true;
             initialScanProgress = "Retrying failed history items…";
@@ -139,7 +141,7 @@ internal sealed class SniperMonitor : IDisposable
         CancellationTokenSource run;
         lock (gate)
         {
-            if (cancellation is not null) return;
+            if (disposed || cancellation is not null) return;
             cancellation = run = new CancellationTokenSource();
             worldOnlyRun = !useDataCenter && !useRegion;
             activeMarketScope = useRegion ? 2 : useDataCenter ? 1 : 0;
@@ -765,5 +767,9 @@ internal sealed class SniperMonitor : IDisposable
         lock (gate) status = value;
     }
 
-    public void Dispose() => Stop();
+    public void Dispose()
+    {
+        lock (gate) { if (disposed) return; disposed = true; retryFailedHistory = null; }
+        Stop();
+    }
 }

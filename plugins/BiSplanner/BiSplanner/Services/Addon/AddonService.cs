@@ -145,32 +145,23 @@ namespace BiSplanner.Services.Addon
         private unsafe void unregisterListeners()
         {
             debugService.AssertMainThreadDebug();
-
-            try
-            {
-                if (IsEnabled) // only perform these if it is enabled
-                {
-                    gearsetsService.OnGearsetsChange -= handleUpdateHighlightColor;
-                    configurationService.OnConfigurationChange -= handleUpdateHighlightColor;
-                    addonLifecycle.UnregisterListener(handlePreFinalize);
-                    unregisterAddonListeners();
-                }
-                unmarkNodes();
-                destroyNodes();
-
-                IsEnabled = false;
-                logger.Verbose($"Unregistered listeners");
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, $"Failed to unregister listeners");
-            }
+            var wasEnabled = IsEnabled;
+            IsEnabled = false;
+            var failures = new BiSplanner.ShutdownSequence().Run(
+                ("Gearset listener", () => { if (wasEnabled) gearsetsService.OnGearsetsChange -= handleUpdateHighlightColor; }),
+                ("Configuration listener", () => { if (wasEnabled) configurationService.OnConfigurationChange -= handleUpdateHighlightColor; }),
+                ("Finalize listener", () => { if (wasEnabled) addonLifecycle.UnregisterListener(handlePreFinalize); }),
+                ("Addon listeners", () => { if (wasEnabled) unregisterAddonListeners(); }),
+                ("Restore marked nodes", () => unmarkNodes()),
+                ("Destroy custom nodes", destroyNodes));
+            foreach (var (step, error) in failures) logger.Error(error, $"Failed to disable {AddonName}: {step}; remaining cleanup attempted.");
         }
 
         private unsafe void handleUpdateHighlightColor()
         {
             framework.RunOnFrameworkThread(() =>
             {
+                if (!IsEnabled) return;
                 if (AddonPtr.IsNull && highlightedNodes.Count > 0)
                     throw new Exception($"Addon \"{AddonName}\" is not loaded, cannot update \"{highlightedNodes.Count}\" node highlight colors");
 

@@ -9,6 +9,9 @@ namespace PortraitAtelier;
 
 public sealed class Plugin : IDalamudPlugin
 {
+    private readonly ShutdownSequence shutdown = new();
+    private volatile bool disposed;
+    private readonly IPluginLog log;
     private const string Command = "/portraitatelier";
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly ICommandManager commandManager;
@@ -17,8 +20,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly MainWindow mainWindow;
     private readonly Dalamud.Game.Gui.Dtr.IDtrBarEntry serverBar;
 
-    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, ICondition condition, IGameGui gameGui, IDataManager dataManager, IDtrBar dtrBar)
+    public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, ICondition condition, IGameGui gameGui, IDataManager dataManager, IDtrBar dtrBar, IPluginLog log)
     {
+        this.log = log;
         this.pluginInterface = pluginInterface;
         this.commandManager = commandManager;
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
@@ -41,14 +45,17 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        pluginInterface.UiBuilder.Draw -= windowSystem.Draw;
-        pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow;
-        commandManager.RemoveHandler(Command);
-        windowSystem.RemoveAllWindows();
-        serverBar.Remove();
+        disposed = true;
+        var failures = shutdown.Run(
+            ("Draw listener", () => { pluginInterface.UiBuilder.Draw -= windowSystem.Draw; }),
+            ("Main UI listener", () => { pluginInterface.UiBuilder.OpenMainUi -= ToggleWindow; }),
+            ("Command", () => { commandManager.RemoveHandler(Command); }),
+            ("Windows", () => { windowSystem.RemoveAllWindows(); }),
+            ("Server bar", () => { serverBar.OnClick = null; serverBar.Remove(); }));
+        foreach (var (step, error) in failures) log.Error(error, "Shutdown cleanup failed: {Step}; remaining cleanup attempted.", step);
     }
 
-    private void ToggleWindow() => mainWindow.Toggle();
+    private void ToggleWindow() { if (!disposed) mainWindow.Toggle(); }
 
     private void SaveConfig()
     {
