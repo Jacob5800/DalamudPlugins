@@ -4,6 +4,7 @@ namespace TataruBrawler;
 
 public sealed class Configuration
 {
+	public bool ShowDutyButton { get; set; } = true;
 	public bool AutoLeaveDuty { get; set; }
 	public bool AutoCommencePartyMember { get; set; }
 

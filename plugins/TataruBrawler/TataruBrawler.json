@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.19",
+  "AssemblyVersion": "1.0.8.20",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Keybound Automation interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "## 1.0.8.19\n\n- Add optional automatic Keybound Brawler commencement for party members who are not the leader, disabled by default.\n- Check completed-duty exits every framework update for automatic leaving and active loops, removing the previous 200 ms polling delay.\n",
+  "Changelog": "## 1.0.8.20\n\n- Add an optional floating keyboard button inside Keybound duty to reopen the interface while the game UI is hidden.\n- Fix party auto-commence when the leader is out of view or a loop is active, and match duty names without case sensitivity.\n",
   "IsHide": false,
   "IsTestingExclusive": false
 }

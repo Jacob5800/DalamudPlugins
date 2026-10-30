@@ -1,3 +1,8 @@
+## 1.0.8.20
+
+- Add an optional floating keyboard button inside Keybound duty to reopen the interface while the game UI is hidden.
+- Fix party auto-commence when the leader is out of view or a loop is active, and match duty names without case sensitivity.
+
 ## 1.0.8.19
 
 - Add optional automatic Keybound Brawler commencement for party members who are not the leader, disabled by default.

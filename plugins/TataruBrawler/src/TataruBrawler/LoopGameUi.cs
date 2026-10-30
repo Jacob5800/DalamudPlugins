@@ -81,7 +81,7 @@ internal sealed class LoopGameUi
 
 	private unsafe bool MatchingConfirmation(AddonContentsFinderConfirm* confirm)
 	{
-		if (Visible((AtkUnitBase*)confirm) && Text(confirm->AtkTextNode230).Trim() == dutyName)
+		if (Visible((AtkUnitBase*)confirm) && dutyName.Length > 0 && string.Equals(Text(confirm->AtkTextNode230).Trim(), dutyName.Trim(), StringComparison.OrdinalIgnoreCase))
 		{
 			return Ready(confirm->CommenceButton);
 		}

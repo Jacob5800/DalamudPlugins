@@ -62,6 +62,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 	private readonly ICondition condition;
     private readonly IObjectTable objects;
     private readonly IPartyList party;
+    private readonly IPlayerState playerState;
     private long partyCommenceDue;
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
@@ -118,7 +119,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool autoQueueVisitArmed = true;
 
-	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party)
+	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState)
 	{
 		Plugin plugin = this;
 		this.pi = pi;
@@ -130,6 +131,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		this.condition = condition;
         this.objects = objects;
         this.party = party;
+        this.playerState = playerState;
         this.chat = chat;
         rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
@@ -323,6 +325,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
+        pi.UiBuilder.DisableAutomaticUiHide = config.ShowDutyButton && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory;
+        pi.UiBuilder.DisableUserUiHide = pi.UiBuilder.DisableAutomaticUiHide;
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
             chat.Print("[Keybound Automation] " + warning.Message);
@@ -577,14 +581,14 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
     private void UpdatePartyCommence(long now)
     {
-        if (!config.AutoCommencePartyMember || !client.IsLoggedIn || loop.Active
+        if (!config.AutoCommencePartyMember || !client.IsLoggedIn
             || party.Length < 2 || now < partyCommenceDue
             || condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) return;
-        var local = objects.LocalPlayer;
+        ulong localId = playerState.ContentId;
         int leaderIndex = (int)party.PartyLeaderIndex;
-        if (local == null || leaderIndex < 0 || leaderIndex >= party.Length) return;
-        var leader = party[leaderIndex]?.GameObject;
-        if (leader == null || leader.GameObjectId == local.GameObjectId || !loopUi.EntryReady) return;
+        if (localId == 0 || leaderIndex < 0 || leaderIndex >= party.Length) return;
+        var leader = party[leaderIndex];
+        if (leader == null || leader.ContentId == 0 || leader.ContentId == localId || !loopUi.EntryReady) return;
         partyCommenceDue = now + 1000;
         loopUi.Execute(LoopAction.Accept, client.TerritoryType);
     }
@@ -833,7 +837,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private void Draw()
     {
         uiCaptures = ImGui.GetIO().WantTextInput || ImGui.IsAnyItemActive();
-        if (stopping || !open) return;
+        if (stopping) return;
+        DrawDutyButton();
+        if (!open) return;
         fonts.Ensure(reader.Words.Append(typing.CurrentWord));
         using (fonts.Push(config.Language))
         {
@@ -841,6 +847,24 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                 T(typing.Status), typing.CurrentWord,
                 DrawBrawl, DrawSettingsPage, DrawDiagnostics, DrawChangelog, DrawAbout, DrawPlayback);
         }
+    }
+
+    private void DrawDutyButton()
+    {
+        if (!config.ShowDutyButton || !client.IsLoggedIn || client.TerritoryType != LoopGameUi.GameTerritory) return;
+        ImGui.SetNextWindowPos(new Vector2(20, 180), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowBgAlpha(.85f);
+        if (ImGui.Begin("Keybound duty button", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoScrollbar))
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.3f, .8f, .82f, 1));
+            bool clicked;
+            using (pi.UiBuilder.IconFontHandle.Push())
+                clicked = ImGui.Button(FontAwesomeIcon.Keyboard.ToIconString());
+            ImGui.PopStyleColor();
+            if (clicked) open = !open;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Open / close Keybound Automation. Drag this button to reposition it.");
+        }
+        ImGui.End();
     }
 
     private void DrawBrawl()
@@ -1076,6 +1100,9 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
             settings.Update(config);
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Experimental: insert the entire answer into Keybound's own field and submit it once. Off by default. Will wait if the field already contains text; clear it before switching modes.");
+        bool dutyButton = config.ShowDutyButton;
+        if (Interface.AutomationShell.Toggle("Show floating keyboard button inside Keybound duty", ref dutyButton))
+        { config.ShowDutyButton = dutyButton; settings.Update(config); }
         bool commenceParty = config.AutoCommencePartyMember;
         if (Interface.AutomationShell.Toggle("Auto commence Keybound Brawler as a party member", ref commenceParty))
         { config.AutoCommencePartyMember = commenceParty; settings.Update(config); }
