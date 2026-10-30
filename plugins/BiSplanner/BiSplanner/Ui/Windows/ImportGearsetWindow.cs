@@ -60,6 +60,8 @@ public class ImportGearsetWindow : Window, IDisposable
         this.debugService = debugService;
     }
 
+    private int skippedDuplicates;
+
     private async Task ImportNewGearsets()
     {
         try
@@ -75,6 +77,7 @@ public class ImportGearsetWindow : Window, IDisposable
             var importResult = await gearsetsService.AddGearsetsFromSource(gearsetSourceType, gearsetSourceString);
             gearsetSourceString = string.Empty;
             importStatus = importResult.StatusType;
+            skippedDuplicates = importResult.SkippedDuplicates;
             importedGearsetCount = importResult.Gearsets != null ? importResult.Gearsets.Count : -1;
         }
         catch (Exception ex)
@@ -97,11 +100,14 @@ public class ImportGearsetWindow : Window, IDisposable
         importStatus = null;
         importLoading = false;
         importedGearsetCount = -1;
+        skippedDuplicates = 0;
     }
 
     public override void Draw()
     {
         debugService.AssertMainThreadDebug();
+        if (skippedDuplicates > 0)
+            ImGui.TextWrapped($"Skipped {skippedDuplicates} duplicate set(s) with identical gear and materia.");
 
         if (clientState.IsLoggedIn)
             drawLoggedIn();

@@ -36,6 +36,7 @@ namespace BiSplanner.ItemAssignment
                         if (gearpiece.IsCollected)
                             updatedGearpieces.Add(gearpiece);
 
+                        gearpiece.ObservedMateriaIds = null;
                         gearpiece.IsCollected = false;
                         continue;
                     }
@@ -46,6 +47,7 @@ namespace BiSplanner.ItemAssignment
                         if (!gearpiece.IsCollected)
                             updatedGearpieces.Add(gearpiece);
 
+                        gearpiece.ObservedMateriaIds = assignment.ItemMateria.ToArray();
                         gearpiece.ItemMateria.MeldMultipleMateria(assignment.ItemMateria);
                         gearpiece.IsCollected = true;
                         continue;

@@ -318,6 +318,7 @@ namespace BiSplanner.Ui.Renderers.Components
                 ImGui.SetCursorPos(materiaStartPos);
 
                 var materiaSlotCount = itemDataService.GetItemMateriaSlotCount(gearpiece.ItemId).Normal;
+                var wrongMateria = gearpiece.GetWrongMateria();
                 foreach (var (idx, materia) in gearpiece.ItemMateria.Index())
                 {
                     using (ImRaii.PushId(idx))
@@ -329,7 +330,10 @@ namespace BiSplanner.Ui.Renderers.Components
                             materiaSize,
                             isAdvancedMelding,
                             materia.CollectionStatus,
-                            materia.StatStrength
+                            wrongMateria.TryGetValue(idx, out var actualMateria)
+                                ? $"Wrong materia: {itemDataService.GetItemNameById(actualMateria)}.\nRequired: {materia.ItemName} ({materia.StatStrength}).\nMateria order does not matter; matching melds are already accepted."
+                                : materia.StatStrength,
+                            wrongMateria.ContainsKey(idx)
                             );
                     }
                 }

@@ -56,6 +56,28 @@ namespace BiSplanner.Gear
         }
         public MateriaGroup ItemMateria { get; init; }
 
+        // Runtime observation from the exact inventory copy chosen by the assignment solver.
+        public IReadOnlyList<uint>? ObservedMateriaIds { get; set; }
+
+        public Dictionary<int, uint> GetWrongMateria()
+        {
+            var wrong = new Dictionary<int, uint>();
+            if (ObservedMateriaIds is null || !IsCollected)
+                return wrong;
+
+            var remaining = ObservedMateriaIds.Where(id => id != 0).ToList();
+            var missing = new List<int>();
+            foreach (var (index, required) in ItemMateria.Index())
+            {
+                // Consume matching types first, independent of physical meld order.
+                if (!remaining.Remove(required.ItemId))
+                    missing.Add(index);
+            }
+            for (var i = 0; i < Math.Min(missing.Count, remaining.Count); i++)
+                wrong[missing[i]] = remaining[i];
+            return wrong;
+        }
+
         public Gearpiece(
             ITypedLogger<Gearpiece> logger,
             uint itemId,

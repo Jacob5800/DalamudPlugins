@@ -230,7 +230,8 @@ namespace BiSplanner.Ui.Renderers.Components
             float diameter,
             bool isAdvanced,
             CollectionStatusType collectionStatus,
-            string? materiaTooltip = null
+            string? materiaTooltip = null,
+            bool wrongMateria = false
             )
         {
             var drawList = ImGui.GetWindowDrawList();
@@ -241,11 +242,17 @@ namespace BiSplanner.Ui.Renderers.Components
 
             var (materiaColor, _) = uiTheme.GetCollectionStatusTheme(collectionStatus);
 
+            if (wrongMateria)
+            {
+                materiaColor = new Vector4(1f, 0.8f, 0.1f, 1f);
+                edgeCol = ImGui.GetColorU32(materiaColor);
+            }
+
             var radius = diameter / 2;
             var circleSize = new Vector2(diameter, diameter);
             var circlePos = cursorPos + circleSize / 2;
 
-            if (collectionStatus >= CollectionStatusType.ObtainedPartial)
+            if (wrongMateria || collectionStatus >= CollectionStatusType.ObtainedPartial)
             {
                 var innerCol = ImGui.GetColorU32(materiaColor * MateriaFillColorMult);
                 drawList.AddCircleFilled(circlePos, radius, innerCol);

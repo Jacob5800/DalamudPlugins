@@ -144,12 +144,39 @@ namespace BiSplanner.Services.Gearsets
                 return importResult;
 
             if (importResult.Gearsets is List<Gearset> gearsetsToAdd)
-                addGearsets(gearsetsToAdd);
+            {
+                var fingerprints = CurrentGearsets.Select(ContentFingerprint).ToHashSet();
+                var names = CurrentGearsets.Select(set => set.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var unique = new List<Gearset>();
+                foreach (var set in gearsetsToAdd)
+                {
+                    if (!fingerprints.Add(ContentFingerprint(set)))
+                    {
+                        importResult.SkippedDuplicates++;
+                        continue;
+                    }
+                    var originalName = set.Name;
+                    var suffix = 1;
+                    while (!names.Add(set.Name))
+                        set.Name = $"{originalName} ({suffix++})";
+                    unique.Add(set);
+                }
+                importResult.Gearsets = unique;
+                if (unique.Count > 0)
+                    addGearsets(unique);
+            }
             else
                 logger.Error($"Tried to add null gearsets from source");
 
             return importResult;
         }
+
+        private static string ContentFingerprint(Gearset set) =>
+            // Names, URLs and meld slot order do not identify a distinct build.
+            set.ClassJobAbbreviation + ":" + string.Join(";", set.Gearpieces
+                .Select(piece => $"{piece.GearpieceType}:{piece.ItemId}:" +
+                    string.Join(",", piece.ItemMateria.Select(m => m.ItemId).Order()))
+                .Order(StringComparer.Ordinal));
 
         private void addGearsets(IEnumerable<Gearset> gearsetsToAdd)
         {
