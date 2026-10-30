@@ -1,3 +1,8 @@
+## 1.0.8.19
+
+- Add optional automatic Keybound Brawler commencement for party members who are not the leader, disabled by default.
+- Check completed-duty exits every framework update for automatic leaving and active loops, removing the previous 200 ms polling delay.
+
 ## 1.0.8.18
 
 - Added Automatically leave duty when finished, disabled by default.

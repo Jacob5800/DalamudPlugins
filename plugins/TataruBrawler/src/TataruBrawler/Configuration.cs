@@ -5,6 +5,7 @@ namespace TataruBrawler;
 public sealed class Configuration
 {
 	public bool AutoLeaveDuty { get; set; }
+	public bool AutoCommencePartyMember { get; set; }
 
     public bool IllegalMode { get; set; }
     public bool SkipOptionalPunctuation { get; set; }

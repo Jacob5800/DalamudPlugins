@@ -8,11 +8,11 @@ namespace TataruBrawler;
 
 public sealed class ConfigurationStore : IDisposable
 {
-	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode, bool AutoLeaveDuty)
+	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode, bool AutoLeaveDuty, bool AutoCommencePartyMember)
 	{
 		public static Snapshot From(Configuration c)
 		{
-			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode, c.AutoLeaveDuty);
+			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode, c.AutoLeaveDuty, c.AutoCommencePartyMember);
 		}
 
 		public Configuration ToConfig()
@@ -35,7 +35,8 @@ public sealed class ConfigurationStore : IDisposable
                 WarnMgcCap = WarnMgcCap,
                 MgcWarningPercent = MgcWarningPercent,
                 IllegalMode = IllegalMode,
-                AutoLeaveDuty = AutoLeaveDuty
+                AutoLeaveDuty = AutoLeaveDuty,
+                AutoCommencePartyMember = AutoCommencePartyMember
 			};
 		}
 	}
@@ -191,6 +192,7 @@ public sealed class ConfigurationStore : IDisposable
                 Configuration.MgcWarningPercent = configuration.MgcWarningPercent;
                 Configuration.IllegalMode = configuration.IllegalMode;
                 Configuration.AutoLeaveDuty = configuration.AutoLeaveDuty;
+                Configuration.AutoCommencePartyMember = configuration.AutoCommencePartyMember;
 				current = Snapshot.From(configuration);
 			}
 			failures = 0;

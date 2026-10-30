@@ -61,6 +61,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private readonly ICondition condition;
     private readonly IObjectTable objects;
+    private readonly IPartyList party;
+    private long partyCommenceDue;
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
     private readonly IChatGui chat;
@@ -69,7 +71,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private long wholeWordDue;
     private readonly RoundLoop autoLeave = new();
     private bool autoLeaveAttempted;
-    private long autoLeaveSample;
 
 	private long loopSample;
 
@@ -117,7 +118,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool autoQueueVisitArmed = true;
 
-	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat)
+	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party)
 	{
 		Plugin plugin = this;
 		this.pi = pi;
@@ -128,6 +129,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		this.log = log;
 		this.condition = condition;
         this.objects = objects;
+        this.party = party;
         this.chat = chat;
         rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
@@ -325,6 +327,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
             chat.Print("[Keybound Automation] " + warning.Message);
         UpdateAutoLeave(Environment.TickCount64);
+        UpdatePartyCommence(Environment.TickCount64);
         typing.SkipOptionalPunctuation = config.SkipOptionalPunctuation;
 		if (mapEntry.Observe(client.IsLoggedIn, client.TerritoryType) && config.AutoEnableOnMap)
 		{
@@ -572,13 +575,26 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		}
 	}
 
+    private void UpdatePartyCommence(long now)
+    {
+        if (!config.AutoCommencePartyMember || !client.IsLoggedIn || loop.Active
+            || party.Length < 2 || now < partyCommenceDue
+            || condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) return;
+        var local = objects.LocalPlayer;
+        int leaderIndex = (int)party.PartyLeaderIndex;
+        if (local == null || leaderIndex < 0 || leaderIndex >= party.Length) return;
+        var leader = party[leaderIndex]?.GameObject;
+        if (leader == null || leader.GameObjectId == local.GameObjectId || !loopUi.EntryReady) return;
+        partyCommenceDue = now + 1000;
+        loopUi.Execute(LoopAction.Accept, client.TerritoryType);
+    }
+
     private void UpdateAutoLeave(long now)
     {
         if (!client.IsLoggedIn || client.TerritoryType != 1359)
         { autoLeave.Stop(); autoLeaveAttempted = false; return; }
         if (!config.AutoLeaveDuty || loop.Active) { autoLeave.Stop(); return; }
-        if (now - autoLeaveSample < 200) return;
-        autoLeaveSample = now;
+        if (!autoLeave.Active && (autoLeaveAttempted || !loopUi.ResultsVisible)) return;
         var state = loopUi.Read(client.IsLoggedIn, client.TerritoryType,
             condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (!autoLeaveAttempted && state.Result && !state.Loading)
@@ -640,7 +656,9 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		}
 		else
 		{
-			if (now - loopSample < 200)
+			if (now - loopSample < 200
+                && loop.Phase != LoopPhase.Leaving
+                && !(client.TerritoryType == 1359 && loopUi.ResultsVisible))
 			{
 				return;
 			}
@@ -1058,6 +1076,10 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
             settings.Update(config);
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Experimental: insert the entire answer into Keybound's own field and submit it once. Off by default. Will wait if the field already contains text; clear it before switching modes.");
+        bool commenceParty = config.AutoCommencePartyMember;
+        if (Interface.AutomationShell.Toggle("Auto commence Keybound Brawler as a party member", ref commenceParty))
+        { config.AutoCommencePartyMember = commenceParty; settings.Update(config); }
+        ImGui.TextWrapped("Accepts only Keybound Brawler ready prompts while in a party and not the leader.");
         bool leaveDuty = config.AutoLeaveDuty;
         if (Interface.AutomationShell.Toggle("Automatically leave duty when finished", ref leaveDuty))
         { config.AutoLeaveDuty = leaveDuty; settings.Update(config); }

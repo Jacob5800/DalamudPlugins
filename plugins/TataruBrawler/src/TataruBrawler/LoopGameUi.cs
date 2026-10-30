@@ -208,6 +208,10 @@ internal sealed class LoopGameUi
 		return ptr2;
 	}
 
+    public unsafe bool EntryReady => Supported && MatchingConfirmation(gui.GetAddonByName<AddonContentsFinderConfirm>("ContentsFinderConfirm"));
+
+	public unsafe bool ResultsVisible => Visible(gui.GetAddonByName<AtkUnitBase>("KTGResult"));
+
 	public unsafe LoopSnapshot Read(bool loggedIn, uint territory, bool loading)
 	{
 		ContentsFinder* ptr = ContentsFinder.Instance();
