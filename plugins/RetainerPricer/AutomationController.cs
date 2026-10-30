@@ -8,6 +8,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
     private Stage stage;
     private ulong contentId;
     private uint worldId;
+    public int CompletedRuns { get; private set; }
     public bool IsRunning => stage != Stage.Idle;
     public bool AutoRetainerLoaded => autoRetainerLoaded();
     public string Status { get; private set; } = "Full sequence is idle.";
@@ -29,10 +30,27 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         { Status = "Open the retainer picker before starting the full sequence."; return; }
         if (!bridge.TryGetCharacterContext(out contentId, out worldId, out var error))
         { Status = error; return; }
+        if (AllVenturesStillAway(DateTimeOffset.UtcNow))
+        {
+            stage = Stage.Reprice;
+            pricing.AutoUpdateAllRetainers();
+            Status = "All retainers are still on ventures; skipping reward collection and updating listings...";
+            if (!pricing.Busy) Fail(pricing.Status);
+            return;
+        }
         stage = Stage.Collect;
         ventures.CollectRewards();
         Status = "Collecting venture rewards...";
         if (!ventures.IsRunning) Fail(ventures.Status);
+    }
+
+    private bool AllVenturesStillAway(DateTimeOffset now)
+    {
+        if (!bridge.TryGetOwnRetainers(out var retainers) || retainers.Count == 0) return false;
+        return retainers.All(retainer => config.UniversalisRetainerListings.TryGetValue(retainer.RetainerId, out var cache)
+            && cache.WorldId == worldId && cache.RetainerId == retainer.RetainerId
+            && cache.RefreshedAt <= now && now - cache.RefreshedAt < TimeSpan.FromHours(1)
+            && cache.VentureId is > 0 && cache.VentureCompletesAt is { } end && end > now.AddMinutes(1));
     }
 
     public void Update()
@@ -66,6 +84,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             case Stage.Assign when !ventures.IsRunning:
                 if (!ventures.LastRunSucceeded) { Fail(ventures.Status); return; }
                 stage = Stage.Idle;
+                CompletedRuns++;
                 Status = "Complete: rewards collected, listings updated, new items listed, ventures reassigned.";
                 break;
         }

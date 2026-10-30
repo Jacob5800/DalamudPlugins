@@ -34,6 +34,9 @@ internal sealed class ItemPriceTooltip : IDisposable
     private int addedHeight;
     private nint attachedAddon;
     private int shiftedY;
+    private uint gearsetItem;
+    private DateTimeOffset gearsetRefresh;
+    private IReadOnlyList<string> gearsetNames = [];
     private readonly ushort orangeColor;
     private readonly ushort grayColor;
     private readonly ushort yellowColor;
@@ -95,16 +98,16 @@ internal sealed class ItemPriceTooltip : IDisposable
             request = null;
             activeIds = [];
         }
-        if (!config.ShowItemTooltipPrices) { Restore(addon); return; }
+        if (!config.ShowItemTooltipPrices && !config.ShowGearsetTooltip) { Restore(addon); return; }
         var world = bridge.GetHomeWorld();
         if (world is null) { Restore(addon); return; }
         if (worldId != world.WorldId) { worldId = world.WorldId; cache.Clear(); queued.Clear(); retryAt.Clear(); lastAttempt.Clear(); nextPrefetch = DateTimeOffset.MinValue; }
         var nowAt = DateTimeOffset.UtcNow;
-        if (nowAt >= nextPrefetch) { Prefetch(); nextPrefetch = nowAt.AddSeconds(5); }
+        if (config.ShowItemTooltipPrices && nowAt >= nextPrefetch) { Prefetch(); nextPrefetch = nowAt.AddSeconds(5); }
         var raw = gameGui.HoveredItem;
         var hovered = raw is > 0 and < 500_000 || raw is >= 1_000_000 and < 1_500_000 ? (uint)(raw % 500_000) : 0;
-        if (hovered != 0) Queue(hovered, refreshMissing: true);
-        if (request is null && queued.Count > 0 && nowAt >= nextBatch)
+        if (config.ShowItemTooltipPrices && hovered != 0) Queue(hovered, refreshMissing: true);
+        if (config.ShowItemTooltipPrices && request is null && queued.Count > 0 && nowAt >= nextBatch)
         {
             activeIds = queued.OrderByDescending(id => id == hovered).Take(50).ToArray();
             foreach (var id in activeIds) { queued.Remove(id); lastAttempt[id] = nowAt; }
@@ -112,8 +115,25 @@ internal sealed class ItemPriceTooltip : IDisposable
             request = client.FetchTooltipBatchAsync(worldId, activeIds, lifetime.Token);
             nextBatch = nowAt.AddMilliseconds(200);
         }
-        if (addon == null || !addon->IsVisible || !marketable.Contains(hovered)) { Restore(addon); return; }
+        if (addon == null || !addon->IsVisible || hovered == 0) { Restore(addon); return; }
         var text = new SeStringBuilder();
+        if (config.ShowGearsetTooltip)
+        {
+            if (gearsetItem != raw || nowAt >= gearsetRefresh)
+            {
+                gearsetItem = (uint)raw;
+                gearsetNames = bridge.ReadSavedGearsetNames((uint)raw);
+                gearsetRefresh = nowAt.AddSeconds(1);
+            }
+            if (gearsetNames.Count > 0) text.AddText("Saved gearsets:\n" + string.Join("\n", gearsetNames) + "\n");
+        }
+        if (!config.ShowItemTooltipPrices || !marketable.Contains(hovered))
+        {
+            var onlyGearsets = text.Build().Encode();
+            if (onlyGearsets.Length > 0) Attach(addon, onlyGearsets); else Restore(addon);
+            return;
+        }
+
         void Amount(decimal? value, bool gil)
         {
             if (value is null || (gil && value <= 0)) { text.AddText("—"); return; }

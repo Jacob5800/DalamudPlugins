@@ -649,6 +649,23 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return result;
     }
 
+    public IReadOnlyList<string> ReadSavedGearsetNames(uint rawItemId)
+    {
+        if (disposed || !player.IsLoaded || player.ContentId == 0) return [];
+        var module = RaptureGearsetModule.Instance();
+        if (module == null) return [];
+        List<string> matches = [];
+        for (int i=0; i<100; i++)
+        {
+            ref var set = ref module->Entries[i];
+            if ((set.Flags & RaptureGearsetModule.GearsetFlag.Exists) == 0) continue;
+            for (int slot=0;slot<14;slot++)
+                if (set.Items[slot].ItemId == rawItemId)
+                { matches.Add($"{set.Id+1}: {set.NameString}"); break; }
+        }
+        return matches;
+    }
+
     public bool TryReadSavedGearsetItemIds(out IReadOnlySet<uint> itemIds, out string error)
     {
         itemIds = new HashSet<uint>();

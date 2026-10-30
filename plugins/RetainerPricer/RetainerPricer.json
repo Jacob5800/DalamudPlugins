@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.29",
+  "AssemblyVersion": "0.5.1.30",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.29\n\n- Fix Yes - retrieve materia selecting the native inventory menu entry. Show a specific reason when retrieval cannot start.\n",
+  "Changelog": "## 0.5.1.30\n\n- Add optional Auto sell TT cards after a full sequence, plus Run now: teleport to the Gold Saucer and navigate with vnavmesh to exchange registered duplicate cards. Unregistered cards and Exceptions are kept.\n- Add an optional saved-gearset tooltip showing matching gearset numbers and names.\n- Skip venture reward collection when every retainer has fresh cached data showing it is still away.\n- Color Sniper, Sniper results and Buy list purple.\n- Add separate Settings switches for Undercut notifier, Don't reprice, Batch selling and Retainer sell tabs, hidden by default. Hidden lists retain their rules; hidden notifier monitoring pauses.\n- Let confirmed listings settle before opening the next item, and retry once if its sale window does not appear while the listing slots remain unchanged.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

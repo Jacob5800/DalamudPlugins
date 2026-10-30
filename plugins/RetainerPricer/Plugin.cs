@@ -32,6 +32,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AutomationController automation;
     private readonly MainWindow window;
     private readonly DesynthesisController desynthesis;
+    private readonly TtCardSaleController ttCards;
+    private int observedFullSequences;
     private readonly InventoryListMenu inventoryMenus;
     private readonly UndercutNotifier undercuts;
     private readonly ICondition condition;
@@ -48,7 +50,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
         ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
-        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects)
+        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         statusHistory = new StatusHistory(log);
@@ -98,13 +100,15 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.RowId != 0)
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
+        ttCards = new TtCardSaleController(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
+            config, bridge, () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis?.IsRunning == true);
         desynthesis = new DesynthesisController(config, bridge, data, condition, objects, gameGui,
-            () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning);
+            () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || ttCards.IsRunning);
         inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
-            UndercutsPaused, desynthesis, inventoryMenus.DesynthesizableItemIds);
+            UndercutsPaused, desynthesis, inventoryMenus.DesynthesizableItemIds, ttCards);
         inventoryMenus.SearchUniversalis = window.SearchMarketboardItem;
         windows.AddWindow(window);
         if (bridge.LocalAvailabilityError is { } localCompatibilityError)
@@ -157,9 +161,16 @@ public sealed class Plugin : IDalamudPlugin
         try
         {
             desynthesis.Update();
-            if (desynthesis.WaitingForBroth) window.IsOpen = true;
+            if (desynthesis.WaitingForBroth || desynthesis.WaitingForMateria) window.IsOpen = true;
             statusHistory.Observe("Desynthesis", desynthesis.Status);
             automation.Update();
+            if (observedFullSequences != automation.CompletedRuns)
+            {
+                observedFullSequences = automation.CompletedRuns;
+                if (config.AutoSellTTCards) ttCards.Start();
+            }
+            ttCards.Update();
+            statusHistory.Observe("TT card sales", ttCards.Status);
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
                 ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
             controller.Update();
@@ -220,6 +231,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void UpdateAutomaticVentures()
     {
+        if (ttCards.IsRunning) return;
         // Child addon transitions can briefly hide every retainer window. Only
         // ending the bell interaction can re-arm a completed automatic visit.
         var interactionVisible = bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible ||
@@ -396,7 +408,7 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     private void Toggle() => window.Toggle();
-    private bool UndercutsPaused() => config.HideUndercutInDuties &&
+    private bool UndercutsPaused() => !config.ShowUndercutNotifier || config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
     private void Save() => pluginInterface.SavePluginConfig(config);
 
@@ -420,6 +432,7 @@ public sealed class Plugin : IDalamudPlugin
         commands.RemoveHandler("/retainer");
         if (rpAliasRegistered) commands.RemoveHandler("/rp");
         serverInfoBarEntry.Remove();
+        ttCards.Stop();
         desynthesis.Stop();
         controller.Dispose();
         automation.Cancel();

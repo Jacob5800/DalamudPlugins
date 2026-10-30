@@ -1,3 +1,12 @@
+## 0.5.1.30
+
+- Add optional Auto sell TT cards after a full sequence, plus Run now: teleport to the Gold Saucer and navigate with vnavmesh to exchange registered duplicate cards. Unregistered cards and Exceptions are kept.
+- Add an optional saved-gearset tooltip showing matching gearset numbers and names.
+- Skip venture reward collection when every retainer has fresh cached data showing it is still away.
+- Color Sniper, Sniper results and Buy list purple.
+- Add separate Settings switches for Undercut notifier, Don't reprice, Batch selling and Retainer sell tabs, hidden by default. Hidden lists retain their rules; hidden notifier monitoring pauses.
+- Let confirmed listings settle before opening the next item, and retry once if its sale window does not appear while the listing slots remain unchanged.
+
 ## 0.5.1.29
 
 - Fix Yes - retrieve materia selecting the native inventory menu entry. Show a specific reason when retrieval cannot start.

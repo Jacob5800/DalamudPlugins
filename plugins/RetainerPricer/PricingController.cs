@@ -40,6 +40,8 @@ internal sealed class PricingController : IDisposable
     private long seenDialog = -1;
     private DateTimeOffset nextTick;
     private DateTimeOffset deadline;
+    private DateTimeOffset listingOpenRetryAt;
+    private bool listingOpenRetried;
     private string? pendingSkipMessage;
     private bool suppressAutoPriceUntilSellWindowCloses;
     private SellItem? workingItem;
@@ -1533,6 +1535,8 @@ internal sealed class PricingController : IDisposable
             preListingSlots = listedBefore.Select(row => row.Slot).ToHashSet();
             if (!bridge.TryOpenInventoryItem(candidate, out var openError))
             { Cancel($"Automatic listing stopped before opening {candidate.Name}: {openError}"); return; }
+            listingOpenRetryAt = now.AddSeconds(3);
+            listingOpenRetried = false;
             Status = $"Opening {candidate.Name} (item {candidate.ItemId}, inventory {candidate.InventoryType}, slot {candidate.Slot}) for market listing...";
             workingItem = null;
             deadline = now.AddSeconds(8);
@@ -1544,6 +1548,20 @@ internal sealed class PricingController : IDisposable
         {
             if (!bridge.TryReadSellItem(out var opened, out _))
             {
+                if (!listingOpenRetried && now >= listingOpenRetryAt && !bridge.IsSellWindowVisible && !bridge.IsComparisonVisible
+                    && listingCandidate is { } retryItem)
+                {
+                    // No price has been submitted in Opening. Retry only while the original sale-list
+                    // slots are unchanged, and let the bridge revalidate the exact inventory stack/session.
+                    var retryListings = bridge.ReadExistingListings(out var retryReadError);
+                    if (retryReadError.Length == 0 && preListingSlots.SetEquals(retryListings.Select(row => row.Slot)))
+                    {
+                        listingOpenRetried = true;
+                        if (!bridge.TryOpenInventoryItem(retryItem, out var retryError))
+                        { Cancel($"Automatic listing stopped retrying {retryItem.Name}: {retryError}"); return; }
+                        Status = $"Retrying the sale window for {retryItem.Name} after waiting for the previous item to settle...";
+                    }
+                }
                 if (now > deadline)
                 {
                     var pending = listingCandidate is { } item
@@ -1724,6 +1742,7 @@ internal sealed class PricingController : IDisposable
                     workingItem = null;
                     step = Step.Start;
                     ResetRequest();
+                    nextTick = now.AddSeconds(1);
                     Status = $"Listed {submitted.Name} × {submitted.Quantity:N0}. Continuing with the {remainingStack.Quantity:N0} item(s) remaining in carried inventory.";
                     return;
                 }
@@ -1733,6 +1752,7 @@ internal sealed class PricingController : IDisposable
                 listingCandidate = null;
                 workingItem = null;
                 step = Step.Start;
+                nextTick = now.AddSeconds(1);
                 Status = $"Listed {submitted.Name} at {listingSubmittedPrice:N0} gil each. Continuing with the next eligible item.";
                 return;
             }

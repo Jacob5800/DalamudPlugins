@@ -160,3 +160,10 @@ When specific items are selected, Sniper loads their price references and config
 ### Sniper results layout
 
 **Sniper** contains scan controls; **Results here** opens **Sniper results**, which contains the deal search, server filter, fee assumptions and scrollable results. The optional **Hide below estimated sales/day** filter under Scan options hides lower or unknown estimates from Sniper results, including 1-gil alerts, without changing scanning or the saved Buy list. Its threshold and enabled state persist in settings backups.
+
+### Optional automation and interface controls
+
+- **Auto sell TT cards** in Automation is off by default. When enabled, a successful full sequence starts the card sale trip. **Run now** starts it manually. This closes the idle retainer picker, teleports to the Gold Saucer using the normal teleport action, and uses **vnavmesh** to walk to the Triple Triad Trader. Only carried cards already registered in the collection are eligible; Exceptions and unregistered cards are kept. Each sale is verified against inventory before another request. Stop cancels owned movement. Gold Saucer access and vnavmesh are required.
+- Full sequences skip the initial reward-collection pass only when every currently available retainer has cache data less than one hour old, matching the current world, with its venture ending more than one minute later. Missing, stale, idle or nearly complete venture records retain the normal collection pass.
+- Settings offers separate **Show Undercut notifier**, **Show Don't reprice**, **Show Batch selling**, and **Show Retainer sell** switches, off by default. Hiding a list preserves its data and rules; hiding Undercut notifier also pauses its monitoring.
+- **Show saved gearsets in item tooltips** optionally adds matching saved gearset numbers and names. It works independently of home-price tooltips and matches normal/HQ item identity.

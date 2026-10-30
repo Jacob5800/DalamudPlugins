@@ -4,6 +4,13 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
+    public bool ShowUndercutNotifier { get; set; }
+    public bool ShowDontReprice { get; set; }
+    public bool ShowBatchSelling { get; set; }
+    public bool ShowRetainerSell { get; set; }
+    public bool ShowGearsetTooltip { get; set; }
+    public bool AutoSellTTCards { get; set; }
+
     public List<SniperDeal> SniperBuyList { get; set; } = [];
     public double SniperMinimumRoiPercent { get; set; } = 0;
     public bool UseBaconBroth { get; set; }

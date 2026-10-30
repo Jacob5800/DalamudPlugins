@@ -26,11 +26,12 @@ internal sealed class MainWindow : Window
     private readonly VentureController ventures;
     private readonly AutomationController automation;
     private readonly DesynthesisController desynthesis;
+    private readonly TtCardSaleController ttCards;
     private readonly IReadOnlySet<uint> desynthesizableIds;
     private string desynthesisSearch = "";
     private IReadOnlyList<uint> desynthesisSnapshot = [];
     private string desynthesisSnapshotStatus = "";
-    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning;
+    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
@@ -100,11 +101,12 @@ internal sealed class MainWindow : Window
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
         Action<bool> setServerInfoBarShown, VentureController ventures, AutomationController automation, bool isTesting,
-        UndercutNotifier undercuts, Func<bool> undercutsPaused, DesynthesisController desynthesis, IReadOnlySet<uint> desynthesizableIds) : base("Retainer Pricer")
+        UndercutNotifier undercuts, Func<bool> undercutsPaused, DesynthesisController desynthesis, IReadOnlySet<uint> desynthesizableIds, TtCardSaleController ttCards) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
         this.desynthesis = desynthesis;
+        this.ttCards = ttCards;
         this.desynthesizableIds = desynthesizableIds;
         this.feedback = feedback;
         this.sniper = sniper;
@@ -355,18 +357,18 @@ internal sealed class MainWindow : Window
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
             if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Sniper")) { DrawSniper(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Sniper results", openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
+            if (BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawSniper(); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Sniper results", new Vector4(.46f,.26f,.68f,1), openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
             { openSniperResultsTab = false; DrawSniperResults(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Buy list", openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
+            if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
+            if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
+            if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
+            if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
@@ -752,6 +754,16 @@ internal sealed class MainWindow : Window
     private void DrawSettings()
     {
         DrawSettingsBackup();
+        ImGui.Separator();
+        void Feature(string name, bool value, Action<bool> update)
+        { if (ImGui.Checkbox(name, ref value)) { update(value); save(); } }
+        Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
+        Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
+        Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
+        Feature("Show Retainer sell", config.ShowRetainerSell, v => config.ShowRetainerSell = v);
+        ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
+        Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
+
         if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
         {
             var showUpdate = config.ShowRetainerUpdateButton;
@@ -895,6 +907,17 @@ internal sealed class MainWindow : Window
             ImGui.TextWrapped("Blocked: AutoRetainer is loaded. Unload it before using Retainer Pricer automation to prevent both plugins controlling the retainer UI.");
         ImGui.TextWrapped("Runs once per picker visit. Stop cancels the remaining sequence; submitted changes stay applied. Close and reopen the picker for another automatic attempt.");
         ImGui.TextWrapped(automation.Status);
+        ImGui.Separator();
+        var sellCards = config.AutoSellTTCards;
+        if (ImGui.Checkbox("Auto sell TT cards", ref sellCards)) { config.AutoSellTTCards = sellCards; save(); }
+        ImGui.SameLine();
+        ImGui.BeginDisabled(UiBusy || ventures.IsRunning || vendor.IsRunning);
+        if (ImGui.Button("Run now##TTCards")) dispatch(ttCards.Start);
+        ImGui.EndDisabled();
+        if (ttCards.IsRunning && ImGui.Button("Stop TT card sale")) dispatch(() => ttCards.Stop());
+        ImGui.TextWrapped("When enabled, runs after a successful full sequence. Teleports to the Gold Saucer, then uses vnavmesh to walk to the Triple Triad Trader and exchange registered duplicate cards in carried bags for MGP. Unregistered cards and Exceptions are kept. Requires vnavmesh and Gold Saucer access.");
+        ImGui.TextWrapped(ttCards.Status);
+
     }
 
     private void DrawVentures()
@@ -1191,6 +1214,8 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("The optional RP server-bar button turns green for completed ventures on retainers confirmed available in the current character's summoning-bell picker. Hover it for retainer names; open a summoning bell to refresh the roster.");
         ImGui.BulletText("Sniper: all marketable items is the default; search and add multiple items to scan their history and watch only their new listings. Remove individual items with X or clear the selection to scan everything. Choose its independent World, Data Center, or home-world Region market scope, then set the lookback window, deal threshold, minimum sales, and minimum listing value. Region includes only Data Centers in your home world's region; Materia is not added unless it is your home region. Start watching discovers cached four-day averages in 100-item batches with up to six requests at once; live candidates receive sequential history verification using your settings. Cached reference prices are not guaranteed fresh and may miss candidates; final deals use verified history. 1-gil alerts show immediately in yellow while their last-sale date is unknown, and attach available history as scanning finishes. In any-age mode, last-sale ages over 30 days are red. New 1-gil alerts show immediately; other deals appear as each item's history batch finishes. An ETA appears during the initial scan; afterward, Sniper keeps listening without repeating the scan. Ordinary deals below the minimum value are hidden. Deal rows separate Data Center, Server and Quantity, then show price, median, discount, sales/day, latest-sale age, estimated profit/item and savings/item. Stack purchase cost is on Quantity and Listing hover. Hover values for explanations; whole-stack profit and savings are included in the per-item tooltips. Show estimated resale profit is on by default and can hide the profit columns. Optional minimum discount, savings and profit filters apply immediately. 1-gil alerts bypass minimum discount and savings, but must meet the minimum profit value when enabled; unknown profit stays hidden until history is available. Fee assumptions are configurable. Click headers to sort and use the header menu to hide columns. Purchases are manual.");
         ImGui.BulletText("Ventures: opt in with Run ventures. Each retainer defaults to Quick Exploration; available item tasks are generated from its job and level, and gathering jobs are filtered by your Gathering Log. Open the retainer picker at a summoning bell to load your roster, then select a task in Which Venture? Refresh available ventures after unlocking new gathering items. You can choose whether to assign the selected venture to idle retainers and whether to repeat completed ventures. Jobs are auto-detected and can be overridden per retainer. The cycle does not use or require AutoRetainer.");
+        ImGui.BulletText("Automation: Auto sell TT cards or Run now uses normal teleport plus vnavmesh to reach the Gold Saucer trader. Only registered duplicate cards in carried bags are sold; Exceptions stay protected. Stop cancels the trip.");
+        ImGui.BulletText("Settings offers optional gearset-name tooltips and separate switches for the Undercut notifier, Don't reprice, Batch selling and Retainer sell tabs. Hidden lists keep their rules; hidden notifier monitoring pauses.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
         ImGui.Separator();
@@ -1453,7 +1478,11 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped(sniper.Status);
         ImGui.TextDisabled($"Deals: listing ≥ {config.SniperMinimumItemPrice:N0} gil each and ≤ {config.SniperThresholdFraction:P1} of the {(config.SniperHistoryDays == 0 ? "any-age" : $"{config.SniperHistoryDays}-day")} HQ/NQ median, with at least {config.SniperMinimumSales14Days} recorded sales. Up to {UniversalisClient.SniperHistoryEntryLimit:N0} recent sales are used per item. New 1-gil listings always show; purchases are manual.");
 
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.38f,.20f,.57f,1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.53f,.32f,.74f,1));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.46f,.26f,.68f,1));
         if (ImGui.Button("Results here", new Vector2(220, 42) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale)) openSniperResultsTab = true;
+        ImGui.PopStyleColor(3);
         ImGui.SameLine(); ImGui.TextDisabled($"{sniper.Deals.Count:N0} received deals · search and server filters are in Sniper results.");
     }
 
@@ -1798,12 +1827,12 @@ internal sealed class MainWindow : Window
         ImGui.EndTooltip();
     }
 
-    private static bool BeginColoredTab(string name, Vector4 color)
+    private static bool BeginColoredTab(string name, Vector4 color, ImGuiTabItemFlags flags = ImGuiTabItemFlags.None)
     {
         ImGui.PushStyleColor(ImGuiCol.Tab, color * new Vector4(.60f, .60f, .60f, 1));
         ImGui.PushStyleColor(ImGuiCol.TabHovered, Vector4.Min(color * new Vector4(1.25f, 1.25f, 1.25f, 1), Vector4.One));
         ImGui.PushStyleColor(ImGuiCol.TabActive, color);
-        bool visible = ImGui.BeginTabItem(name);
+        bool visible = ImGui.BeginTabItem(name, flags);
         ImGui.PopStyleColor(3);
         return visible;
     }
