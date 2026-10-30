@@ -79,6 +79,13 @@ public sealed class RoundLoop
 		blockedAt = -1L;
 	}
 
+	public void RetryRegistration(long now)
+    {
+        if (!Active) return;
+        accepted = false;
+        Set(LoopPhase.Waiting, now);
+    }
+
 	public void Pause()
 	{
 		if (Active)
@@ -184,7 +191,13 @@ public sealed class RoundLoop
 				accepted = true;
 				return LoopAction.Accept;
 			}
-			if ((!state.Queued && !accepted && now - since > 15000) || now - since > 1800000)
+			if (state.Lobby && !state.Queued && !state.EntryReady && now - since >= 5000)
+            {
+                accepted = false;
+                Set(LoopPhase.Requesting, now);
+                break;
+            }
+            if (now - since > 1800000)
 			{
 				Stop(error: true);
 			}

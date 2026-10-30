@@ -80,4 +80,16 @@ foreach(var status in new[]{"Stopped","Completed","Unsupported","NoProgress","Us
 Check(!recovery.ShouldResume(12000,false,true,false,"SendFailed",true,false,false), "Manual stop disables recovery");
 Check(!recovery.ShouldResume(13000,true,true,false,"SendFailed",true,true,false), "Manual pause respected");
 Check(!recovery.ShouldResume(14000,true,false,false,"SendFailed",true,false,false), "Outside duty not resumed");
+var queueLoop = new RoundLoop();
+var lobby = new LoopSnapshot(true,true,false,false,false,false,false,false,false,false,true,true);
+queueLoop.Start(0,2,false);
+Check(queueLoop.Tick(0,lobby)==LoopAction.Register, "Initial registration");
+Check(queueLoop.Tick(4999,lobby)==LoopAction.None, "No premature retry");
+queueLoop.Tick(5000,lobby);
+Check(queueLoop.Phase==LoopPhase.Requesting, "Retry after five seconds without queue");
+Check(queueLoop.Tick(5200,lobby)==LoopAction.Register, "Retry submits registration");
+Check(queueLoop.Tick(10200,lobby with {Queued=true})==LoopAction.None && queueLoop.Phase==LoopPhase.Waiting, "Existing queue never duplicated");
+Check(queueLoop.Tick(10400,lobby with {Queued=true,EntryReady=true})==LoopAction.Accept, "Ready prompt accepted");
+queueLoop.Stop();
+Check(queueLoop.Tick(20000,lobby)==LoopAction.None, "Stop cancels retries");
 Console.WriteLine($"{checks} checks passed.");

@@ -8,6 +8,7 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Interface;
+using Dalamud.Interface.ImGuiNotification;
 
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -67,6 +68,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
     private readonly IChatGui chat;
+    private readonly INotificationManager notifications;
+    private bool mgcNoticeShown;
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
     private long wholeWordDue;
@@ -119,7 +122,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool autoQueueVisitArmed = true;
 
-	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState)
+	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState, INotificationManager notifications)
 	{
 		Plugin plugin = this;
 		this.pi = pi;
@@ -133,6 +136,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         this.party = party;
         this.playerState = playerState;
         this.chat = chat;
+        this.notifications = notifications;
         rewards = new RewardTracker(Path.Combine(pi.GetPluginConfigDirectory(), "rewards.json"), gui);
 		loopUi = new LoopGameUi(gui, data, objects);
 		Loc.CheckCompleteness();
@@ -330,6 +334,17 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
             chat.Print("[Keybound Automation] " + warning.Message);
+        if (!mgcNoticeShown && config.WarnMgcCap && client.IsLoggedIn && warning.Message != null)
+        {
+            notifications.AddNotification(new Notification
+            {
+                Title = "Keybound Automation — MGC warning",
+                Content = warning.Message,
+                Type = NotificationType.Warning,
+                InitialDuration = TimeSpan.FromSeconds(10)
+            });
+            mgcNoticeShown = true;
+        }
         UpdateAutoLeave(Environment.TickCount64);
         UpdatePartyCommence(Environment.TickCount64);
         typing.SkipOptionalPunctuation = config.SkipOptionalPunctuation;
@@ -695,7 +710,10 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			default:
 				if (!loopUi.Execute(loopAction, client.TerritoryType))
 				{
-					loop.Stop(error: true);
+					if (loopAction == LoopAction.Register)
+                        loop.RetryRegistration(now);
+                    else
+                        loop.Stop(error: true);
 				}
 				break;
 			case LoopAction.None:
@@ -859,7 +877,11 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.3f, .8f, .82f, 1));
             bool clicked;
             using (pi.UiBuilder.IconFontHandle.Push())
-                clicked = ImGui.Button(FontAwesomeIcon.Keyboard.ToIconString());
+            {
+                ImGui.SetWindowFontScale(1.75f);
+                clicked = ImGui.Button(FontAwesomeIcon.Keyboard.ToIconString(), new Vector2(64, 52) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+                ImGui.SetWindowFontScale(1f);
+            }
             ImGui.PopStyleColor();
             if (clicked) open = !open;
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Open / close Keybound Automation. Drag this button to reposition it.");

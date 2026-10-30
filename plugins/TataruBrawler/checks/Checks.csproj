@@ -11,5 +11,9 @@
     <Compile Include="../src/TataruBrawler/TypingSession.cs" Link="TypingSession.cs" />
     <Compile Include="../src/TataruBrawler/MgcWarning.cs" Link="MgcWarning.cs" />
     <Compile Include="../src/TataruBrawler/AutomaticRecovery.cs" Link="AutomaticRecovery.cs" />
+    <Compile Include="../src/TataruBrawler/RoundLoop.cs" Link="RoundLoop.cs" />
+    <Compile Include="../src/TataruBrawler/LoopSnapshot.cs" Link="LoopSnapshot.cs" />
+    <Compile Include="../src/TataruBrawler/LoopPhase.cs" Link="LoopPhase.cs" />
+    <Compile Include="../src/TataruBrawler/LoopAction.cs" Link="LoopAction.cs" />
   </ItemGroup>
 </Project>

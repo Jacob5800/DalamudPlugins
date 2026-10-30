@@ -1,3 +1,10 @@
+## 1.0.8.21
+
+- Show the MGC cap warning as a notification once per session when the configured threshold is reached, including at startup outside Keybound.
+- Enlarge the floating duty keyboard button and click area.
+- Retry registration after five seconds when a queue has not started, including when a party member is still leaving.
+- Start with Illegal mode disabled on each plugin load; it can still be enabled for the session.
+
 ## 1.0.8.20
 
 - Add an optional floating keyboard button inside Keybound duty to reopen the interface while the game UI is hidden.
