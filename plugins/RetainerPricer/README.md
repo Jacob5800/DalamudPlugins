@@ -170,3 +170,7 @@ When specific items are selected, Sniper loads their price references and config
 
 
 Enable **Show saved gearsets in item tooltips** in Settings to display matching saved gearset numbers, names and their class/job icons.
+
+Existing-listing price increases require confirmation before filling or submitting a higher price, including automatic updates. Choose Yes or No for one listing, or remember either choice for future increases. Settings can restore Ask each time. Decreases and new listings are unaffected.
+
+For intermittent automatic new-listing failures, enable **Debug automatic listing selector** in Settings, reproduce an initial failure and successful retry, then inspect `[Listing selector ...]` entries in the Dalamud log. These record requested inventory/slot and the sale-form lifecycle without changing retry behavior. Disable afterward.

@@ -132,7 +132,7 @@ internal sealed class PricingController : IDisposable
     public PriceRow? PriceDropReviewItem => index >= Rows.Count && (work is Work.Scan or Work.AutoUpdateAllRetainers)
         ? Rows.FirstOrDefault(row => row.AwaitingPriceDropDecision)
         : null;
-    public bool Busy => work != Work.Idle;
+    public bool Busy => work != Work.Idle || PriceIncreaseItem is not null;
     public bool IsListingItemsRunning => work == Work.BatchListing;
     public bool IsBatchSellingOnlyRunning => work == Work.BatchListing && batchSellingOnly;
     public bool IsUpdatingListings => work is Work.Scan or Work.AutoUpdateAllRetainers;
@@ -200,7 +200,7 @@ internal sealed class PricingController : IDisposable
     public void Update()
     {
         var now = DateTimeOffset.UtcNow;
-        if (MateriaWarningItem is not null) return;
+        if (MateriaWarningItem is not null || PriceIncreaseItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -514,6 +514,38 @@ internal sealed class PricingController : IDisposable
         Status = $"Checking {target.Name} on {target.Session.WorldName}...";
     }
 
+    public SellItem? PriceIncreaseItem { get; private set; }
+    public uint PriceIncreaseTarget { get; private set; }
+    private Action? increaseProceed, increaseSkip;
+    private (SellItem Item, uint Price)? approvedIncrease;
+
+    private bool AwaitPriceIncrease(SellItem item, uint price, Action proceed, Action skip)
+    {
+        if (!item.IsExisting || price <= item.CurrentPrice || approvedIncrease == (item, price)) return false;
+        if (config.AllowListingPriceIncreases is true) return false;
+        if (config.AllowListingPriceIncreases is false) { skip(); return true; }
+        PriceIncreaseItem = item;
+        PriceIncreaseTarget = price;
+        increaseProceed = proceed;
+        increaseSkip = skip;
+        Status = $"Confirm raising {item.Name} from {item.CurrentPrice:N0} to {price:N0} gil each.";
+        return true;
+    }
+
+    public void ResolvePriceIncrease(bool allow, bool remember)
+    {
+        if (PriceIncreaseItem is not { } item) return;
+        var price = PriceIncreaseTarget;
+        var continuation = allow ? increaseProceed : increaseSkip;
+        PriceIncreaseItem = null;
+        increaseProceed = increaseSkip = null;
+        if (remember) { config.AllowListingPriceIncreases = allow; saveConfiguration(); }
+        if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(item, current))
+        { Cancel("The listing changed while awaiting confirmation. No price increase was applied."); return; }
+        if (allow) approvedIncrease = (item, price);
+        continuation?.Invoke();
+    }
+
     public void FillCurrent()
     {
         if (Busy || workingItem is null || CurrentSnapshot is null) return;
@@ -521,6 +553,8 @@ internal sealed class PricingController : IDisposable
         { Status = $"{workingItem.Name} is protected by Don't reprice. The plugin will not change its existing price."; return; }
         CurrentProposal = Calculate(CurrentSnapshot, workingItem);
         if (!CurrentProposal.CanApply) { Status = CurrentProposal.Error!; return; }
+        if (AwaitPriceIncrease(workingItem, CurrentProposal.SuggestedPrice, FillCurrent,
+            () => Status = "Price increase declined; listing left unchanged.")) return;
         Status = bridge.TryFillPrice(workingItem, CurrentProposal.SuggestedPrice, out var error)
             ? $"Filled {CurrentProposal.SuggestedPrice:N0} gil each. Use the game's Confirm button to list the item."
             : error;
@@ -1164,6 +1198,9 @@ internal sealed class PricingController : IDisposable
     private void FinishAutoUpdate()
     {
         var wasListingTraversal = listingTraversal;
+        PriceIncreaseItem = null;
+        increaseProceed = increaseSkip = null;
+        approvedIncrease = null;
         listingTraversal = false;
         LastTraversalSucceeded = true;
         Rows.Clear();
@@ -1429,6 +1466,10 @@ internal sealed class PricingController : IDisposable
             {
                 if (workSource == PriceSource.Local && !bridge.TryCloseCompare(workingItem, out var closeError))
                 { Cancel($"Could not close the price comparison before updating {row.Item.Name}: {closeError}"); return; }
+                if (AwaitPriceIncrease(workingItem, proposal.SuggestedPrice, () => { }, () => {
+                    row.Proposal = null;
+                    row.Status = "Price increase declined; unchanged";
+                })) return;
                 submittedPrice = proposal.SuggestedPrice;
                 if (!bridge.TrySetExistingPrice(workingItem, submittedPrice, out var updateError))
                 { Cancel($"Stopped while updating {row.Item.Name}: {updateError}"); return; }
@@ -1533,7 +1574,7 @@ internal sealed class PricingController : IDisposable
             var remainingTotal = maxTotal > 0 ? maxTotal - alreadySold : candidate.Quantity;
             requestedListingQuantity = Math.Min(Math.Min(perListing, remainingTotal), 99);
             preListingSlots = listedBefore.Select(row => row.Slot).ToHashSet();
-            if (!bridge.TryOpenInventoryItem(candidate, out var openError))
+            if (!bridge.TryOpenInventoryItem(candidate, out var openError, config.DebugListingSelector))
             { Cancel($"Automatic listing stopped before opening {candidate.Name}: {openError}"); return; }
             listingOpenRetryAt = now.AddSeconds(3);
             listingOpenRetried = false;
@@ -1557,7 +1598,7 @@ internal sealed class PricingController : IDisposable
                     if (retryReadError.Length == 0 && preListingSlots.SetEquals(retryListings.Select(row => row.Slot)))
                     {
                         listingOpenRetried = true;
-                        if (!bridge.TryOpenInventoryItem(retryItem, out var retryError))
+                        if (!bridge.TryOpenInventoryItem(retryItem, out var retryError, config.DebugListingSelector))
                         { Cancel($"Automatic listing stopped retrying {retryItem.Name}: {retryError}"); return; }
                         Status = $"Retrying the sale window for {retryItem.Name} after waiting for the previous item to settle...";
                     }
@@ -1943,6 +1984,9 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        PriceIncreaseItem = null;
+        increaseProceed = increaseSkip = null;
+        approvedIncrease = null;
         listingTraversal = false;
         LastTraversalSucceeded = false;
         MateriaWarningItem = null;

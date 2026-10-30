@@ -1129,7 +1129,10 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return OpenRetainerSell(agent, InventoryType.RetainerMarket, checked((ushort)expected.Slot), out error);
     }
 
-    public bool TryOpenInventoryItem(CarriedItemCandidate expected, out string error)
+    private bool debugInventorySelector;
+    private long selectorAttempt;
+
+    public bool TryOpenInventoryItem(CarriedItemCandidate expected, out string error, bool diagnostics = false)
     {
         if (!TryGetSession(out _, out error)) return false;
         if (GetSellAddon() != null || IsAddonReady("ItemSearchResult"))
@@ -1154,6 +1157,16 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         var agent = AgentRetainer.Instance();
         if (RetainerAgentView.For(agent) == null || !agent->IsAgentActive())
         { error = "The active retainer changed. Reopen its sale list and retry."; return false; }
+        debugInventorySelector = diagnostics;
+        selectorAttempt++;
+        if (diagnostics)
+        {
+            var view = RetainerAgentView.For(agent);
+            log.Information("[Listing selector {Attempt}] Request item={Item} HQ={HQ} quantity={Quantity} inventory={Inventory} slot={Slot}; sellListVisible={ListVisible}, sellVisible={SellVisible}, comparisonVisible={CompareVisible}; agent inventory={AgentInventory} slot={AgentSlot} sellAddon={Addon}",
+                selectorAttempt, expected.ItemId, expected.IsHq, expected.Quantity, expected.InventoryType, expected.Slot,
+                IsRetainerSellListVisible, IsSellWindowVisible, IsComparisonVisible,
+                (int)view->SellInventoryType, view->SellInventorySlot, view->SellAddonId);
+        }
         return OpenRetainerSell(agent, type, checked((ushort)expected.Slot), out error);
     }
 
@@ -1518,6 +1531,14 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     private void OnSellLifecycle(AddonEvent eventType, AddonArgs args)
     {
+        if (debugInventorySelector)
+        {
+            var view = RetainerAgentView.For(AgentRetainer.Instance());
+            if (view != null)
+                log.Information("[Listing selector {Attempt}] RetainerSell {Event}; actual inventory={Inventory} slot={Slot} quantity={Quantity} unitPrice={Price} addon={Addon}",
+                    selectorAttempt, eventType, (int)view->SellInventoryType, view->SellInventorySlot,
+                    view->SellQuantity, view->SellUnitPrice, view->SellAddonId);
+        }
         DialogGeneration++;
         sellAddress = eventType == AddonEvent.PostSetup ? args.Addon.Address : 0;
         sellWasVisible = false;

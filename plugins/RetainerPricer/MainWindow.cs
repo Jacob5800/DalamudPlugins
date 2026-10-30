@@ -159,6 +159,23 @@ internal sealed class MainWindow : Window
     public override void Draw()
     {
         if (startListingFromShortcut) { startListingFromShortcut = false; RequestListingStart(controller.StartListingItems); }
+        if (controller.PriceIncreaseItem is { } increasing)
+        {
+            ImGui.OpenPopup("Confirm listing price increase");
+            if (ImGui.BeginPopupModal("Confirm listing price increase", ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.TextUnformatted($"{increasing.Name} ({(increasing.IsHq ? "HQ" : "NQ")})");
+                ImGui.TextUnformatted($"{increasing.CurrentPrice:N0} to {controller.PriceIncreaseTarget:N0} gil each");
+                ImGui.TextWrapped("Raise this existing listing's price? Remembered choices apply to future listing increases. Reset this choice in Settings.");
+                void Choice(string label, bool allow, bool remember)
+                {
+                    if (ImGui.Button(label)) { controller.ResolvePriceIncrease(allow, remember); ImGui.CloseCurrentPopup(); }
+                }
+                Choice("Yes", true, false); ImGui.SameLine(); Choice("No", false, false);
+                Choice("Yes, don't ask again", true, true); ImGui.SameLine(); Choice("No, don't ask again", false, true);
+                ImGui.EndPopup();
+            }
+        }
         if (controller.MateriaWarningItem is { } melded)
         {
             ImGui.OpenPopup("Materia pricing warning");
@@ -754,9 +771,13 @@ internal sealed class MainWindow : Window
     private void DrawSettings()
     {
         DrawSettingsBackup();
+        ImGui.TextUnformatted("Existing listing increases: " + (config.AllowListingPriceIncreases is true ? "Always allow" : config.AllowListingPriceIncreases is false ? "Always skip" : "Ask each time"));
+        if (ImGui.Button("Ask before price increases again")) { config.AllowListingPriceIncreases = null; save(); }
         ImGui.Separator();
         void Feature(string name, bool value, Action<bool> update)
         { if (ImGui.Checkbox(name, ref value)) { update(value); save(); } }
+        Feature("Debug automatic listing selector", config.DebugListingSelector, v => config.DebugListingSelector = v);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Log each initial attempt, retry and opened selling form to the Dalamud log. No listing behavior changes. Disable after reproducing the issue.");
         Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
@@ -1177,6 +1198,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
         {
