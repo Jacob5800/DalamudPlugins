@@ -32,3 +32,5 @@
 - If an older installed release still shows 1970, identify its version and explain that the correction applies to newly packaged updates; do not modify user-installed files to disguise the old metadata.
 
 - Housing Timeout Reminder canonical source is `plugins/HousingTimeoutReminder`, built using its nested solution. Preserve AGPL-1.0 and third-party notices. Existing standalone release links remain valid until the next consolidated release; do not rewrite them to nonexistent assets. InternalName and configuration identity remain HousingTimeoutReminder.
+
+- BiSplanner is the AGPL-3.0-or-later BISBuddy fork in `plugins/BiSplanner`. Preserve `LICENSE.md`, `UPSTREAM.md`, KamiToolKit's MIT license and source provenance. Build `BiSplanner/BiSplanner.csproj` through `Package.ps1`; publish the matching source archive with each release. Stable tags use `BiSplanner-v<version>`. Original upstream data is not overwritten.

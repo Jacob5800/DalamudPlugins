@@ -30,7 +30,7 @@ jobs:
           }
           $current = @(Get-Content repo.json -Raw | ConvertFrom-Json)
           # These consolidated plugins announce in their own release workflows.
-          $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary', 'Workshoppa', 'TugOfWar', 'HousingTimeoutReminder', 'TataruBrawler')
+          $managed = @('PortraitAtelier', 'RetainerPricer', 'StrategyBoardLibrary', 'Workshoppa', 'TugOfWar', 'HousingTimeoutReminder', 'TataruBrawler', 'BiSplanner')
           foreach ($plugin in $current) {
             if ($plugin.InternalName -in $managed) { continue }
             $old = $before | Where-Object InternalName -eq $plugin.InternalName | Select-Object -First 1

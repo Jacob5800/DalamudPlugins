@@ -1,0 +1,370 @@
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using Autofac.Features.AttributeFilters;
+using BiSplanner.Commands;
+using BiSplanner.Factories;
+using BiSplanner.Items;
+using BiSplanner.Mappers;
+using BiSplanner.Mediators;
+using BiSplanner.Services;
+using BiSplanner.Services.Addon;
+using BiSplanner.Services.Addon.Containers;
+using BiSplanner.Services.Addon.ShopExchange;
+using BiSplanner.Services.Configuration;
+using BiSplanner.Services.Gearsets;
+using BiSplanner.Services.ImportGearset;
+using BiSplanner.Ui.Renderers;
+using BiSplanner.Ui.Renderers.Components;
+using BiSplanner.Ui.Renderers.ContextMenus;
+using BiSplanner.Ui.Renderers.Tabs;
+using BiSplanner.Ui.Renderers.Tabs.Config;
+using BiSplanner.Ui.Renderers.Tabs.Debug;
+using BiSplanner.Ui.Renderers.Tabs.Main;
+using BiSplanner.Ui.Windows;
+using Dalamud.Interface;
+using Dalamud.Interface.Windowing;
+using Dalamud.Networking.Http;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
+using KamiToolKit;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.IO.Abstractions;
+using System.Linq;
+using System.Net.Http;
+using System.Reflection;
+using System.Text.Json.Serialization;
+using BiSplanner.Services.IPC;
+using KamiToolKit.Extensions;
+using Dalamud.Utility;
+
+namespace BiSplanner;
+
+public sealed partial class Plugin : IDalamudPlugin
+{
+    private readonly IHost host;
+    private readonly ITypedLogger<Plugin> logger;
+
+    public Plugin(
+        IDalamudPluginInterface pluginInterface,
+        ICommandManager commandManager,
+        IGameInventory gameInventory,
+        IGameGui gameGui,
+        IPluginLog pluginLog,
+        IAddonLifecycle addonLifecycle,
+        IDataManager dataManager,
+        IClientState clientState,
+        ITextureProvider textureProvider,
+        IFramework framework,
+        IPlayerState playerState,
+        IDtrBar dtrBar
+        )
+    {
+        host = new HostBuilder()
+            .UseContentRoot(pluginInterface.ConfigDirectory.FullName)
+            .ConfigureLogging(lb =>
+            {
+                lb.ClearProviders();
+                lb.SetMinimumLevel(LogLevel.Trace);
+            })
+            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
+            .ConfigureContainer<ContainerBuilder>(builder =>
+            {
+                builder.RegisterInstance(pluginInterface).As<IDalamudPluginInterface>().SingleInstance();
+                builder.RegisterInstance(pluginInterface.UiBuilder).As<IUiBuilder>().SingleInstance();
+                builder.RegisterInstance(commandManager).As<ICommandManager>().SingleInstance();
+                builder.RegisterInstance(gameInventory).As<IGameInventory>().SingleInstance();
+                builder.RegisterInstance(gameGui).As<IGameGui>().SingleInstance();
+                builder.RegisterInstance(pluginLog).As<IPluginLog>().SingleInstance();
+                builder.RegisterInstance(addonLifecycle).As<IAddonLifecycle>().SingleInstance();
+                builder.RegisterInstance(dataManager).As<IDataManager>().SingleInstance();
+                builder.RegisterInstance(clientState).As<IClientState>().SingleInstance();
+                builder.RegisterInstance(textureProvider).As<ITextureProvider>().SingleInstance();
+                builder.RegisterInstance(framework).As<IFramework>().SingleInstance();
+                builder.RegisterInstance(playerState).As<IPlayerState>().SingleInstance();
+                builder.RegisterInstance(dtrBar).As<IDtrBar>().SingleInstance();
+
+                // wrap item finder module into service
+                builder.RegisterType<ItemFinderService>().As<IItemFinderService>().SingleInstance();
+
+                // more rich logging information
+                builder.RegisterGeneric(typeof(TypedLogger<>)).As(typeof(ITypedLogger<>)).InstancePerDependency();
+
+                // debugging
+                builder.RegisterType<DebugService>().As<IDebugService>().SingleInstance();
+
+                // commands
+                builder.RegisterType<OpenMainCommand>().AsImplementedInterfaces().SingleInstance();
+                builder.RegisterType<OpenConfigCommand>().AsImplementedInterfaces().SingleInstance();
+                builder.RegisterType<AddGearsetCommand>().AsImplementedInterfaces().SingleInstance();
+                builder.RegisterType<OpenDebugCommand>().AsImplementedInterfaces().SingleInstance();
+
+                // item data service wrapper over game excel data
+                builder.RegisterType<ItemDataService>().As<IItemDataService>().SingleInstance();
+
+                // get inventory items
+                builder.RegisterType<InventoryItemsService>().AsImplementedInterfaces().SingleInstance();
+
+                // memory cache
+                builder.RegisterType<MemoryCache>().As<IMemoryCache>().SingleInstance();
+
+                // importing gearsets
+                builder.RegisterType<HappyEyeballsCallback>().AsSelf().SingleInstance();
+                builder.Register(
+                    c => new HttpClient(
+                        new SocketsHttpHandler
+                        {
+                            ConnectCallback = c.Resolve<HappyEyeballsCallback>().ConnectCallback
+                        })
+                    ).As<HttpClient>()
+                    .SingleInstance();
+                builder.RegisterType<ImportGearsetService>().As<IImportGearsetService>().SingleInstance();
+                builder.RegisterType<XivgearSource>().As<IImportGearsetSource>().SingleInstance();
+                builder.RegisterType<EtroSource>().As<IImportGearsetSource>().SingleInstance();
+                builder.RegisterType<TeamcraftPlaintextSource>().As<IImportGearsetSource>().SingleInstance();
+                builder.RegisterType<JsonSource>().As<IImportGearsetSource>().SingleInstance();
+
+                // creating runtime factories
+                builder.RegisterType<GearpieceFactory>().As<IGearpieceFactory>().SingleInstance();
+                builder.RegisterType<GearsetFactory>().As<IGearsetFactory>().SingleInstance();
+                builder.RegisterType<ItemAssignmentSolverFactory>().As<IItemAssignmentSolverFactory>().SingleInstance();
+                builder.RegisterType<MateriaFactory>().As<IMateriaFactory>().SingleInstance();
+                builder.RegisterType<MateriaGroupFactory>().As<IMateriaGroupFactory>().SingleInstance();
+                builder.RegisterType<ContextMenuEntryFactory>().As<IContextMenuEntryFactory>().SingleInstance();
+
+                // de/serialization
+                builder.RegisterType<FileSystem>().As<IFileSystem>().SingleInstance();
+                builder.RegisterType<FileService>().As<IFileService>().SingleInstance();
+                builder.RegisterType<ConfigurationLoaderService>().As<IConfigurationLoaderService>().SingleInstance();
+                builder.RegisterType<JsonSerializerService>().As<IJsonSerializerService>().SingleInstance();
+
+                // cached attribute retrieval
+                builder.RegisterType<AttributeService>().As<IAttributeService>().SingleInstance();
+
+                // mappers
+                builder.RegisterType<GearpieceTypeMapper>().AsImplementedInterfaces().SingleInstance();
+
+                // converters
+                var jsonConverterTypes = Assembly
+                    .GetExecutingAssembly()
+                    .GetTypes()
+                    .Where(type =>
+                        type.IsClass
+                        && !type.IsAbstract
+                        && (type.BaseType?.IsGenericType ?? false)
+                        && type.BaseType!.GetGenericTypeDefinition() == typeof(JsonConverter<>)
+                    );
+
+                foreach (var converterType in jsonConverterTypes)
+                    builder.RegisterType(converterType).As<JsonConverter>().SingleInstance();
+
+                // windows
+                builder.RegisterType<WindowSystem>().AsSelf().SingleInstance();
+
+                var windowScopeTag = "WindowScope";
+
+                builder.RegisterType<MainWindow>().AsSelf().InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<ConfigWindow>().AsSelf().InstancePerMatchingLifetimeScope(windowScopeTag).WithAttributeFiltering();
+                builder.RegisterType<ImportGearsetWindow>().AsSelf().InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<MeldPlanSelectorWindow>().AsSelf().InstancePerMatchingLifetimeScope(windowScopeTag);
+
+                builder.Register(resolveWithScopeTagged<MainWindow>(windowScopeTag)).Keyed<Func<Window>>(WindowType.Main).SingleInstance();
+                builder.Register(resolveWithScopeTagged<ConfigWindow>(windowScopeTag)).Keyed<Func<Window>>(WindowType.Config).SingleInstance();
+                builder.Register(resolveWithScopeTagged<ImportGearsetWindow>(windowScopeTag)).Keyed<Func<Window>>(WindowType.ImportGearset).SingleInstance();
+                builder.Register(resolveWithScopeTagged<MeldPlanSelectorWindow>(windowScopeTag)).Keyed<Func<Window>>(WindowType.MeldPlanSelector).SingleInstance();
+
+                // main window tabs
+                builder.RegisterType<UserGearsetsTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.UserGearsets).InstancePerMatchingLifetimeScope(windowScopeTag);
+                //builder.RegisterType<ItemPlannerTab>().Keyed<TabRenderer>(MainWindowTab.ItemPlanner).InstancePerMatchingLifetimeScope(windowScopeTag);
+                //builder.RegisterType<ItemExchangesTab>().Keyed<TabRenderer>(MainWindowTab.ItemExchanges).InstancePerMatchingLifetimeScope(windowScopeTag);
+                //builder.RegisterType<ItemTrackerTab>().Keyed<TabRenderer>(MainWindowTab.ItemTracker).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<ConfigTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.PluginConfig).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<DebugTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.PluginDebug).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<MateriaCountsTab>().Keyed<TabRenderer<MainWindowTab>>(MainWindowTab.MateriaCounts).InstancePerMatchingLifetimeScope(windowScopeTag);
+
+                // debug tab tabs
+                builder.RegisterType<DebugItemRequirementsTab>().Keyed<TabRenderer<DebugToolTab>>(DebugToolTab.ItemRequirements).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<DebugSolverResultsTab>().Keyed<TabRenderer<DebugToolTab>>(DebugToolTab.SolverResults).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<DebugAddonsTab>().Keyed<TabRenderer<DebugToolTab>>(DebugToolTab.Addons).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<DebugPrerequisitesTab>().Keyed<TabRenderer<DebugToolTab>>(DebugToolTab.Prerequisites).InstancePerMatchingLifetimeScope(windowScopeTag);
+
+                // config window tabs
+                builder.RegisterType<GeneralSettingsTab>().Keyed<TabRenderer<ConfigWindowTab>>(ConfigWindowTab.General).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<HighlightingSettingsTab>().Keyed<TabRenderer<ConfigWindowTab>>(ConfigWindowTab.Highlighting).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<InventorySettingsTab>().Keyed<TabRenderer<ConfigWindowTab>>(ConfigWindowTab.Inventory).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<UiThemeSettingsTab>().Keyed<TabRenderer<ConfigWindowTab>>(ConfigWindowTab.UiTheme).InstancePerMatchingLifetimeScope(windowScopeTag);
+                builder.RegisterType<DebugSettingsTab>().Keyed<TabRenderer<ConfigWindowTab>>(ConfigWindowTab.Debug).InstancePerMatchingLifetimeScope(windowScopeTag);
+
+                // other ui elements
+                builder.RegisterType<UiComponents>().AsSelf().SingleInstance();
+
+                // renderer factory
+                builder.RegisterType<CachingRendererFactory>().As<IRendererFactory>().InstancePerMatchingLifetimeScope(windowScopeTag);
+
+                List<Type> renderers = [
+                    typeof(GearsetComponentRenderer),
+                    typeof(GearpieceComponentRenderer),
+                    typeof(PrerequisiteNodeComponentRenderer),
+                    typeof(MateriaGroupComponentRenderer),
+                    typeof(GearpieceContextMenu),
+                    typeof(GearsetContextMenu),
+                    typeof(MateriaContextMenu),
+                    typeof(PrerequisiteNodeContextMenu),
+                    ];
+
+                foreach (var renderer in renderers)
+                {
+                    var interfaceType = renderer.GetInterfaces()
+                        .FirstOrDefault(i =>
+                            i.IsGenericType &&
+                            i.IsConstructedGenericType &&
+                            i.GetGenericTypeDefinition() == typeof(IRenderer<>))
+                        ?? throw new InvalidOperationException($"{renderer.Name} does not implement IRenderer<T>.");
+                    var rendererType = renderer
+                        .GetProperty("RendererType", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                        ?.GetValue(null)
+                        ?? throw new InvalidOperationException($"{renderer.Name} Static property 'RendererType' not found.");
+
+                    builder.RegisterType(renderer).Keyed(rendererType, interfaceType).InstancePerLifetimeScope();
+                }
+
+                // display update count on inventory window
+                builder.RegisterType<InventoryUpdateDisplayMediator>().As<IInventoryUpdateDisplayService>().SingleInstance();
+
+                // display and pick meld plans
+                builder.RegisterType<MeldPlanMediator>().As<IMeldPlanService>().SingleInstance();
+
+                // event listener dependencies
+                builder.RegisterGeneric(typeof(AddonServiceDependencies<>)).AsSelf().InstancePerDependency();
+            })
+            // hosted services
+            .ConfigureContainer<ContainerBuilder>(builder =>
+            {
+                // manages windows
+                builder.RegisterType<WindowService>().AsImplementedInterfaces().SingleInstance();
+                builder.RegisterType<ServerBarService>().AsImplementedInterfaces().SingleInstance();
+
+                // manages the IPC service
+                builder.RegisterType<BiSplannerIpcService>().AsImplementedInterfaces().SingleInstance();
+
+                // manage current gearsets
+                builder.RegisterType<GearsetsService>().AsImplementedInterfaces().SingleInstance();
+
+                // handles changes to player inventories
+                builder.RegisterType<InventoryChangeService>().AsImplementedInterfaces().SingleInstance();
+
+                // a FIFO queue for executing item assignment tasks off thread
+                builder.RegisterType<QueueService>().AsImplementedInterfaces().SingleInstance();
+
+                // plugin configuration
+                builder.RegisterType<ConfigurationService>().AsImplementedInterfaces().SingleInstance();
+
+                // commands
+                builder.RegisterType<CommandService>().AsImplementedInterfaces().SingleInstance();
+
+                // handle active language
+                builder.RegisterType<LanguageService>().AsImplementedInterfaces().SingleInstance();
+
+                // log bad node highlights
+                builder.RegisterType<InvalidNodePollerService>().AsImplementedInterfaces().SingleInstance();
+
+                // addon listeners
+                //   inventories
+                builder.RegisterType<InventoryBuddyService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<InventoryExpansionService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<InventoryLargeService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<InventoryRetainerLargeService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<InventoryRetainerService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<InventoryService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                //   shops
+                builder.RegisterType<ShopExchangeCurrencyService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<ShopExchangeItemService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                //   tooltip
+                builder.RegisterType<ItemDetailService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                //   marketboard
+                builder.RegisterType<ItemSearchService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                builder.RegisterType<ItemSearchResultService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                //   materia melding
+                builder.RegisterType<MateriaAttachService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+                //   need greed
+                builder.RegisterType<NeedGreedService>().AsImplementedInterfaces().AsSelf().SingleInstance();
+            })
+            .Build();
+
+        logger = host.Services.GetRequiredService<ITypedLogger<Plugin>>();
+
+        logger.Info($"Initialization complete, starting...");
+        try
+        {
+            startPlugin();
+        }
+        catch (Exception ex)
+        {
+            logger.Fatal(ex, $"Failed to start");
+            Dispose();
+            // bubble exception up to fail plugin load
+            throw;
+        }
+        logger.Info($"Started successfully");
+    }
+
+    private void startPlugin()
+    {
+        var resolvedPluginInterface = host.Services.GetRequiredService<IDalamudPluginInterface>();
+        KamiToolKitLibrary.InitializeAsync(resolvedPluginInterface).WaitSafely();
+        host.Start();
+
+#if DEBUG
+        var commandService = host.Services.GetRequiredService<ICommandService>();
+        commandService.ExecuteCommand("/bisp", "d");
+#endif
+    }
+
+    private static Func<IComponentContext, Func<T>> resolveWithScopeTagged<T>(object scopeTag) where T : notnull
+    {
+        return context =>
+        {
+            var lifetime = context.Resolve<ILifetimeScope>();
+            return () =>
+            {
+                var scope = lifetime.BeginLifetimeScope(scopeTag);
+                return scope.Resolve<T>();
+            };
+        };
+    }
+
+    private void stopAndDispose()
+    {
+        KamiToolKitLibrary.Dispose();
+        host.StopAsync().GetAwaiter().GetResult();
+        host.Dispose();
+    }
+
+    public void Dispose()
+    {
+        logger.Info($"Teardown start");
+        if (!ThreadSafety.IsMainThread) // NOT on main thread, must be in order to dispose properly
+        {
+            IFramework? framework = null;
+            try
+            {
+                framework = host.Services.GetRequiredService<IFramework>();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Error retrieving {nameof(IFramework)} service for scheduling main-thread dispose, trying off main thread (dangerous!)");
+                stopAndDispose();
+            }
+            framework?.RunOnFrameworkThread(stopAndDispose).Wait();
+        }
+        else // already on main thread
+        {
+            stopAndDispose();
+        }
+        logger.Info("Teardown finish");
+    }
+}

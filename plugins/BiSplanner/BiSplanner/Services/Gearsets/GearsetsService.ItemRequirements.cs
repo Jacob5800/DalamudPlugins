@@ -1,0 +1,282 @@
+using BiSplanner.Gear;
+using BiSplanner.Gear.Melds;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace BiSplanner.Services.Gearsets
+{
+    public partial class GearsetsService
+    {
+        /// <summary>
+        /// Builds the lookup for every item id that is required of these gearsets and how
+        /// </summary>
+        private void updateItemRequirements()
+        {
+            var requirements = new Dictionary<uint, List<ItemRequirementOwned>>();
+            var itemCounts = inventoryItemsService.ItemInventoryQuantities.ToDictionary();
+            foreach (var gearset in currentGearsets)
+            {
+                foreach (var requirement in gearset.ItemRequirements(configurationService.HighlightUncollectedItemMateria).ToList())
+                {
+                    var itemReq = requirement;
+                    if (requirement.ItemRequirement.RequirementType == RequirementType.Materia
+                        && requirement.ItemRequirement.CollectionStatus < CollectionStatusType.NotObtainablePartial
+                        && itemCounts.TryGetValue(requirement.ItemRequirement.ItemId, out var invCount)
+                        && invCount.Count > 0
+                        )
+                    {
+                        // we have materia in our inventory, make this obtainable and decrement inv count
+                        itemReq = requirement with
+                        {
+                            ItemRequirement = requirement.ItemRequirement with
+                            {
+                                CollectionStatus = CollectionStatusType.Obtainable
+                            }
+                        };
+                        // decrement, we're using this materia
+                        itemCounts[requirement.ItemRequirement.ItemId] = invCount with
+                        {
+                            Count = invCount.Count - 1
+                        };
+                    }
+
+                    if (requirements.TryGetValue(itemReq.ItemRequirement.ItemId, out var itemIdRequirements))
+                        itemIdRequirements.Add(itemReq);
+                    else
+                        requirements[itemReq.ItemRequirement.ItemId] = [itemReq];
+                }
+            }
+
+            var readOnlyReqs = new Dictionary<uint, IReadOnlyList<ItemRequirementOwned>>();
+            foreach (var (itemId, reqs) in requirements)
+            {
+                readOnlyReqs[itemId] = reqs.AsReadOnly();
+            }
+
+            currentItemRequirements = readOnlyReqs;
+        }
+
+        /// <summary>
+        /// Whether a list of ItemRequirements include specific item id in some way (as the gearpiece, as a gearpiece prerequisite, or as a materia).
+        /// </summary>
+        /// <param name="itemId">The item id to check</param>
+        /// <param name="itemRequirements">The dictionary of ItemRequirements to check if the item is needed in</param>
+        /// <param name="includeMateria">Whether to include requirements of type Materia</param>
+        /// <param name="includePrereqs">Whether to include requirements of type Prerequisite</param>
+        /// <param name="includeCollected">Whether to include sources that are marked as collected when checking needed status</param>
+        /// <param name="includeObtainable">Whether to include sources that are marked as obtainable when checking needed status</param>
+        /// <param name="includeCollectedPrereqs">Whether to include prerequisites marked as collected. True for 'internal' inventory sources.
+        /// False for 'external' sources outside of player inventory</param>
+        /// <returns>If the item is needed in any way by any of the gearsets listed</returns>
+        public bool RequirementsNeedItemId(
+            uint itemId,
+            bool includePrereqs = true,
+            bool includeMateria = true,
+            bool includeCollected = false,
+            bool includeObtainable = false,
+            bool includeCollectedPrereqs = false
+            )
+        {
+            if (!currentItemRequirements.TryGetValue(itemId, out var itemIdRequirements))
+                return false;
+
+            if (itemIdRequirements.Count == 0)
+                return false;
+
+            foreach (var req in itemIdRequirements)
+            {
+                var reqStatus = req.ItemRequirement.CollectionStatus;
+                if (!includeObtainable && reqStatus == CollectionStatusType.Obtainable)
+                    continue;
+
+                switch (req.ItemRequirement.RequirementType)
+                {
+                    case RequirementType.Gearpiece:
+                        if (includeCollected || reqStatus < CollectionStatusType.ObtainedPartial)
+                            return true;
+                        break;
+                    case RequirementType.Materia:
+                        if (includeMateria && (includeCollected || reqStatus < CollectionStatusType.ObtainedPartial))
+                            return true;
+                        break;
+                    case RequirementType.Prerequisite:
+                        if (includePrereqs && (includeCollectedPrereqs || reqStatus < CollectionStatusType.ObtainedPartial))
+                            return true;
+                        break;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Get list of ItemRequirements for a specific item id. Returns empty list if not needed.
+        /// </summary>
+        /// <param name="itemId">The item id to check</param>
+        /// <param name="itemRequirements">The dictionary of ItemRequirements to check if the item is needed in</param>
+        /// <param name="includeMateria">Whether to include requirements of type Materia</param>
+        /// <param name="includePrereqs">Whether to include requirements of type Prerequisite</param>
+        /// <param name="includeCollected">Whether to include gearpieces that are marked as collected when checking needed status</param>
+        /// <param name="includeObtainable">Whether to include sources that are marked as obtainable when checking needed status</param>
+        /// <param name="includeCollectedPrereqs">If includePrereqs is true, whether to include prerequisites marked as collected.
+        /// True for 'internal' inventory sources. False for 'external' sources outside of player inventory</param>
+        /// <returns>List of the items ItemRequirements that match the filters</returns>
+        public IReadOnlyList<ItemRequirementOwned> GetItemRequirements(
+            uint itemId,
+            bool includePrereqs = true,
+            bool includeMateria = true,
+            bool includeCollected = false,
+            bool includeObtainable = false,
+            bool includeCollectedPrereqs = false
+            )
+        {
+            if (!currentItemRequirements.TryGetValue(itemId, out var itemIdRequirements))
+                return [];
+
+            if (itemIdRequirements.Count == 0)
+                return [];
+
+            var items = new List<ItemRequirementOwned>();
+            foreach (var req in itemIdRequirements)
+            {
+                var reqStatus = req.ItemRequirement.CollectionStatus;
+                if (!includeObtainable && reqStatus == CollectionStatusType.Obtainable)
+                    continue;
+
+                switch (req.ItemRequirement.RequirementType)
+                {
+                    case RequirementType.Gearpiece:
+                        if (includeCollected || reqStatus < CollectionStatusType.ObtainedPartial)
+                            items.Add(req);
+                        break;
+                    case RequirementType.Materia:
+                        if (includeMateria && (includeCollected || reqStatus < CollectionStatusType.ObtainedPartial))
+                            items.Add(req);
+                        break;
+                    case RequirementType.Prerequisite:
+                        if (includePrereqs && (includeCollectedPrereqs || reqStatus < CollectionStatusType.ObtainedPartial))
+                            items.Add(req);
+                        break;
+                }
+            }
+
+            return items;
+        }
+
+        public HighlightColor? GetRequirementColor(
+            IEnumerable<ItemRequirementOwned> itemRequirements
+            )
+        {
+            if (!itemRequirements.Any())
+                return null;
+
+            var defaultColor = configurationService.DefaultHighlightColor;
+            HighlightColor? currentColor = null;
+            foreach (var itemRequirement in itemRequirements)
+            {
+                if (itemRequirement.Gearset.HighlightColor != null)
+                {
+                    // multiple colors for this requirement, return the default one
+                    if (currentColor != null && !currentColor.Equals(itemRequirement.Gearset.HighlightColor))
+                        return defaultColor;
+
+                    currentColor = itemRequirement.Gearset.HighlightColor;
+                }
+                else
+                {
+                    currentColor = defaultColor;
+                }
+            }
+
+            // return the gearset's color, or default if no gearset had custom color
+            return currentColor ?? defaultColor;
+        }
+
+        public HighlightColor? GetRequirementColor(
+            uint itemId,
+            bool includePrereqs = true,
+            bool includeMateria = true,
+            bool includeCollected = false,
+            bool includeObtainable = false,
+            bool includeCollectedPrereqs = false
+            )
+        {
+            // retrieve list of item requirements for this item id
+            var itemIdRequirements = GetItemRequirements(
+                itemId,
+                includePrereqs,
+                includeMateria,
+                includeCollected,
+                includeObtainable,
+                includeCollectedPrereqs
+                );
+
+            return GetRequirementColor(itemIdRequirements);
+        }
+
+        public List<(Gearset, MateriaGroup)> GetNeededItemMeldPlans(uint itemId)
+        {
+            // get item requirements, a max of one per gearpiece
+            var itemIdRequirements = GetItemRequirements(
+                itemId,
+                includePrereqs: configurationService.HighlightPrerequisiteMateria,
+                includeMateria: false,
+                includeCollected: true,
+                includeObtainable: true,
+                includeCollectedPrereqs: true
+                ).DistinctBy(requirement => requirement.Gearpiece)
+                .ToList();
+
+            // if there are any melds needed, add this materia group to the list
+            var neededMeldPlans = itemIdRequirements
+                .Select(req => (req.Gearset, req.Gearpiece.ItemMateria))
+                .Where(group => group.ItemMateria.Any(m => !m.IsCollected))
+                .ToList();
+
+            return neededMeldPlans;
+        }
+
+        public Dictionary<string, HighlightColor> GetUnmeldedMateriaColors()
+        {
+            // return list of meldable item names for gearpieces that aren't fully melded
+            var itemNames = new Dictionary<string, HighlightColor>();
+
+            foreach (var gearset in currentGearsets)
+            {
+                if (!gearset.IsActive) continue;
+                foreach (var gearpiece in gearset.Gearpieces)
+                {
+                    // all gearpiece materia is melded, no melds required
+                    if (gearpiece.ItemMateria.All(m => m.IsCollected))
+                        continue;
+
+                    HashSet<string> newItemNames;
+                    if (gearpiece.PrerequisiteTree is not null && configurationService.HighlightPrerequisiteMateria)
+                    {
+                        newItemNames = gearpiece.PrerequisiteTree.MeldableItemNames();
+                        newItemNames.Add(gearpiece.ItemName);
+                    }
+                    else
+                    {
+                        newItemNames = [gearpiece.ItemName];
+                    }
+
+                    foreach (var newItemName in newItemNames)
+                    {
+                        // add item itself to list
+                        if (
+                        itemNames.TryGetValue(newItemName, out var currentColor)
+                        && !currentColor.Equals(gearset.HighlightColor)
+                        ) // multiple colors, use default color
+                            itemNames[newItemName] = configurationService.DefaultHighlightColor;
+                        else
+                            itemNames[newItemName] = gearset.HighlightColor
+                                ?? configurationService.DefaultHighlightColor;
+                    }
+                }
+            }
+
+            return itemNames;
+        }
+    }
+}

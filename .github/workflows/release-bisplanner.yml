@@ -1,0 +1,84 @@
+name: Release BiSplanner
+
+on:
+  push:
+    tags: ["BiSplanner-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Dalamud API 15 SDK
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Dalamud.zip'
+          $install = Join-Path $env:RUNNER_TEMP 'Dalamud'
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/goatcorp/dalamud-distrib/f9017cf1dd7c4d6351489b638e6a0a0ae5f0b45f/stg/latest.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
+          "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Verify tag version
+        shell: pwsh
+        run: |
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^BiSplanner-v', ''
+          [xml]$project = Get-Content 'plugins/BiSplanner/BiSplanner/BiSplanner.csproj' -Raw
+          if ($tagVersion -ne [string]$project.Project.PropertyGroup.Version) { throw 'Tag and project versions must match.' }
+      - name: Build BiSplanner and verify package
+        shell: pwsh
+        run: ./plugins/BiSplanner/Package.ps1
+      - name: Name release asset
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/BiSplanner/dist/package/BiSplanner.zip' -Destination 'BiSplanner.zip' -Force
+      - name: Preserve packaged plugin manifest
+        shell: pwsh
+        run: Copy-Item -LiteralPath 'plugins/BiSplanner/dist/package/BiSplanner.json' -Destination (Join-Path $env:RUNNER_TEMP 'BiSplanner.json') -Force
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          body_path: plugins/BiSplanner/CHANGELOG.md
+          files: |
+            BiSplanner.zip
+            plugins/BiSplanner/dist/package/BiSplanner-source.zip
+      - name: Update combined feed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git switch --force-create feed-update --track origin/main
+          $manifestPath = Join-Path $env:RUNNER_TEMP 'BiSplanner.json'
+          $feed = @(Get-Content repo.json -Raw | ConvertFrom-Json)
+          if (!($feed | Where-Object InternalName -eq 'BiSplanner')) {
+            $entry = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            $entry | Add-Member IsHide $false -Force
+            $entry | Add-Member IsTestingExclusive $false -Force
+            $entry | Add-Member DownloadLinkInstall '' -Force
+            $entry | Add-Member DownloadLinkUpdate '' -Force
+            $entry | Add-Member DownloadLinkTesting $null -Force
+            $entry | Add-Member TestingAssemblyVersion $null -Force
+            $entry | Add-Member LastUpdate ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) -Force
+            ConvertTo-Json -InputObject @($feed + $entry) -Depth 20 | Set-Content repo.json -Encoding utf8
+          }
+          ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'BiSplanner.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'BiSplanner.zip'
+          git add repo.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: update feed for $env:GITHUB_REF_NAME"
+            git push origin HEAD:main
+          }
+      - name: Announce release changelog on Discord
+        shell: pwsh
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Send-DiscordRelease.ps1 -ReleaseTag $env:RELEASE_TAG
