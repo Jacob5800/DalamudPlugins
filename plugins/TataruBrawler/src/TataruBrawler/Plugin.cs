@@ -67,9 +67,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly MgcWarning warning = new();
     private readonly AutomaticRecovery recovery = new();
     private long wholeWordDue;
-    private uint lastWholeWordEntity;
-    private string lastWholeWord = "";
-    private long lastWholeWordAt;
 
 	private long loopSample;
 
@@ -457,18 +454,12 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                     controlGate = "WholeWordWait";
                     if (typing.ManualPaused || loop.Paused || encounter.Paused(tickCount)
                         || !backgroundKeys.Ready || tickCount < wholeWordDue) break;
-                    string word = reader.Words.FirstOrDefault(candidate =>
-                        reader.Source(candidate) != lastWholeWordEntity || candidate != lastWholeWord
-                        || tickCount - lastWholeWordAt >= 1500);
+                    string word = reader.Words.FirstOrDefault();
                     uint entity = word == null ? 0 : reader.Source(word);
-                    if (word != null && entity != 0
-                        && (entity != lastWholeWordEntity || word != lastWholeWord || tickCount - lastWholeWordAt >= 1500))
+                    if (word != null && entity != 0)
                     {
                         if (reader.SubmitWholeWord(word, config.SkipOptionalPunctuation))
                         {
-                            lastWholeWordEntity = entity;
-                            lastWholeWord = word;
-                            lastWholeWordAt = tickCount;
                             wholeWordDue = tickCount + Math.Max(0, config.BetweenWordsMs);
                             controlGate = "WholeWordSubmitted";
                         }
@@ -1090,7 +1081,7 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
 			settings.Update(config);
 		}
 		ImGui.TextWrapped(config.IllegalMode
-            ? "Whole-word mode ignores character intervals. Delay after submission controls the next answer; 0 means no added delay. Repeated copies of the same prompt are protected against duplicate submission."
+            ? "Whole-word mode ignores character intervals. Delay after submission controls the next answer; 0 means no added delay. Visible prompts can be submitted again as soon as the input field is ready."
             : T("RangeHelp"));
 		int betweenWordsMs = config.BetweenWordsMs;
 		ImGui.SetNextItemWidth(200f);

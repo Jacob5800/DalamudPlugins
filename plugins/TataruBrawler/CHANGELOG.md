@@ -1,3 +1,7 @@
+## 1.0.8.16
+
+- Removed Illegal mode's fixed 1.5-second wait before resubmitting the same visible prompt.
+
 ## 1.0.8.15
 
 - Highlight active playback controls in teal and show loop status or availability in its tooltip.
