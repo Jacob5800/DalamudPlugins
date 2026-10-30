@@ -178,3 +178,5 @@ For intermittent automatic new-listing failures, enable **Debug automatic listin
 Automatic bell visits can run any selected steps, in this order: collect venture rewards, update existing listings, list new items, reassign ventures. Automatically run the full sequence overrides these four choices. Existing Auto ventures users retain collection and reassignment. Venture collection and reassignment skip retainers whose live home-world timer shows more than one minute remaining; listing work still visits them when selected.
 
 Desynthesis extracts materia from eligible 100%-spiritbond items first and waits for the spiritbond reset. Existing prompts for retrieving melded materia remain separate. A failed extraction stops without desynthesizing that item.
+
+With **Hold Shift to stop automation** enabled (the default), hold Shift during automation while the retainer picker, retainer menu or selling list is open to stop that run. Submitted actions remain applied. Saved automatic settings stay enabled, but the visit will not restart automatically until the bell interaction ends. Shift outside those retainer menus does not stop automation.

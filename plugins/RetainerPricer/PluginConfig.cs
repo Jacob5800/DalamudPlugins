@@ -46,6 +46,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool AutoUpdateExistingListings { get; set; }
     public bool AutoListNewItems { get; set; }
     public bool AutoReassignVentures { get; set; }
+    public bool ShiftStopsAutomation { get; set; } = true;
     public bool AutoRunFullSequence { get; set; } = false;
     public bool AssignQuickExplorationWhenIdle { get; set; } = true;
     public bool RepeatCompletedVentures { get; set; } = true;

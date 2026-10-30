@@ -1,4 +1,5 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface.Windowing;
@@ -16,6 +17,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly ICommandManager commands;
     private readonly IFramework framework;
+    private readonly IKeyState keyState;
     private readonly IPluginLog log;
     private readonly StatusHistory statusHistory;
     private readonly IDtrBarEntry serverInfoBarEntry;
@@ -50,9 +52,10 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
         ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
-        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets)
+        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets, IKeyState keyState)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
+        this.keyState = keyState;
         statusHistory = new StatusHistory(log);
         (this.condition, this.chat) = (condition, chat);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
@@ -161,6 +164,15 @@ public sealed class Plugin : IDalamudPlugin
         if (disposed) return;
         try
         {
+            // Check before any controller can submit its next action. Do not consume Shift.
+            if (config.ShiftStopsAutomation && automation.IsRunning && condition[ConditionFlag.OccupiedSummoningBell] &&
+                (bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible || bridge.IsRetainerSellListVisible) &&
+                keyState[VirtualKey.SHIFT])
+            {
+                automation.Cancel("Automation stopped for this run: Shift held in the retainer menu.");
+                ventureVisitHandled = true;
+                venturePickerReadyAt = null;
+            }
             desynthesis.Update();
             if (desynthesis.WaitingForBroth || desynthesis.WaitingForMateria) window.IsOpen = true;
             statusHistory.Observe("Desynthesis", desynthesis.Status);

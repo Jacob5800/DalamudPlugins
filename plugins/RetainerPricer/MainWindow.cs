@@ -911,7 +911,7 @@ internal sealed class MainWindow : Window
 
     private void DrawAutomation()
     {
-        ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
+        ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Hold Shift while a retainer menu is open to stop the current automation run; automatic runs stay stopped until you leave the bell. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
         var busy = UiBusy || ventures.IsRunning || vendor.IsRunning;
         ImGui.BeginDisabled(busy);
         var autoVentures = config.AutoRunVentures;
@@ -924,6 +924,9 @@ internal sealed class MainWindow : Window
         if (ImGui.Checkbox("Auto list new items", ref list)) { config.AutoListNewItems = list; save(); }
         var assign = config.AutoReassignVentures;
         if (ImGui.Checkbox("Auto reassign ventures", ref assign)) { config.AutoReassignVentures = assign; save(); }
+        var shiftStop = config.ShiftStopsAutomation;
+        if (ImGui.Checkbox("Hold Shift to stop automation", ref shiftStop)) { config.ShiftStopsAutomation = shiftStop; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Enabled by default. Holding Shift during an active run stops it only while the retainer picker, menu or selling list is open. It will not restart automatically during the same bell visit. Saved step settings are unchanged.");
         var full = config.AutoRunFullSequence;
         if (ImGui.Checkbox("Automatically run the full sequence", ref full))
         { config.AutoRunFullSequence = full; save(); }

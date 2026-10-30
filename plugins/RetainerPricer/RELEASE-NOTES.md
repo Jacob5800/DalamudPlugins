@@ -1,8 +1,3 @@
-## 0.5.1.33
+## 0.5.1.34
 
-- Fix an unload error during plugin updates.
-- Add individual automatic collection, repricing, listing and reassignment steps; full sequence overrides individual choices.
-- Skip venture visits while live timers show retainers are still away.
-- Extract materia from 100%-spiritbond items before desynthesis.
-- Fix Triple Triad card sale confirmation using the native Sell button.
-- Enable listing-selector diagnostics by default for new settings.
+- Add an enabled-by-default option to stop the current automation run by holding Shift while a retainer menu is open. Automatic runs remain stopped for that bell visit; saved settings are unchanged.
