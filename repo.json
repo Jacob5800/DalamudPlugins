@@ -188,5 +188,52 @@
     "LastUpdate": 1793334015,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
     "TestingDalamudApiLevel": null
+  },
+  {
+    "Author": "Lily; Jacob5800 (BiSplanner fork)",
+    "Name": "BiSplanner",
+    "InternalName": "BiSplanner",
+    "AssemblyVersion": "0.3.0.0",
+    "Description": "Highlights gear, coffers, and materia needed for all your gearsets\r\nImport from from Etro, Xivgear, or Teamcraft for easy setup\r\n\r\nHighlights items needed for gearsets on:\r\n    - Need/Greed Loot Windows\r\n    - NPC Shops and Exchanges\r\n    - Marketboard\r\n    - Player Inventories\r\n    - Item Tooltips\r\n\r\nWhen melding materia, highlights:\r\n    - Items to meld\r\n    - Materia to meld to item\r\n\r\nAutomatically syncs gearsets with player inventory",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+    "Tags": [
+      "bis",
+      "loot",
+      "best in slot",
+      "need",
+      "greed",
+      "gearset",
+      "gear",
+      "coffer",
+      "materia",
+      "meld",
+      "etro",
+      "xivgear"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "ImageUrls": [
+      "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/needgreed.png",
+      "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/npcshopexchange.png",
+      "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/materiamelding.png",
+      "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/inventory.png",
+      "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/itemtooltip.png"
+    ],
+    "Punchline": "Gearing, simplified.",
+    "Changelog": "## 0.3.0.0\r\n\r\n- Introduce BiSplanner, based on BISBuddy by Lily / RajahOmen.\r\n- Add an enable/disable checkbox beside every gearset. Disabled sets stay saved and are excluded from tracking and highlights.\r\n- Add Show BiSplanner in the server bar, disabled by default. Click the entry to open your sets.\r\n- Update plugin windows, commands and menus to BiSplanner. Open with /bisplanner or /bisp.\n",
+    "AcceptsFeedback": true,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.0/BiSplanner.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.0/BiSplanner.zip",
+    "DownloadLinkTesting": null,
+    "TestingAssemblyVersion": null,
+    "LastUpdate": 1793376973,
+    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png",
+    "TestingDalamudApiLevel": null
   }
 ]
