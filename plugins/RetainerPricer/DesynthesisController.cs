@@ -147,8 +147,8 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
             || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return;
         if (inventory->GetEmptySlotsInBag() < 5) { Stop("Free at least five carried inventory slots before retrieving materia."); return; }
-        if (!MateriaRetrieval.TryBegin(gui, data, item.Bag, item.Slot, slot))
-        { Stop("Could not open and confirm materia retrieval for this item. No desynthesis was attempted."); return; }
+        if (!MateriaRetrieval.TryBegin(gui, data, item.Bag, item.Slot, slot, out var retrievalError))
+        { Stop(retrievalError + " No desynthesis was attempted."); return; }
         retrievalBefore = current; retrievalSent = true; retrievalConfirmed = false; retrievalDeadline = now.AddSeconds(15);
         Status = $"Retrieving materia from {MateriaItemName}...";
     }

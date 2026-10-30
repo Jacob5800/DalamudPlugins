@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.28",
+  "AssemblyVersion": "0.5.1.29",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.28\n\n- Ask before retrieving materia from each melded desynthesis item, with Retrieve, Skip and Stop choices. Approved retrieval waits for materia removal before desynthesis.\n",
+  "Changelog": "## 0.5.1.29\n\n- Fix Yes - retrieve materia selecting the native inventory menu entry. Show a specific reason when retrieval cannot start.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
