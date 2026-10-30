@@ -194,7 +194,7 @@
     "Author": "Lily; Jacob5800 (BiSplanner fork)",
     "Name": "BiSplanner",
     "InternalName": "BiSplanner",
-    "AssemblyVersion": "0.3.0.3",
+    "AssemblyVersion": "0.3.0.4",
     "Description": "Highlights gear, coffers, and materia needed for all your gearsets\r\nImport from from Etro, Xivgear, or Teamcraft for easy setup\r\n\r\nHighlights items needed for gearsets on:\r\n    - Need/Greed Loot Windows\r\n    - NPC Shops and Exchanges\r\n    - Marketboard\r\n    - Player Inventories\r\n    - Item Tooltips\r\n\r\nWhen melding materia, highlights:\r\n    - Items to meld\r\n    - Materia to meld to item\r\n\r\nAutomatically syncs gearsets with player inventory",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -225,15 +225,15 @@
       "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/itemtooltip.png"
     ],
     "Punchline": "Gearing, simplified.",
-    "Changelog": "## 0.3.0.3\r\n\r\n- Fix the Import fight selector: TOP, FRU and other choices now filter matching builds instead of relabelling current-raid gear.\r\n- Add a metadata-checked Balance Discord gear index for all combat jobs and Blue Mage, including the supplied BLM, BRD and RPR links. Individual sheet variants keep their set indexes and source links.\r\n- Add separate controls for historical Endwalker sets and community submissions, plus set/GCD search. Ambiguous fight assignments remain Unspecified.\r\n- Add DMU, AMR and AAI fight filters, including shared AMR/AAI recommendations.\r\n- Display [fight] beside saved set names when viewing All fights.\r\n- When a duplicate build already exists, retain it and add the imported recommendation's fight tag.\r\n- Validate the provider job before saving recommended imports and accept Xivgear's www/path-style links.\n",
+    "Changelog": "## 0.3.0.4\r\n\r\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\r\n- Fix the inventory event handler remaining attached after disabling the plugin, guard pending refreshes, and stop queued actions during shutdown.\n",
     "AcceptsFeedback": true,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.3/BiSplanner.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.3/BiSplanner.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.4/BiSplanner.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.4/BiSplanner.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": 1793387093,
+    "LastUpdate": 1793394399,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png",
     "TestingDalamudApiLevel": null
   }
