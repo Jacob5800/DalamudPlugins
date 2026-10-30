@@ -34,6 +34,7 @@ internal sealed class PricingController : IDisposable
     private readonly Action saveConfiguration;
     private CancellationTokenSource cancellation = new();
     private Task<PriceSnapshot>? quoteTask;
+    private bool disposed;
     private Work work;
     private Step step;
     private int index;
@@ -1984,6 +1985,7 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        if (disposed) return;
         PriceIncreaseItem = null;
         increaseProceed = increaseSkip = null;
         approvedIncrease = null;
@@ -2043,5 +2045,11 @@ internal sealed class PricingController : IDisposable
     private static bool SameListing(SellItem a, SellItem b) => SameListingIdentity(a, b) && a.CurrentPrice == b.CurrentPrice;
     private static bool SameDialog(SellItem a, SellItem b) => SameListing(a, b) && a.DialogGeneration == b.DialogGeneration;
 
-    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+    public void Dispose()
+    {
+        if (disposed) return;
+        Cancel();
+        disposed = true;
+        cancellation.Dispose();
+    }
 }

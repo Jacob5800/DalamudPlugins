@@ -56,7 +56,7 @@ public sealed class Plugin : IDalamudPlugin
         statusHistory = new StatusHistory(log);
         (this.condition, this.chat) = (condition, chat);
         config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        var migrateConfig = config.Version < 15;
+        var migrateConfig = config.Version < 16;
         if (config.Version < 8)
         {
             // Move users from the former 0.10 default while preserving any custom threshold.
@@ -64,7 +64,8 @@ public sealed class Plugin : IDalamudPlugin
                 config.SniperThresholdFraction = 0.910;
         }
         if (config.Version < 15) config.SniperSkipOneGilLookup = true;
-        if (migrateConfig) config.Version = 15;
+        if (config.Version < 16 && config.AutoRunVentures) config.AutoReassignVentures = true;
+        if (migrateConfig) config.Version = 16;
         config.Normalize();
         if (migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
@@ -278,7 +279,7 @@ public sealed class Plugin : IDalamudPlugin
             venturePickerReadyAt = null;
             return;
         }
-        if (!config.RunVentures || (!config.AutoRunVentures && !config.AutoRunFullSequence))
+        if (!config.AutoRunVentures && !config.AutoRunFullSequence && !config.AutoUpdateExistingListings && !config.AutoListNewItems && !config.AutoReassignVentures)
         {
             venturePickerReadyAt = null;
             return;
@@ -295,8 +296,7 @@ public sealed class Plugin : IDalamudPlugin
         venturePickerReadyAt ??= now.AddSeconds(1);
         if (now < venturePickerReadyAt.Value) return;
         ventureVisitHandled = true;
-        if (config.AutoRunFullSequence) automation.Start();
-        else ventures.Start();
+        automation.StartConfigured();
     }
 
     private bool IsIdleVenturePicker => bridge.IsRetainerPickerVisible &&
@@ -414,6 +414,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        if (disposed) return;
         disposed = true;
         inventoryMenus.Dispose();
         undercuts.Dispose();
@@ -434,8 +435,9 @@ public sealed class Plugin : IDalamudPlugin
         serverInfoBarEntry.Remove();
         ttCards.Stop();
         desynthesis.Stop();
-        controller.Dispose();
+        // Automation.Cancel calls pricing.Cancel; keep the controller alive until cancellation finishes.
         automation.Cancel();
+        controller.Dispose();
         vendor.Dispose();
         ventures.Cancel();
         sniper.Dispose();

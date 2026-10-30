@@ -911,18 +911,24 @@ internal sealed class MainWindow : Window
 
     private void DrawAutomation()
     {
-        ImGui.TextWrapped("Optional automatic runs at an idle retainer picker. Both options are off by default. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
+        ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
         var busy = UiBusy || ventures.IsRunning || vendor.IsRunning;
         ImGui.BeginDisabled(busy);
         var autoVentures = config.AutoRunVentures;
-        if (ImGui.Checkbox("Auto ventures", ref autoVentures))
+        if (ImGui.Checkbox("Auto collect venture rewards", ref autoVentures))
         { config.AutoRunVentures = autoVentures; save(); }
-        ImGui.TextWrapped("Collect and reassign ventures using your Ventures settings. Does not update prices or list items.");
+        ImGui.TextWrapped("Collect completed rewards using your Ventures settings. Enable Auto reassign ventures below to send retainers back out.");
+        var reprice = config.AutoUpdateExistingListings;
+        if (ImGui.Checkbox("Auto update existing listings", ref reprice)) { config.AutoUpdateExistingListings = reprice; save(); }
+        var list = config.AutoListNewItems;
+        if (ImGui.Checkbox("Auto list new items", ref list)) { config.AutoListNewItems = list; save(); }
+        var assign = config.AutoReassignVentures;
+        if (ImGui.Checkbox("Auto reassign ventures", ref assign)) { config.AutoReassignVentures = assign; save(); }
         var full = config.AutoRunFullSequence;
         if (ImGui.Checkbox("Automatically run the full sequence", ref full))
         { config.AutoRunFullSequence = full; save(); }
-        ImGui.TextWrapped("Collect venture rewards -> update existing listings -> list eligible new items across retainers -> reassign ventures. Full sequence takes priority if both toggles are enabled, so ventures never run twice.");
-        ImGui.TextWrapped("Listing uses Exceptions, gear protections, quantity settings and available selling slots. Review these before enabling. Run ventures must be enabled in Ventures. Manual Auto update runs this same full sequence once without enabling automatic runs.");
+        ImGui.TextWrapped("Collect venture rewards -> update existing listings -> list eligible new items across retainers -> reassign ventures. Full sequence overrides the individual toggles and runs all four steps.");
+        ImGui.TextWrapped("Listing uses Exceptions, gear protections, quantity settings and available selling slots. Review these before enabling. Run ventures must be enabled when collection or reassignment is selected. Manual Auto update runs this same full sequence once without enabling automatic runs.");
         ImGui.EndDisabled();
         if (automation.AutoRetainerLoaded)
             ImGui.TextWrapped("Blocked: AutoRetainer is loaded. Unload it before using Retainer Pricer automation to prevent both plugins controlling the retainer UI.");
@@ -1198,6 +1204,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("Automation can run selected collection, repricing, listing and reassignment steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))

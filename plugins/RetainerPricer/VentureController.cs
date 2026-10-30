@@ -255,6 +255,13 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         { Cancel("Venture cycle stopped because the retainer picker closed unexpectedly."); return; }
 
         var target = retainers[retainerIndex];
+        if (bridge.IsRetainerStillOnVenture(target, now))
+        {
+            skipped++;
+            retainerIndex++;
+            Status = $"Skipped {target.Name}: venture still running.";
+            return;
+        }
         bridge.TryGetSelectedRetainerId(out previouslySelectedRetainerId);
         if (!bridge.TrySelectRetainerById(target, out var unavailable, out var error))
         {

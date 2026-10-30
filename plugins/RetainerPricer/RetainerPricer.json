@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.32",
+  "AssemblyVersion": "0.5.1.33",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.32\n\n- Ask before raising existing listing prices, with optional remembered Yes/No choices and a Settings reset.\n- Add optional detailed automatic listing-selector logs to investigate failed first attempts and successful retries without changing listing behavior.\n",
+  "Changelog": "## 0.5.1.33\n\n- Fix an unload error during plugin updates.\n- Add individual automatic collection, repricing, listing and reassignment steps; full sequence overrides individual choices.\n- Skip venture visits while live timers show retainers are still away.\n- Extract materia from 100%-spiritbond items before desynthesis.\n- Fix Triple Triad card sale confirmation using the native Sell button.\n- Enable listing-selector diagnostics by default for new settings.\n",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

@@ -5,7 +5,7 @@ namespace RetainerPricer;
 public sealed class PluginConfig : IPluginConfiguration
 {
     // null asks before each increase; true allows; false skips increases.
-    public bool DebugListingSelector { get; set; }
+    public bool DebugListingSelector { get; set; } = true;
     public bool? AllowListingPriceIncreases { get; set; }
     public bool ShowUndercutNotifier { get; set; }
     public bool ShowDontReprice { get; set; }
@@ -18,7 +18,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public double SniperMinimumRoiPercent { get; set; } = 0;
     public bool UseBaconBroth { get; set; }
     public List<uint> DesynthesisItemIds { get; set; } = [];
-    public int Version { get; set; } = 15;
+    public int Version { get; set; } = 16;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;
@@ -43,6 +43,9 @@ public sealed class PluginConfig : IPluginConfiguration
     public double UndercutPercentage { get; set; } = 1;
     public bool RunVentures { get; set; }
     public bool AutoRunVentures { get; set; } = false;
+    public bool AutoUpdateExistingListings { get; set; }
+    public bool AutoListNewItems { get; set; }
+    public bool AutoReassignVentures { get; set; }
     public bool AutoRunFullSequence { get; set; } = false;
     public bool AssignQuickExplorationWhenIdle { get; set; } = true;
     public bool RepeatCompletedVentures { get; set; } = true;

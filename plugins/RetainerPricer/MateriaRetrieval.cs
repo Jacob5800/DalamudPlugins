@@ -10,13 +10,13 @@ namespace RetainerPricer;
 
 internal static unsafe class MateriaRetrieval
 {
-    public static bool TryBegin(IGameGui gui, IDataManager data, InventoryType bag, int index, InventoryItem* slot, out string error)
+    public static bool TryBegin(IGameGui gui, IDataManager data, InventoryType bag, int index, InventoryItem* slot, out string error, bool extraction = false)
     {
         error = "Materia retrieval dialog is already open. Close it and retry.";
-        var existing = gui.GetAddonByName<AtkUnitBase>("MateriaRetrieveDialog");
+        var existing = gui.GetAddonByName<AtkUnitBase>(extraction ? "MaterializeDialog" : "MateriaRetrieveDialog");
         if (existing != null && existing->IsVisible) return false;
         uint label = data.GetExcelSheet<Addon>(ClientLanguage.English)
-            .FirstOrDefault(row => row.Text.ToString().Equals("Retrieve Materia", StringComparison.OrdinalIgnoreCase)).RowId;
+            .FirstOrDefault(row => row.Text.ToString().Equals(extraction ? "Extract Materia" : "Retrieve Materia", StringComparison.OrdinalIgnoreCase)).RowId;
         var agent = AgentInventoryContext.Instance();
         error = "Retrieve Materia menu label or inventory agent is unavailable.";
         if (label == 0 || agent == null) return false;

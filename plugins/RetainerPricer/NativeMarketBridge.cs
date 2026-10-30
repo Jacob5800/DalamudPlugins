@@ -876,6 +876,23 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             timer.Venture != 0 && timer.EndsAt > 0 && timer.EndsAt <= now).Select(id => knownVentureTimers[id].Name).ToArray();
     }
 
+    public bool IsRetainerStillOnVenture(RetainerIdentity expected, DateTimeOffset now)
+    {
+        if (!player.IsLoaded || player.CurrentWorld.RowId != player.HomeWorld.RowId) return false;
+        var manager = RetainerManager.Instance();
+        if (manager == null || !manager->IsReady) return false;
+        var count = manager->GetRetainerCount();
+        if (count is 0 or > 10) return false;
+        for (uint i = 0; i < count; i++)
+        {
+            var retainer = manager->GetRetainerBySortedIndex(i);
+            if (retainer == null || retainer->RetainerId != expected.RetainerId) continue;
+            return retainer->Available && retainer->NameString == expected.Name &&
+                retainer->VentureId != 0 && retainer->VentureComplete > now.AddMinutes(1).ToUnixTimeSeconds();
+        }
+        return false;
+    }
+
     public bool TryGetOwnRetainers(out IReadOnlyList<RetainerIdentity> retainers)
     {
         var result = new List<RetainerIdentity>();

@@ -174,3 +174,7 @@ Enable **Show saved gearsets in item tooltips** in Settings to display matching 
 Existing-listing price increases require confirmation before filling or submitting a higher price, including automatic updates. Choose Yes or No for one listing, or remember either choice for future increases. Settings can restore Ask each time. Decreases and new listings are unaffected.
 
 For intermittent automatic new-listing failures, enable **Debug automatic listing selector** in Settings, reproduce an initial failure and successful retry, then inspect `[Listing selector ...]` entries in the Dalamud log. These record requested inventory/slot and the sale-form lifecycle without changing retry behavior. Disable afterward.
+
+Automatic bell visits can run any selected steps, in this order: collect venture rewards, update existing listings, list new items, reassign ventures. Automatically run the full sequence overrides these four choices. Existing Auto ventures users retain collection and reassignment. Venture collection and reassignment skip retainers whose live home-world timer shows more than one minute remaining; listing work still visits them when selected.
+
+Desynthesis extracts materia from eligible 100%-spiritbond items first and waits for the spiritbond reset. Existing prompts for retrieving melded materia remain separate. A failed extraction stops without desynthesizing that item.

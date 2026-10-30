@@ -6,6 +6,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
 {
     private enum Stage { Idle, Collect, Reprice, List, Assign }
     private Stage stage;
+    private bool collectEnabled, repriceEnabled, listEnabled, assignEnabled;
     private ulong contentId;
     private uint worldId;
     public int CompletedRuns { get; private set; }
@@ -15,14 +16,20 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
 
     public void Start() => Start(allowEmptyExceptions: false);
 
-    public void Start(bool allowEmptyExceptions)
+    public void StartConfigured() => Start(false, configured: true);
+    public void Start(bool allowEmptyExceptions) => Start(allowEmptyExceptions, configured: false);
+    private void Start(bool allowEmptyExceptions, bool configured)
     {
         if (IsRunning || pricing.Busy || ventures.IsRunning || vendor.IsRunning) return;
+        collectEnabled = !configured || config.AutoRunFullSequence || config.AutoRunVentures;
+        repriceEnabled = !configured || config.AutoRunFullSequence || config.AutoUpdateExistingListings;
+        listEnabled = !configured || config.AutoRunFullSequence || config.AutoListNewItems;
+        assignEnabled = !configured || config.AutoRunFullSequence || config.AutoReassignVentures;
         if (AutoRetainerLoaded)
         { Status = "Unload AutoRetainer before starting Retainer Pricer automation."; return; }
-        if (!config.RunVentures)
+        if ((collectEnabled || assignEnabled) && !config.RunVentures)
         { Status = "Enable Run ventures in Ventures before starting the full sequence."; return; }
-        if (!allowEmptyExceptions && config.ExcludedItemIds.Count == 0 && !config.DontShowEmptyExceptionsWarningAgain)
+        if (listEnabled && !allowEmptyExceptions && config.ExcludedItemIds.Count == 0 && !config.DontShowEmptyExceptionsWarningAgain)
         { Status = "Review the empty Exceptions warning with Start listing items before running automation."; return; }
         if (!bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible || bridge.IsRetainerSellListVisible ||
             bridge.IsRetainerDialogueVisible || bridge.IsSellWindowVisible || bridge.IsComparisonVisible ||
@@ -30,27 +37,44 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         { Status = "Open the retainer picker before starting the full sequence."; return; }
         if (!bridge.TryGetCharacterContext(out contentId, out worldId, out var error))
         { Status = error; return; }
-        if (AllVenturesStillAway(DateTimeOffset.UtcNow))
+        stage = Stage.Idle;
+        Advance();
+    }
+
+    private void Advance()
+    {
+        var previous = stage;
+        if (previous < Stage.Collect && collectEnabled && !AllVenturesStillAway(DateTimeOffset.UtcNow))
         {
-            stage = Stage.Reprice;
-            pricing.AutoUpdateAllRetainers();
-            Status = "All retainers are still on ventures; skipping reward collection and updating listings...";
+            stage = Stage.Collect; ventures.CollectRewards(); Status = "Collecting venture rewards...";
+            if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
+            return;
+        }
+        if (previous < Stage.Reprice && repriceEnabled)
+        {
+            stage = Stage.Reprice; pricing.AutoUpdateAllRetainers(); Status = "Updating existing listings...";
             if (!pricing.Busy) Fail(pricing.Status);
             return;
         }
-        stage = Stage.Collect;
-        ventures.CollectRewards();
-        Status = "Collecting venture rewards...";
-        if (!ventures.IsRunning) Fail(ventures.Status);
+        if (previous < Stage.List && listEnabled)
+        {
+            stage = Stage.List; pricing.ListNewItemsAllRetainers(); Status = "Listing eligible new inventory...";
+            if (!pricing.Busy) Fail(pricing.Status);
+            return;
+        }
+        if (previous < Stage.Assign && assignEnabled)
+        {
+            stage = Stage.Assign; ventures.ReassignVentures(); Status = "Reassigning ventures...";
+            if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
+            return;
+        }
+        stage = Stage.Idle; CompletedRuns++; Status = "Selected automation steps complete.";
     }
 
     private bool AllVenturesStillAway(DateTimeOffset now)
     {
         if (!bridge.TryGetOwnRetainers(out var retainers) || retainers.Count == 0) return false;
-        return retainers.All(retainer => config.UniversalisRetainerListings.TryGetValue(retainer.RetainerId, out var cache)
-            && cache.WorldId == worldId && cache.RetainerId == retainer.RetainerId
-            && cache.RefreshedAt <= now && now - cache.RefreshedAt < TimeSpan.FromHours(1)
-            && cache.VentureId is > 0 && cache.VentureCompletesAt is { } end && end > now.AddMinutes(1));
+        return retainers.All(retainer => bridge.IsRetainerStillOnVenture(retainer, now));
     }
 
     public void Update()
@@ -60,32 +84,13 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         { Cancel("Automation stopped: AutoRetainer loaded, disconnected, or character/world changed."); return; }
         switch (stage)
         {
-            case Stage.Collect when !ventures.IsRunning:
+            case Stage.Collect or Stage.Assign when !ventures.IsRunning:
                 if (!ventures.LastRunSucceeded) { Fail(ventures.Status); return; }
-                stage = Stage.Reprice;
-                pricing.AutoUpdateAllRetainers();
-                Status = "Updating existing listings...";
-                if (!pricing.Busy) Fail(pricing.Status);
+                Advance();
                 break;
-            case Stage.Reprice when !pricing.Busy:
+            case Stage.Reprice or Stage.List when !pricing.Busy:
                 if (!pricing.LastTraversalSucceeded) { Fail(pricing.Status); return; }
-                stage = Stage.List;
-                pricing.ListNewItemsAllRetainers();
-                Status = "Listing eligible new inventory across retainers...";
-                if (!pricing.Busy) Fail(pricing.Status);
-                break;
-            case Stage.List when !pricing.Busy:
-                if (!pricing.LastTraversalSucceeded) { Fail(pricing.Status); return; }
-                stage = Stage.Assign;
-                ventures.ReassignVentures();
-                Status = "Reassigning ventures...";
-                if (!ventures.IsRunning) Fail(ventures.Status);
-                break;
-            case Stage.Assign when !ventures.IsRunning:
-                if (!ventures.LastRunSucceeded) { Fail(ventures.Status); return; }
-                stage = Stage.Idle;
-                CompletedRuns++;
-                Status = "Complete: rewards collected, listings updated, new items listed, ventures reassigned.";
+                Advance();
                 break;
         }
     }

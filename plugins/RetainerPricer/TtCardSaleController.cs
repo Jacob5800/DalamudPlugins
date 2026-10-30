@@ -146,7 +146,8 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
             { Stop("Card sale quantity changed; no sale confirmed."); return; }
             dialog->CardQuantityInput->SetValue((int)selectedQuantity);
             if(dialog->CardQuantityInput->Data.Value!=(int)selectedQuantity) { Stop("Card quantity was not accepted."); return; }
-            Callback((AtkUnitBase*)dialog,0,(int)selectedQuantity);
+            if (!NativeUiButton.Click((AtkUnitBase*)dialog, dialog->GetComponentButtonById(16)))
+            { if (now > operationDeadline) Stop("The card Sell button was not ready; no retry was submitted."); return; }
             awaitingSale=true; operationDeadline=now.AddSeconds(15); return;
         }
         // Exchange row offsets corroborated by ECommons ReaderTripleTriadCoinExchange.

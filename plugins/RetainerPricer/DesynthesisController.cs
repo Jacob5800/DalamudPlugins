@@ -17,6 +17,28 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
+    private (InventoryType Bag, int Slot, uint Id, bool Hq)? extractionItem;
+    private bool extractionConfirmed;
+    private DateTimeOffset extractionDeadline;
+    private void UpdateExtraction(InventoryManager* inventory, DateTimeOffset now)
+    {
+        if (extractionItem is not { } item) return;
+        var bag = inventory->GetInventoryContainer(item.Bag);
+        var slot = bag == null || !bag->IsLoaded ? null : bag->GetInventorySlot(item.Slot);
+        if (slot == null || slot->IsEmpty() || slot->GetBaseItemId() != item.Id || slot->IsHighQuality() != item.Hq)
+        { Stop("Materia extraction stopped: selected item changed."); return; }
+        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out var error)) { Stop(error); return; }
+        if (protectedIds.Contains(item.Id) || !config.DesynthesisItemIds.Contains(item.Id))
+        { Stop("Materia extraction stopped: item is now protected or removed from the list."); return; }
+        if (slot->GetSpiritbondOrCollectability() < 10000)
+        { extractionItem = null; next = now.AddSeconds(1); Status = "Materia extracted; continuing desynthesis."; return; }
+        if (!extractionConfirmed)
+        {
+            var dialog = gui.GetAddonByName<FFXIVClientStructs.FFXIV.Client.UI.AddonMaterializeDialog>("MaterializeDialog");
+            if (dialog != null && NativeUiButton.Click((AtkUnitBase*)dialog, dialog->YesButton)) extractionConfirmed = true;
+        }
+        if (now >= extractionDeadline) Stop("Materia extraction was not confirmed. Check the game error or inventory space; item was not desynthesized.");
+    }
     public bool WaitingForMateria { get; private set; }
     public string MateriaItemName { get; private set; } = "";
     private (InventoryType Bag, int Slot, uint Id, bool Hq, string Melds)? materiaItem;
@@ -102,7 +124,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = false; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
@@ -111,6 +133,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (config.DesynthesisItemIds.Count == 0) { Status = "Add items to the desynthesis list first."; return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out _, out _, out var error)) { Status = error; return; }
         skippedMateria.Clear(); materiaItem = null; retrieveApproved = retrievalSent = WaitingForMateria = false;
+        extractionItem = null;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
         brothHandled = brothRequested = WaitingForBroth = false;
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
@@ -163,6 +186,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         next = now.AddMilliseconds(250);
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
+        if (extractionItem != null) { UpdateExtraction(inventory, now); return; }
         if (materiaItem != null) { UpdateMateria(inventory, now); return; }
         if (pending is { } wait)
         {
@@ -195,6 +219,15 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 var player = PlayerState.Instance();
                 if (player == null || index < 0 || index >= player->ClassJobLevels.Length || player->ClassJobLevels[index] < 30) continue;
                 if (skippedMateria.Contains((type,i,id))) continue;
+                if (slot->GetSpiritbondOrCollectability() >= 10000)
+                {
+                    if (inventory->GetEmptySlotsInBag() < 1) { Stop("Free a carried inventory slot before extracting materia."); return; }
+                    if (!MateriaRetrieval.TryBegin(gui, data, type, i, slot, out var extractError, extraction: true))
+                    { Stop("Materia extraction could not start: " + extractError + " No desynthesis was attempted."); return; }
+                    extractionItem = (type, i, id, slot->IsHighQuality()); extractionConfirmed = false; extractionDeadline = now.AddSeconds(15);
+                    Status = $"Extracting materia from {item.Name} before desynthesis...";
+                    return;
+                }
                 // Ask for this exact melded copy before removing its materia.
                 bool melded = false;
                 for (int m = 0; m < 5; m++) if (slot->Materia[m] != 0) melded = true;
