@@ -167,3 +167,6 @@ When specific items are selected, Sniper loads their price references and config
 - Full sequences skip the initial reward-collection pass only when every currently available retainer has cache data less than one hour old, matching the current world, with its venture ending more than one minute later. Missing, stale, idle or nearly complete venture records retain the normal collection pass.
 - Settings offers separate **Show Undercut notifier**, **Show Don't reprice**, **Show Batch selling**, and **Show Retainer sell** switches, off by default. Hiding a list preserves its data and rules; hiding Undercut notifier also pauses its monitoring.
 - **Show saved gearsets in item tooltips** optionally adds matching saved gearset numbers and names. It works independently of home-price tooltips and matches normal/HQ item identity.
+
+
+Enable **Show saved gearsets in item tooltips** in Settings to display matching saved gearset numbers, names and their class/job icons.

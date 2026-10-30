@@ -19,6 +19,8 @@ namespace RetainerPricer;
 public sealed record MarketSession(ulong ContentId, ulong RetainerId, uint WorldId, string WorldName,
     string? DataCenterName = null);
 
+public sealed record SavedGearsetMatch(int Number, string Name, byte ClassJobId);
+
 public sealed record RetainerIdentity(ulong RetainerId, string Name, byte ClassJobId = 0, byte Level = 0);
 
 public sealed record RetainerVentureMenuLabels(string Quit, string ViewReport,
@@ -649,19 +651,19 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return result;
     }
 
-    public IReadOnlyList<string> ReadSavedGearsetNames(uint rawItemId)
+    public IReadOnlyList<SavedGearsetMatch> ReadSavedGearsets(uint rawItemId)
     {
         if (disposed || !player.IsLoaded || player.ContentId == 0) return [];
         var module = RaptureGearsetModule.Instance();
         if (module == null) return [];
-        List<string> matches = [];
+        List<SavedGearsetMatch> matches = [];
         for (int i=0; i<100; i++)
         {
             ref var set = ref module->Entries[i];
             if ((set.Flags & RaptureGearsetModule.GearsetFlag.Exists) == 0) continue;
             for (int slot=0;slot<14;slot++)
                 if (set.Items[slot].ItemId == rawItemId)
-                { matches.Add($"{set.Id+1}: {set.NameString}"); break; }
+                { matches.Add(new SavedGearsetMatch(set.Id + 1, set.NameString, set.ClassJob)); break; }
         }
         return matches;
     }

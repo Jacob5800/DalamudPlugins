@@ -1,3 +1,7 @@
+## 0.5.1.31
+
+- Show the corresponding class/job icon beside each saved gearset in item tooltips.
+
 ## 0.5.1.30
 
 - Add optional Auto sell TT cards after a full sequence, plus Run now: teleport to the Gold Saucer and navigate with vnavmesh to exchange registered duplicate cards. Unregistered cards and Exceptions are kept.

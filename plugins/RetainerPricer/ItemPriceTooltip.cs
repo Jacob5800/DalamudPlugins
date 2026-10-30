@@ -36,7 +36,7 @@ internal sealed class ItemPriceTooltip : IDisposable
     private int shiftedY;
     private uint gearsetItem;
     private DateTimeOffset gearsetRefresh;
-    private IReadOnlyList<string> gearsetNames = [];
+    private IReadOnlyList<SavedGearsetMatch> gearsets = [];
     private readonly ushort orangeColor;
     private readonly ushort grayColor;
     private readonly ushort yellowColor;
@@ -122,10 +122,18 @@ internal sealed class ItemPriceTooltip : IDisposable
             if (gearsetItem != raw || nowAt >= gearsetRefresh)
             {
                 gearsetItem = (uint)raw;
-                gearsetNames = bridge.ReadSavedGearsetNames((uint)raw);
+                gearsets = bridge.ReadSavedGearsets((uint)raw);
                 gearsetRefresh = nowAt.AddSeconds(1);
             }
-            if (gearsetNames.Count > 0) text.AddText("Saved gearsets:\n" + string.Join("\n", gearsetNames) + "\n");
+            if (gearsets.Count > 0)
+            {
+                text.AddText("Saved gearsets:\n");
+                foreach (var set in gearsets)
+                {
+                    if (GearsetJobIcon(set.ClassJobId) is { } icon) text.AddIcon(icon).AddText(" ");
+                    text.AddText($"{set.Number}: {set.Name}\n");
+                }
+            }
         }
         if (!config.ShowItemTooltipPrices || !marketable.Contains(hovered))
         {
@@ -162,6 +170,54 @@ internal sealed class ItemPriceTooltip : IDisposable
         Attach(addon, text.Build().Encode());
         if (cache.Count > 2000) foreach (var id in cache.OrderBy(x => x.Value.At).Take(cache.Count - 2000).Select(x => x.Key).ToArray()) cache.Remove(id);
     }
+
+    private static BitmapFontIcon? GearsetJobIcon(byte classJobId) => classJobId switch
+    {
+        1 => BitmapFontIcon.Gladiator,
+        2 => BitmapFontIcon.Pugilist,
+        3 => BitmapFontIcon.Marauder,
+        4 => BitmapFontIcon.Lancer,
+        5 => BitmapFontIcon.Archer,
+        6 => BitmapFontIcon.Conjurer,
+        7 => BitmapFontIcon.Thaumaturge,
+        8 => BitmapFontIcon.Carpenter,
+        9 => BitmapFontIcon.Blacksmith,
+        10 => BitmapFontIcon.Armorer,
+        11 => BitmapFontIcon.Goldsmith,
+        12 => BitmapFontIcon.Leatherworker,
+        13 => BitmapFontIcon.Weaver,
+        14 => BitmapFontIcon.Alchemist,
+        15 => BitmapFontIcon.Culinarian,
+        16 => BitmapFontIcon.Miner,
+        17 => BitmapFontIcon.Botanist,
+        18 => BitmapFontIcon.Fisher,
+        19 => BitmapFontIcon.Paladin,
+        20 => BitmapFontIcon.Monk,
+        21 => BitmapFontIcon.Warrior,
+        22 => BitmapFontIcon.Dragoon,
+        23 => BitmapFontIcon.Bard,
+        24 => BitmapFontIcon.WhiteMage,
+        25 => BitmapFontIcon.BlackMage,
+        26 => BitmapFontIcon.Arcanist,
+        27 => BitmapFontIcon.Summoner,
+        28 => BitmapFontIcon.Scholar,
+        29 => BitmapFontIcon.Rogue,
+        30 => BitmapFontIcon.Ninja,
+        31 => BitmapFontIcon.Machinist,
+        32 => BitmapFontIcon.DarkKnight,
+        33 => BitmapFontIcon.Astrologian,
+        34 => BitmapFontIcon.Samurai,
+        35 => BitmapFontIcon.RedMage,
+        36 => BitmapFontIcon.BlueMage,
+        37 => BitmapFontIcon.Gunbreaker,
+        38 => BitmapFontIcon.Dancer,
+        39 => BitmapFontIcon.Reaper,
+        40 => BitmapFontIcon.Sage,
+        41 => BitmapFontIcon.Viper,
+        42 => BitmapFontIcon.Pictomancer,
+        43 => BitmapFontIcon.Beastmaster,
+        _ => null,
+    };
 
     private static unsafe AtkTextNode* Find(AtkUnitBase* addon)
     {

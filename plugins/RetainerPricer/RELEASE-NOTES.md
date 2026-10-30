@@ -1,3 +1,3 @@
-## 0.5.1.20
+## 0.5.1.31
 
-- Automatic listing now skips bound, untradeable, collectable, crested, and market-prohibited items before attempting to list them.
+- Show the corresponding class/job icon beside each saved gearset in item tooltips.
