@@ -385,11 +385,11 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				}
 				return;
 			}
-			if (flag3 && (typing.Running || loop.Active || config.AutoStart) && tickCount - scanned >= 50)
+			if (flag3 && (typing.Running || loop.Active || config.AutoStart) && (config.IllegalMode || tickCount - scanned >= 50))
 			{
 				reader.Refresh();
 				scanned = tickCount;
-                if (client.TerritoryType == 1359 && encounter.Update(tickCount, BlockingCastReader.Read(objects)))
+                if (!config.IllegalMode && client.TerritoryType == 1359 && encounter.Update(tickCount, BlockingCastReader.Read(objects)))
                     diagnostics.Event("input_block_cast", new { waitMs = 4000, source = "native_action_id" });
 			}
 			if (reader.ContentComplete)
@@ -402,7 +402,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				return;
 			}
             bool recoveryReady = reader.Available && reader.InputEnabled && reader.Words.Count > 0
-                && !reader.CompetingFocus() && !encounter.Paused(tickCount)
+                && !reader.CompetingFocus() && (config.IllegalMode || !encounter.Paused(tickCount))
                 && (foreground ? !uiCaptures && !Keyboard.Modifier && !Keyboard.Escape : config.BackgroundInput)
                 && !condition[ConditionFlag.BetweenAreas] && !condition[ConditionFlag.BetweenAreas51];
             if (recovery.ShouldResume(tickCount, config.AutoStart, client.TerritoryType == 1359,
@@ -452,8 +452,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                 if (config.IllegalMode)
                 {
                     controlGate = "WholeWordWait";
-                    if (typing.ManualPaused || loop.Paused || encounter.Paused(tickCount)
-                        || !backgroundKeys.Ready || tickCount < wholeWordDue) break;
+                    if (typing.ManualPaused || loop.Paused || tickCount < wholeWordDue) break;
                     string word = reader.Words.FirstOrDefault();
                     uint entity = word == null ? 0 : reader.Source(word);
                     if (word != null && entity != 0)

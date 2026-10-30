@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.16",
+  "AssemblyVersion": "1.0.8.17",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Keybound Automation interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "## 1.0.8.16\n\n- Removed Illegal mode's fixed 1.5-second wait before resubmitting the same visible prompt.\n",
+  "Changelog": "## 1.0.8.17\n\n- Illegal mode refreshes prompts every framework update and bypasses mechanic pauses and background-key readiness waits. Normal typing is unchanged.\n",
   "IsHide": false,
   "IsTestingExclusive": false
 }

@@ -1,3 +1,7 @@
+## 1.0.8.17
+
+- Illegal mode refreshes prompts every framework update and bypasses mechanic pauses and background-key readiness waits. Normal typing is unchanged.
+
 ## 1.0.8.16
 
 - Removed Illegal mode's fixed 1.5-second wait before resubmitting the same visible prompt.
