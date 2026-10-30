@@ -193,7 +193,7 @@
     "Author": "Lily; Jacob5800 (BiSplanner fork)",
     "Name": "BiSplanner",
     "InternalName": "BiSplanner",
-    "AssemblyVersion": "0.3.0.0",
+    "AssemblyVersion": "0.3.0.1",
     "Description": "Highlights gear, coffers, and materia needed for all your gearsets\r\nImport from from Etro, Xivgear, or Teamcraft for easy setup\r\n\r\nHighlights items needed for gearsets on:\r\n    - Need/Greed Loot Windows\r\n    - NPC Shops and Exchanges\r\n    - Marketboard\r\n    - Player Inventories\r\n    - Item Tooltips\r\n\r\nWhen melding materia, highlights:\r\n    - Items to meld\r\n    - Materia to meld to item\r\n\r\nAutomatically syncs gearsets with player inventory",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -224,15 +224,15 @@
       "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/itemtooltip.png"
     ],
     "Punchline": "Gearing, simplified.",
-    "Changelog": "## 0.3.0.0\r\n\r\n- Introduce BiSplanner, based on BISBuddy by Lily / RajahOmen.\r\n- Add an enable/disable checkbox beside every gearset. Disabled sets stay saved and are excluded from tracking and highlights.\r\n- Add Show BiSplanner in the server bar, disabled by default. Click the entry to open your sets.\r\n- Update plugin windows, commands and menus to BiSplanner. Open with /bisplanner or /bisp.\n",
+    "Changelog": "## 0.3.0.1\r\n\r\n- Skip duplicate imported builds by gear and materia contents, regardless of name or meld order.\r\n- Keep different builds with the same name using numbered suffixes.\r\n- Highlight incorrect melds in yellow and explain the actual and required materia in a tooltip. Matching materia are accepted in any order.\n",
     "AcceptsFeedback": true,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.0/BiSplanner.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.0/BiSplanner.zip",
+    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.1/BiSplanner.zip",
+    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/BiSplanner-v0.3.0.1/BiSplanner.zip",
     "DownloadLinkTesting": null,
     "TestingAssemblyVersion": null,
-    "LastUpdate": 1793376973,
+    "LastUpdate": 1793378554,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png",
     "TestingDalamudApiLevel": null
   }
