@@ -8,5 +8,6 @@ namespace BiSplanner.Import
         public GearsetImportStatusType StatusType;
         public List<Gearset>? Gearsets;
         public int SkippedDuplicates;
+        public List<Gearset>? ExistingDuplicates;
     }
 }

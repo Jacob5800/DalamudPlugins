@@ -34,3 +34,14 @@ Use **Fight / content** in a saved set's **Properties** to label existing sets. 
 Disabled sets can still be inspected, but are excluded from tracking, highlights and Materia-tab totals. Yellow filled circles indicate occupied but incorrect melds; hover to see actual and required materia. Empty missing melds stay unfilled.
 
 Prerequisite purchase-cost lines come from the game's SpecialShop data and include mapped tomestones and directly represented currencies. They are informational and do not expand currency amounts into assignment nodes. Unsupported virtual currency mappings are omitted rather than guessed; not every vendor source is represented.
+
+
+## Fight-matched Discord gear index (0.3.0.3)
+
+The Balance choice now uses the bundled 30 October 2026 resource snapshot first. Select a job and fight, then Find recommended sets. Changing the fight filters the loaded results; it never converts current-raid builds into TOP/FRU gear. The index has 1,097 sheet-variant entries across 21 combat jobs plus BLU. Entries are not necessarily distinct builds: import-time duplicate checks compare actual gear and materia.
+
+Link opens the selected gearset variant. Source opens its Discord resource post/channel. Sheet titles and metadata-check dates are shown so patch, Typical/Alternative and weapon variants remain distinguishable. Endwalker-history and SCH community entries are hidden by default with separate controls. Ambiguous fight assignments are Unspecified; nearby text mentioning an encounter alone does not establish an assignment. This is a dated capture of loaded posts, not a full-history export or a claim of mentor endorsement for community material.
+
+Added DMU, AMR and AAI selectors. Shared fight labels such as AMR / AAI match either filter. All fights displays [fight] beside saved set names. Importing a duplicate build preserves the saved copy and merges the matched fight tag without enabling a disabled set. Runtime imports validate the selected job by class/job ID, including non-English clients.
+
+The catalog contains gear/source URLs and set names, not copied Discord conversation text or authentication tokens. It runs without a Discord/Composio connection. Icy Veins remains a separate manual guide lookup with a pasted-link fallback if access is refused.

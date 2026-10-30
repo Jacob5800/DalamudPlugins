@@ -47,7 +47,7 @@ try {
     [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($source, $stampScript, 'build-support/Stamp-PackageDate.ps1') | Out-Null
     foreach ($file in Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File) {
         $relative = [IO.Path]::GetRelativePath($PSScriptRoot, $file.FullName).Replace('\','/')
-        if ($relative -match '(^|/)(bin|obj|dist|[.]git|[.]vs)/' -or $relative -eq '.git') { continue }
+        if ($relative -match '(^|/)(bin|obj|dist|__pycache__|[.]git|[.]vs)/' -or $relative -eq '.git') { continue }
         [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($source, $file.FullName, $relative) | Out-Null
     }
 } finally { $source.Dispose(); $stream.Dispose() }

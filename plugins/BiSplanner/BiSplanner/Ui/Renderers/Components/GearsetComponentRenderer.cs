@@ -1,3 +1,4 @@
+using BiSplanner.Import;
 using BiSplanner.Gear;
 using BiSplanner.Resources;
 using BiSplanner.Services;
@@ -223,7 +224,7 @@ namespace BiSplanner.Ui.Renderers.Components
         {
             using (var fightChoice = ImRaii.Combo("Fight / content", gearset.Fight))
                 if (fightChoice)
-                    foreach (var fight in new[] { "Unspecified", "Current raid", "FRU", "TOP", "DSR", "TEA", "UWU", "UCOB" })
+                    foreach (var fight in RecommendedGearCatalog.Fights[1..])
                         if (ImGui.Selectable(fight, gearset.Fight == fight)) gearset.Fight = fight;
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("For example TOP, FRU, DSR or Current raid. Used by the gearset list filter.");
             ImGui.Spacing();

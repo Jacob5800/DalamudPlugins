@@ -1,3 +1,4 @@
+using BiSplanner.Import;
 using BiSplanner.Gear;
 using BiSplanner.Mediators;
 using BiSplanner.Resources;
@@ -182,13 +183,13 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
                 using (var fights = ImRaii.Combo("##fight_filter", fightFilter))
                 {
                     if (fights)
-                        foreach (var fight in new[] { "All fights", "Unspecified", "Current raid", "FRU", "TOP", "DSR", "TEA", "UWU", "UCOB" }
+                        foreach (var fight in RecommendedGearCatalog.Fights
                             .Concat(gearsetsService.CurrentGearsets.Select(g => g.Fight)).Distinct())
                             if (ImGui.Selectable(fight, fightFilter == fight))
                             {
                                 fightFilter = fight;
-                                if (activeGearset is not null && fight != "All fights" && activeGearset.Fight != fight)
-                                    activeGearset = gearsetsService.CurrentGearsets.FirstOrDefault(g => g.Fight == fight);
+                                if (activeGearset is not null && fight != "All fights" && !RecommendedGearCatalog.MatchesFight(activeGearset.Fight, fight))
+                                    activeGearset = gearsetsService.CurrentGearsets.FirstOrDefault(g => RecommendedGearCatalog.MatchesFight(g.Fight, fight));
                             }
                 }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Filter saved sets by fight. Assign a fight in the set's Properties tab.");
@@ -216,7 +217,7 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
                         ImGuiHelpers.CenteredText(Resource.UserGearsetsTabNoGearsetsTextNavigation);
                     }
 
-                    var gearsetsToDraw = gearsetsService.CurrentGearsets.Where(g => fightFilter == "All fights" || g.Fight == fightFilter).ToList();
+                    var gearsetsToDraw = gearsetsService.CurrentGearsets.Where(g => RecommendedGearCatalog.MatchesFight(g.Fight, fightFilter)).ToList();
                     foreach (var gearset in gearsetsToDraw)
                     {
                         using var _ = ImRaii.PushId(gearset.Id);
@@ -229,7 +230,7 @@ namespace BiSplanner.Ui.Renderers.Tabs.Main
 
                         using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, 0.6f, !gearset.IsActive))
                         {
-                            var gearsetLabel = $"{gearset.Name}";
+                            var gearsetLabel = fightFilter == "All fights" ? $"[{gearset.Fight}] {gearset.Name}" : gearset.Name;
                             var gearsetNameSize = ImGui.CalcTextSize(gearsetLabel);
 
                             var toggleWidth = ImGui.GetFrameHeight() + 8 * ImGuiHelpers.GlobalScale;

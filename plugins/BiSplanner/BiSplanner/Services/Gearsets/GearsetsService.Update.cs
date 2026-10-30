@@ -135,7 +135,7 @@ namespace BiSplanner.Services.Gearsets
             QueueUpdateFromInventory();
         }
 
-        public async Task<ImportGearsetsResult> AddGearsetsFromSource(ImportGearsetSourceType sourceType, string sourceString)
+        public async Task<ImportGearsetsResult> AddGearsetsFromSource(ImportGearsetSourceType sourceType, string sourceString, string? expectedJob = null)
         {
             var gearsetCapacity = Constants.MaxGearsetCount - CurrentGearsets.Count;
             var importResult = await importGearsetService.ImportGearsets(sourceType, sourceString, int.MaxValue);
@@ -143,18 +143,26 @@ namespace BiSplanner.Services.Gearsets
             if (importResult.StatusType != GearsetImportStatusType.Success)
                 return importResult;
 
+            var expectedJobId = expectedJob is null ? 0 : itemDataService.GetClassJobInfoByEnAbbreviation(expectedJob).ClassJobId;
+            if (expectedJob is not null && (expectedJobId == 0 || importResult.Gearsets?.Any(set => set.ClassJobInfo.ClassJobId != expectedJobId) == true))
+                return new ImportGearsetsResult { StatusType = GearsetImportStatusType.InvalidResponse };
+
             if (importResult.Gearsets is List<Gearset> gearsetsToAdd)
             {
-                var fingerprints = CurrentGearsets.Select(ContentFingerprint).ToHashSet();
+                var fingerprints = CurrentGearsets.GroupBy(ContentFingerprint).ToDictionary(group => group.Key, group => group.First());
+                importResult.ExistingDuplicates = [];
                 var names = CurrentGearsets.Select(set => set.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var unique = new List<Gearset>();
                 foreach (var set in gearsetsToAdd)
                 {
-                    if (!fingerprints.Add(ContentFingerprint(set)))
+                    var fingerprint = ContentFingerprint(set);
+                    if (fingerprints.TryGetValue(fingerprint, out var existing))
                     {
                         importResult.SkippedDuplicates++;
+                        importResult.ExistingDuplicates.Add(existing);
                         continue;
                     }
+                    fingerprints[fingerprint] = set;
                     var originalName = set.Name;
                     var suffix = 1;
                     while (!names.Add(set.Name))
@@ -175,7 +183,7 @@ namespace BiSplanner.Services.Gearsets
 
         private static string ContentFingerprint(Gearset set) =>
             // Names, URLs and meld slot order do not identify a distinct build.
-            set.ClassJobAbbreviation + ":" + string.Join(";", set.Gearpieces
+            set.ClassJobInfo.ClassJobId + ":" + string.Join(";", set.Gearpieces
                 .Select(piece => $"{piece.GearpieceType}:{piece.ItemId}:" +
                     string.Join(",", piece.ItemMateria.Select(m => m.ItemId).Order()))
                 .Order(StringComparer.Ordinal));

@@ -1,3 +1,13 @@
+## 0.3.0.3
+
+- Fix the Import fight selector: TOP, FRU and other choices now filter matching builds instead of relabelling current-raid gear.
+- Add a metadata-checked Balance Discord gear index for all combat jobs and Blue Mage, including the supplied BLM, BRD and RPR links. Individual sheet variants keep their set indexes and source links.
+- Add separate controls for historical Endwalker sets and community submissions, plus set/GCD search. Ambiguous fight assignments remain Unspecified.
+- Add DMU, AMR and AAI fight filters, including shared AMR/AAI recommendations.
+- Display [fight] beside saved set names when viewing All fights.
+- When a duplicate build already exists, retain it and add the imported recommendation's fight tag.
+- Validate the provider job before saving recommended imports and accept Xivgear's www/path-style links.
+
 ## 0.3.0.2
 
 - Add an Import tab for guide-recommended sets: The Balance lookup, Icy Veins guide lookup where accessible, and direct Xivgear/Etro set-link import. Clearly explain refused lookups and provide a manual-link fallback.

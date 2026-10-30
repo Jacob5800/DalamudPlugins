@@ -44,10 +44,14 @@ namespace BiSplanner.Services.ImportGearset
             {
                 if (!Uri.TryCreate(importSiteString, UriKind.Absolute, out var siteUri))
                     throw new ArgumentException(importSiteString);
-                importSiteUri = siteUri;
+                importSiteUri = siteUri.Host == "www.xivgear.app"
+                    ? new UriBuilder(siteUri) { Host = UriHost }.Uri : siteUri;
                 if (importSiteUri.Host != UriHost)
                     throw new ArgumentException($"Not a XIVGear URL (Host == {importSiteUri.Host}): {importSiteString}");
 
+                if (importSiteUri.AbsolutePath.Contains("//", StringComparison.Ordinal))
+                    importSiteUri = new UriBuilder(importSiteUri) { Path = importSiteUri.AbsolutePath.Replace("//", "/") }.Uri;
+                importSiteString = importSiteUri.AbsoluteUri;
                 var query = HttpUtility.ParseQueryString(string.Empty);
                 query["url"] = importSiteString;
 

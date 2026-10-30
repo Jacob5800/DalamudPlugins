@@ -1,4 +1,2 @@
-.vs/
-obj/
-bin/
-*.user
+tools/__pycache__/
+*.pyc

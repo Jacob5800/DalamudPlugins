@@ -1,0 +1,85 @@
+{
+  "ValidatedProviderDocuments": 288,
+  "Entries": 1097,
+  "Jobs": [
+    "AST",
+    "BLM",
+    "BLU",
+    "BRD",
+    "DNC",
+    "DRG",
+    "DRK",
+    "GNB",
+    "MCH",
+    "MNK",
+    "NIN",
+    "PCT",
+    "PLD",
+    "RDM",
+    "RPR",
+    "SAM",
+    "SCH",
+    "SGE",
+    "SMN",
+    "VPR",
+    "WAR",
+    "WHM"
+  ],
+  "Historical": 71,
+  "Community": 18,
+  "Unspecified": 258,
+  "Errors": [
+    {
+      "Url": "https://xivgear.app/?page=sl|19d4beca-9138-49d5-8ece-1494fddcb350",
+      "Error": "Provider job DRG differs from channel mnk_resources"
+    },
+    {
+      "Url": "https://xivgear.app/?page=sl|23e871ed-28b5-42b3-b72b-ccfc7a3de5d0",
+      "Error": "Provider job SAM differs from channel mnk_resources"
+    },
+    {
+      "Url": "https://xivgear.app/?page=bisbrowser|vpr",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://etro.gg/gearset/f951ef11-4732-4003-84b3-d83b049dfce0",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://xivgear.app/?page=bisbrowser%7Cdrk%7Carchive",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://xivgear.app/?page=bisbrowser|vpr|ultimate",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://xivgear.app/?page=bisbrowser|vpr|archive",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://etro.gg/gearset/836cb50e-aac5-4543-b2c7-a2bed5fc1760",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://etro.gg/gearset/55a352a2-f4c1-40a3-b2bd-ed3a7eba5033",
+      "Error": "HTTP Error 404: Not Found"
+    },
+    {
+      "Url": "https://xivgear.app/#/bis/sge/endwalker/anabaseios",
+      "Error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "Url": "https://xivgear.app/#/bis/sge/endwalker/top",
+      "Error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "Url": "https://xivgear.app/#/bis/sge/endwalker/dsr",
+      "Error": "HTTP Error 500: Internal Server Error"
+    },
+    {
+      "Url": "https://etro.gg/gearset/9216be5c-217f-4841-9c39-e250652db390",
+      "Error": "Provider job DRG differs from channel rpr_resources"
+    }
+  ]
+}

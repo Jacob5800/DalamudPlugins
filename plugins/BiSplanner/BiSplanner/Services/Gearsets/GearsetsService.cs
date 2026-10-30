@@ -1,4 +1,5 @@
 using BiSplanner.Factories;
+using BiSplanner.Items;
 using BiSplanner.Gear;
 using BiSplanner.Gear.Melds;
 using BiSplanner.Import;
@@ -32,7 +33,8 @@ namespace BiSplanner.Services.Gearsets
         IQueueService queueService,
         IInventoryUpdateDisplayService inventoryUpdateDisplayService,
         IImportGearsetService importGearsetService,
-        IInventoryItemsService inventoryItemsService
+        IInventoryItemsService inventoryItemsService,
+        IItemDataService itemDataService
         ) : IGearsetsService
     {
         private readonly ITypedLogger<GearsetsService> logger = logger;
@@ -47,6 +49,7 @@ namespace BiSplanner.Services.Gearsets
         private readonly IInventoryUpdateDisplayService inventoryUpdateDisplayService = inventoryUpdateDisplayService;
         private readonly IImportGearsetService importGearsetService = importGearsetService;
         private readonly IInventoryItemsService inventoryItemsService = inventoryItemsService;
+        private readonly IItemDataService itemDataService = itemDataService;
 
         private bool gearsetsDirty = false;
         private bool assignmentsDirty = false;
@@ -199,7 +202,7 @@ namespace BiSplanner.Services.Gearsets
         /// Indicates if gearsets for the current character have been loaded
         /// </summary>
         public bool GearsetsLoaded { get; }
-        public Task<ImportGearsetsResult> AddGearsetsFromSource(ImportGearsetSourceType sourceType, string sourceString);
+        public Task<ImportGearsetsResult> AddGearsetsFromSource(ImportGearsetSourceType sourceType, string sourceString, string? expectedJob = null);
         public void RemoveGearset(Gearset gearset);
         public string ExportGearsetToJsonStr(Gearset gearset);
         public void ChangeGearsetSortOrder(GearsetSortType? newSortType = null, bool? sortDescending = null);
