@@ -6,6 +6,10 @@ The custom interface, English/Japanese typing, repeat queue controls and startup
 
 Disable any other plugin controlling Keybound Brawler before enabling this one.
 
+## Keybound Coffers
+
+In **Quick Controls**, use **Start** beside **Open Keybound Coffers** to open carried Keybound Coffers (item 52450). Stop prevents further openings; an opening already casting can finish. The opener waits for each cast and inventory change, requires a free inventory slot, and stops during combat, duty entry, loading or an active queue/play loop. It never starts automatically.
+
 ## Build and package
 
 Run `./plugins/TataruBrawler/Package.ps1` from the repository root with .NET 10 and Dalamud API 15 references available. `DalamudLibPath` may point to the SDK directory; it defaults to the local XIVLauncher dev folder. Output: `plugins/TataruBrawler/dist/package/latest.zip`.

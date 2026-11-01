@@ -1,3 +1,7 @@
+## 1.0.8.30
+
+- Add Open Keybound Coffers with a Start/Stop button in Quick Controls. Opens carried coffers one at a time, waits for each cast and inventory update, and stops when finished or inventory space is unavailable.
+
 ## 1.0.8.29
 
 - In Illegal mode only, prioritize visible Airbuster prompts over barriers and other enemies. Use the existing priority when Airbuster has no recognized prompt.
