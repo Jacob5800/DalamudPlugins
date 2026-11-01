@@ -1,4 +1,5 @@
-## 0.1.2.3
+## 0.1.2.4 — Final release
 
-- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
-- Cancel pending strategy-page downloads when the plugin is disabled.
+- Strategy Board Library is deprecated. This is the final maintained update.
+- Existing installations may continue using it on the current game version. Maintenance and compatibility support end with the next game version; continued compatibility is not guaranteed.
+- Removed from new-install discovery. Existing users retain access to this final update and their saved library.

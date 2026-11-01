@@ -63,7 +63,7 @@
       "share-code",
       "raid"
     ],
-    "IsHide": false,
+    "IsHide": true,
     "IsTestingExclusive": false,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.3/StrategyBoardLibrary.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.3/StrategyBoardLibrary.zip",
@@ -71,7 +71,8 @@
     "Changelog": "## 0.1.2.3\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n- Cancel pending strategy-page downloads when the plugin is disabled.\n",
     "DownloadLinkTesting": null,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon-512.png",
-    "TestingDalamudApiLevel": null
+    "TestingDalamudApiLevel": null,
+    "AcceptsFeedback": false
   },
   {
     "Author": "Jacob5800",

@@ -43,6 +43,8 @@ internal sealed class MainWindow : Window
     public override void Draw()
     {
         if (disposed) return;
+        ImGui.TextWrapped("Strategy Board Library is deprecated. This is the final maintained release. It remains available to existing users for the current game version; starting with the next game version, no compatibility updates, fixes or support will be provided.");
+        ImGui.Separator();
         DrawStatus();
         ImGui.Separator();
         DrawSearch();

@@ -2,8 +2,8 @@
   "Author": "Jacob5800",
   "Name": "Strategy Board Library",
   "InternalName": "StrategyBoardLibrary",
-  "AssemblyVersion": "0.1.2.3",
-  "Description": "Searches a local library of FFXIV Strategy Board share codes and provides a quick copy-to-import flow.",
+  "AssemblyVersion": "0.1.2.4",
+  "Description": "Strategy Board Library is deprecated. This is the final maintained release. It remains available to existing users for the current game version; starting with the next game version, no compatibility updates, fixes or support will be provided.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
   "Tags": [
@@ -17,8 +17,9 @@
   "LoadSync": false,
   "CanUnloadAsync": false,
   "LoadPriority": 0,
-  "Punchline": "Search and import strategy board share codes.",
-  "AcceptsFeedback": true,
-  "Changelog": "## 0.1.2.3\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n- Cancel pending strategy-page downloads when the plugin is disabled.\n",
-  "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon-512.png"
+  "Punchline": "Deprecated \u2014 final release for the current game version.",
+  "AcceptsFeedback": false,
+  "Changelog": "- Strategy Board Library is deprecated. This is the final maintained update.\n- Existing installations may continue using it on the current game version. Maintenance and compatibility support end with the next game version; continued compatibility is not guaranteed.\n- Removed from new-install discovery. Existing users retain access to this final update and their saved library.",
+  "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon-512.png",
+  "IsHide": true
 }
