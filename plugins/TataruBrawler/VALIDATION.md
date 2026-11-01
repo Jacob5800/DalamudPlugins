@@ -27,3 +27,5 @@ Version 1.0.8.5: offline checks cover punctuation enable/disable, required punct
 1.0.8.26: live diagnostics reported "not in a party" on repeated ready prompts. Added the native cross-world party membership, count and leader checks before the regular party-list branch. Keybound invitation identity and button readiness remain required. Native cross-world acceptance remains pending after installing the update. API reference: https://github.com/aers/FFXIVClientStructs/blob/main/FFXIVClientStructs/FFXIV/Client/UI/Info/InfoProxyCrossRealm.cs
 
 1.0.8.27: optional Installed Plugins button uses the public plugin installer API and its InstalledPlugins page. Setting is default-off and included in snapshot creation, deserialization and updates. The duty bar remains visible with hidden game UI when either button is enabled. Build/package verification passed; native layout/click observation remains pending.
+
+1.0.8.28: duty bar shows Playing during active typing, Paused for manual or temporary pauses, and the existing translated status otherwise. Hover shows the detailed typing state. Build/package checks passed; in-game layout remains pending.

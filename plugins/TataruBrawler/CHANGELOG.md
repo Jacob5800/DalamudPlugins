@@ -1,3 +1,7 @@
+## 1.0.8.28
+
+- Show the current play status beneath the in-duty buttons, including Playing, Paused and stopped/completed states.
+
 ## 1.0.8.27
 
 - Add an optional in-duty Installed Plugins button beside the keyboard button. Enable it separately in Settings; it is off by default.

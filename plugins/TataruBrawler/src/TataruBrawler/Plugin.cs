@@ -938,6 +938,13 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
             ImGui.PopStyleColor();
             if (keyboardHovered) ImGui.SetTooltip("Open / close Keybound Automation. Drag this button to reposition it.");
             if (pluginsHovered) ImGui.SetTooltip("Open Dalamud Installed Plugins. Drag this button bar to reposition it.");
+            bool paused = typing.ManualPaused || typing.Status == "Paused";
+            string dutyStatus = paused ? "Paused" : typing.Running ? "Playing" : T(typing.Status);
+            var statusColor = paused ? new Vector4(1f, .75f, .3f, 1f)
+                : typing.Running ? new Vector4(.3f, .85f, .65f, 1f) : new Vector4(.75f, .75f, .75f, 1f);
+            ImGui.Spacing();
+            ImGui.TextColored(statusColor, dutyStatus);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(T(typing.Status));
         }
         ImGui.End();
     }
