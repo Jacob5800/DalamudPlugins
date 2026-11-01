@@ -12,6 +12,7 @@ using Dalamud.Interface;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Lumina.Excel.Sheets;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using TataruBrawler.Ui;
 
 namespace TataruBrawler;
@@ -602,6 +603,15 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
         ulong localId = playerState.ContentId;
         int leaderIndex = (int)party.PartyLeaderIndex;
         if (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) status = "loading";
+        else if (InfoProxyCrossRealm.IsCrossRealmParty())
+        {
+            if (InfoProxyCrossRealm.GetPartyMemberCount() < 2 || !InfoProxyCrossRealm.IsLocalPlayerInParty())
+                status = "cross-world party identity not ready";
+            else if (InfoProxyCrossRealm.IsLocalPlayerPartyLeader()) status = "local player is cross-world party leader";
+            else if (!loopUi.EntryReady) status = loopUi.EntryDiagnostic;
+            else status = loopUi.Execute(LoopAction.Accept, client.TerritoryType)
+                ? "cross-world commence click dispatched" : "cross-world commence button event unavailable";
+        }
         else if (party.Length < 2) status = "not in a party";
         else if (localId == 0 || leaderIndex < 0 || leaderIndex >= party.Length) status = "party identity not ready";
         else

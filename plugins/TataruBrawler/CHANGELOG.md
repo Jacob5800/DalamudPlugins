@@ -1,3 +1,7 @@
+## 1.0.8.26
+
+- Fix automatic Keybound commencement for cross-world party members, whose party is absent from the normal party list.
+
 ## 1.0.8.25
 
 - Set minimum and maximum typing delays to 0 ms whenever Illegal mode is enabled. Delays remain adjustable afterward.
