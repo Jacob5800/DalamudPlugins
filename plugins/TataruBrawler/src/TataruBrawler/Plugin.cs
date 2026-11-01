@@ -65,6 +65,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly IPartyList party;
     private readonly IPlayerState playerState;
     private long partyCommenceDue;
+    private string? partyCommenceStatus;
     private readonly BackgroundKeys backgroundKeys = new();
     private readonly RewardTracker rewards;
     private readonly IChatGui chat;
@@ -593,16 +594,31 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
     private void UpdatePartyCommence(long now)
     {
-        if (!config.AutoCommencePartyMember || !client.IsLoggedIn
-            || party.Length < 2 || now < partyCommenceDue
-            || condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) return;
+        if (!config.AutoCommencePartyMember || !client.IsLoggedIn || !loopUi.ConfirmationVisible)
+        { partyCommenceStatus = null; return; }
+        if (now < partyCommenceDue) return;
+        partyCommenceDue = now + 1000;
+        string status;
         ulong localId = playerState.ContentId;
         int leaderIndex = (int)party.PartyLeaderIndex;
-        if (localId == 0 || leaderIndex < 0 || leaderIndex >= party.Length) return;
-        var leader = party[leaderIndex];
-        if (leader == null || leader.ContentId == 0 || leader.ContentId == localId || !loopUi.EntryReady) return;
-        partyCommenceDue = now + 1000;
-        loopUi.Execute(LoopAction.Accept, client.TerritoryType);
+        if (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) status = "loading";
+        else if (party.Length < 2) status = "not in a party";
+        else if (localId == 0 || leaderIndex < 0 || leaderIndex >= party.Length) status = "party identity not ready";
+        else
+        {
+            var leader = party[leaderIndex];
+            if (leader == null || leader.ContentId == 0) status = "party leader identity not ready";
+            else if (leader.ContentId == localId) status = "local player is party leader";
+            else if (!loopUi.EntryReady) status = loopUi.EntryDiagnostic;
+            else status = loopUi.Execute(LoopAction.Accept, client.TerritoryType)
+                ? "commence click dispatched" : "commence button event unavailable";
+        }
+        // Only record changes while a confirmation is visible, not every frame.
+        if (status != partyCommenceStatus)
+        {
+            partyCommenceStatus = status;
+            log.Information("Party auto-commence: {Status}", status);
+        }
     }
 
     private void UpdateAutoLeave(long now)

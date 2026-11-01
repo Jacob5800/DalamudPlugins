@@ -79,14 +79,33 @@ internal sealed class LoopGameUi
 		return string.Concat(text.Where((char c) => !char.IsWhiteSpace(c)));
 	}
 
-	private unsafe bool MatchingConfirmation(AddonContentsFinderConfirm* confirm)
-	{
-		if (Visible((AtkUnitBase*)confirm) && dutyName.Length > 0 && string.Equals(Text(confirm->AtkTextNode230).Trim(), dutyName.Trim(), StringComparison.OrdinalIgnoreCase))
-		{
-			return Ready(confirm->CommenceButton);
-		}
-		return false;
-	}
+    private unsafe bool MatchingConfirmation(AddonContentsFinderConfirm* confirm)
+    {
+        if (!Visible((AtkUnitBase*)confirm) || !Ready(confirm->CommenceButton)) return false;
+        var finder = ContentsFinder.Instance();
+        var entry = finder == null ? default : finder->QueueInfo.PoppedQueueEntry;
+        // Party members need not have the leader's queued-entry list. The popped
+        // entry identifies this exact invitation; unrelated entries must never
+        // fall back to a title match.
+        return CommencePolicy.Matches(entry.ContentType != ContentsType.None, Own(entry),
+            Text(confirm->AtkTextNode230), dutyName);
+    }
+
+    public unsafe bool ConfirmationVisible => Visible((AtkUnitBase*)gui.GetAddonByName<AddonContentsFinderConfirm>("ContentsFinderConfirm"));
+
+    public unsafe string EntryDiagnostic
+    {
+        get
+        {
+            var confirm = gui.GetAddonByName<AddonContentsFinderConfirm>("ContentsFinderConfirm");
+            if (!Supported) return "unsupported duty data";
+            if (!Visible((AtkUnitBase*)confirm)) return "no confirmation";
+            if (!Ready(confirm->CommenceButton)) return "commence button unavailable";
+            var finder = ContentsFinder.Instance();
+            var entry = finder == null ? default : finder->QueueInfo.PoppedQueueEntry;
+            return $"popped type={entry.ContentType}, duty={entry.Id}, title='{Text(confirm->AtkTextNode230)}', ready={EntryReady}";
+        }
+    }
 
 	private unsafe bool MatchingExit(AddonSelectYesno* confirm)
 	{

@@ -1,3 +1,8 @@
+## 1.0.8.24
+
+- Identify Keybound invitations by the native popped-duty ID, including party invitations with missing or differently formatted title text.
+- Record why party auto-commence is blocked, or whether its button click was dispatched, while a confirmation is open.
+
 ## 1.0.8.23
 
 - Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.

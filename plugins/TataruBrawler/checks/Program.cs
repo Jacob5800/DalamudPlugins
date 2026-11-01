@@ -92,4 +92,9 @@ Check(queueLoop.Tick(10200,lobby with {Queued=true})==LoopAction.None && queueLo
 Check(queueLoop.Tick(10400,lobby with {Queued=true,EntryReady=true})==LoopAction.Accept, "Ready prompt accepted");
 queueLoop.Stop();
 Check(queueLoop.Tick(20000,lobby)==LoopAction.None, "Stop cancels retries");
+Check(CommencePolicy.Matches(true,true,"","Keybound Brawler"), "Native Keybound invitation accepts without title");
+Check(!CommencePolicy.Matches(true,false,"Keybound Brawler","Keybound Brawler"), "Unrelated native duty cannot pass title fallback");
+Check(CommencePolicy.Matches(false,false,"KEYBOUND\nBRAWLER","Keybound Brawler"), "Missing metadata uses localized title with UI whitespace");
+Check(!CommencePolicy.Matches(false,false,"Other Duty","Keybound Brawler"), "Unrelated title rejected");
+Check(!CommencePolicy.Matches(false,false,"",""), "Missing identity never accepts");
 Console.WriteLine($"{checks} checks passed.");

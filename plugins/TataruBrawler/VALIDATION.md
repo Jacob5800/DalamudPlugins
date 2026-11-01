@@ -21,3 +21,5 @@ Version 1.0.8.5: offline checks cover punctuation enable/disable, required punct
 1.0.8.9: fixed the reported status-ring text overlap by indenting both status lines together; added measured rounded section backgrounds with draw-channel ordering and switch-style controls. Quick Controls long help moved to hover text. Build and 62 gameplay checks pass; live visual confirmation at the user's scale remains pending.
 
 1.0.8.11: separate numeric value/label and teal step buttons; dock left inset is 16 scaled pixels. Local build and existing gameplay checks pass; live layout appearance remains pending. Required component license files restored for packaging.
+
+1.0.8.24: build and 74 offline checks pass, including native Keybound identity without text, rejection of unrelated native duties despite a matching title, whitespace-normalized title fallback and missing identity. Party-only gates remain enabled. Logging records distinct blocked reasons or button dispatch while the confirmation is visible, at most once per second and only when the status changes. Actual party invitation acceptance remains pending in-game observation.
