@@ -1,7 +1,7 @@
 # Consolidated Dalamud plugins
 
 ## Canonical source and scope
-- This repository is the canonical source and release location for Portrait Atelier, Strategy Board Library, Retainer Pricer, Workshoppa, Housing Timeout Reminder, and Tug of War.
+- This repository is the canonical source and release location for Portrait Atelier, Deathroll, Retainer Pricer, Workshoppa, Housing Timeout Reminder, and Tug of War.
 - Make plugin code, version, metadata, changelog, and release changes only in the matching `plugins/<PluginName>/` folder here.
 - Do not update the old standalone repositories for these plugins. They are historical copies; keep their source, workflows, and releases unchanged except for their migration notices and repository-level `AGENTS.md` instructions.
 - Workshoppa source and releases belong in plugins/Workshoppa; Workshoppa-API15 is a historical copy.
@@ -35,8 +35,7 @@
 
 - BiSplanner is the AGPL-3.0-or-later BISBuddy fork in `plugins/BiSplanner`. Preserve `LICENSE.md`, `UPSTREAM.md`, KamiToolKit's MIT license and source provenance. Build `BiSplanner/BiSplanner.csproj` through `Package.ps1`; publish the matching source archive with each release. Stable tags use `BiSplanner-v<version>`. Original upstream data is not overwritten.
 
-## Strategy Board Library retirement — next update
+## Retired plugins
 
-- StrategyBoardLibrary 0.1.2.4 is the final maintained release. At the next repository update, remove Strategy Board Library from the root README/plugin description, `repo.json`, and the current source tree (`plugins/StrategyBoardLibrary`), together with its dedicated release workflow and any remaining active listing references.
-- Do not publish another maintained release or compatibility update. Maintenance ends with the next game version. Preserve historical Git commits/releases; do not rewrite history or delete users' saved data.
-- This is a pending removal instruction, not a request to remove the final deprecation update before existing users can receive it.
+- Strategy Board Library is retired and removed from the current source tree and feed. Preserve historical releases and Git history; do not resume maintenance.
+- Deathroll is maintained in `plugins/Deathroll`; stable release tags use `Deathroll-v<version>`.

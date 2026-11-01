@@ -48,34 +48,6 @@
   },
   {
     "Author": "Jacob5800",
-    "Name": "Strategy Board Library",
-    "InternalName": "StrategyBoardLibrary",
-    "AssemblyVersion": "0.1.2.4",
-    "TestingAssemblyVersion": null,
-    "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-    "ApplicableVersion": "any",
-    "DalamudApiLevel": 15,
-    "Punchline": "Deprecated — final release for the current game version.",
-    "Description": "Strategy Board Library is deprecated. This is the final maintained release. It remains available to existing users for the current game version; starting with the next game version, no compatibility updates, fixes or support will be provided.",
-    "Tags": [
-      "strategy",
-      "board",
-      "share-code",
-      "raid"
-    ],
-    "IsHide": true,
-    "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.4/StrategyBoardLibrary.zip",
-    "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/StrategyBoardLibrary-v0.1.2.4/StrategyBoardLibrary.zip",
-    "LastUpdate": 1793554172,
-    "Changelog": "- Strategy Board Library is deprecated. This is the final maintained update.\n- Existing installations may continue using it on the current game version. Maintenance and compatibility support end with the next game version; continued compatibility is not guaranteed.\n- Removed from new-install discovery. Existing users retain access to this final update and their saved library.",
-    "DownloadLinkTesting": null,
-    "AcceptsFeedback": false,
-    "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/StrategyBoardLibrary/images/icon-512.png",
-    "TestingDalamudApiLevel": null
-  },
-  {
-    "Author": "Jacob5800",
     "Name": "Housing Timeout Reminder",
     "InternalName": "HousingTimeoutReminder",
     "AssemblyVersion": "1.0.5.15",
@@ -236,6 +208,38 @@
     "TestingAssemblyVersion": null,
     "LastUpdate": 1793394399,
     "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png",
+    "TestingDalamudApiLevel": null
+  },
+  {
+    "Author": "Jacob5800",
+    "Name": "Deathroll",
+    "InternalName": "Deathroll",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Count unique player rolls, track highest and lowest, and announce elimination rounds.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+    "Tags": [
+      "random",
+      "roll",
+      "score",
+      "party",
+      "game"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": true,
+    "LoadPriority": 0,
+    "Punchline": "Track highest and lowest rolls and elimination rounds.",
+    "AcceptsFeedback": true,
+    "Changelog": "- Initial release: configurable player count, highest/lowest elimination, tie rerolls, and optional announcements.",
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "LastUpdate": 1,
+    "DownloadLinkInstall": "",
+    "DownloadLinkUpdate": "",
+    "DownloadLinkTesting": null,
+    "TestingAssemblyVersion": null,
     "TestingDalamudApiLevel": null
   }
 ]

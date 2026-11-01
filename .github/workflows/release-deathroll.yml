@@ -1,8 +1,8 @@
-name: Release Strategy Board Library
+name: Release Deathroll
 
 on:
   push:
-    tags: ["StrategyBoardLibrary-v*"]
+    tags: ["Deathroll-v*"]
 
 permissions:
   contents: write
@@ -26,27 +26,29 @@ jobs:
       - name: Verify tag version
         shell: pwsh
         run: |
-          $tagVersion = $env:GITHUB_REF_NAME -replace '^StrategyBoardLibrary-v', ''
-          [xml]$project = Get-Content 'plugins/StrategyBoardLibrary/StrategyBoardLibrary.csproj' -Raw
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^Deathroll-v', ''
+          [xml]$project = Get-Content 'plugins/Deathroll/Deathroll.csproj' -Raw
           $projectVersion = [string]$project.Project.PropertyGroup.Version
           if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion must match project version $projectVersion." }
+      - name: Check elimination rules
+        run: dotnet run --project plugins/Deathroll/tests/Deathroll.Tests.csproj -c Release
       - name: Build and package
-        run: dotnet build .\plugins\StrategyBoardLibrary\StrategyBoardLibrary.csproj --configuration Release
+        run: dotnet build .\plugins\Deathroll\Deathroll.csproj --configuration Release -p:RestoreLockedMode=true
       - name: Stamp packaged publication date
         shell: pwsh
-        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/StrategyBoardLibrary/dist/release/StrategyBoardLibrary' -InternalName 'StrategyBoardLibrary'
+        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/Deathroll/dist/dev/Deathroll' -InternalName 'Deathroll'
       - name: Name release asset
         shell: pwsh
-        run: Copy-Item -LiteralPath 'plugins/StrategyBoardLibrary/dist/release/StrategyBoardLibrary/latest.zip' -Destination 'StrategyBoardLibrary.zip' -Force
+        run: Copy-Item -LiteralPath 'plugins/Deathroll/dist/dev/Deathroll/latest.zip' -Destination 'Deathroll.zip' -Force
       - name: Preserve packaged plugin manifest
         shell: pwsh
-        run: Copy-Item -LiteralPath 'plugins/StrategyBoardLibrary/dist/release/StrategyBoardLibrary/StrategyBoardLibrary.json' -Destination (Join-Path $env:RUNNER_TEMP 'StrategyBoardLibrary.json') -Force
+        run: Copy-Item -LiteralPath 'plugins/Deathroll/dist/dev/Deathroll/Deathroll.json' -Destination (Join-Path $env:RUNNER_TEMP 'Deathroll.json') -Force
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
-          body_path: plugins/StrategyBoardLibrary/RELEASE-NOTES.md
-          files: StrategyBoardLibrary.zip
+          body_path: plugins/Deathroll/RELEASE-NOTES.md
+          files: Deathroll.zip
       - name: Update combined feed
         shell: pwsh
         env:
@@ -60,7 +62,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Feed fetch failed' }
             git switch --force-create feed-update --track origin/main
             if ($LASTEXITCODE -ne 0) { throw 'Feed branch setup failed' }
-            ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'StrategyBoardLibrary.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'StrategyBoardLibrary.zip'
+            ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'Deathroll.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'Deathroll.zip'
             git add repo.json
             git diff --cached --quiet
             if ($LASTEXITCODE -eq 0) { $published = $true; break }

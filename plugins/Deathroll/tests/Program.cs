@@ -1,0 +1,21 @@
+using Deathroll;
+int checks = 0;
+void Check(bool ok) { checks++; if (!ok) throw new Exception($"Failed check {checks}"); }
+var m = new Match();
+m.Start(8,999,false);
+for(int i=0;i<8;i++) Check(m.Accept($"Player {i}",i+1,999));
+Check(m.Ready); Check(!m.Accept("Player 0",500,999));
+Check(m.Resolve().Contains("Player 0 is out with 1")); Check(m.Expected==7);
+Check(!m.Accept("Player 0",5,999));Check(!m.Accept("Stranger",5,999));Check(!m.Accept("Player 1",5,100));
+Check(m.Accept("Player 1",5,999));Check(!m.Accept("player 1",8,999));
+m.Start(3,100,true);m.Accept("A",80,100);m.Accept("B",80,100);m.Accept("C",20,100);
+Check(m.Resolve().StartsWith("Tie"));Check(m.Expected==2);Check(!m.Accept("C",99,100));
+m.Accept("A",10,100);m.Accept("B",30,100);Check(m.Resolve().Contains("B is out with 30"));
+Check(m.Remaining.SetEquals(new[]{"A","C"}));
+m.Accept("A",1,100);m.Accept("C",100,100);Check(m.Resolve().Contains("A wins!"));Check(!m.Active);
+m.Start(2,100,false);Check(!m.Accept("A",0,100));Check(!m.Accept("A",101,100));
+m.Stop();Check(!m.Accept("A",10,100));
+m.Start(3,100,false);m.MarkOut("Spectator");Check(!m.Accept("Spectator",1,100));Check(m.Expected==3);
+m.Accept("A",1,100);m.Accept("B",2,100);m.Accept("C",3,100);m.MarkOut("A");Check(m.Expected==2);Check(m.Ready);Check(!m.Accept("A",2,100));
+m.Resolve();Check(m.Out.Contains("B"));m.Start(2,100,false);Check(m.Out.Count==0);
+Console.WriteLine($"PASS: {checks} elimination checks");

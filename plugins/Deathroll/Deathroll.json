@@ -1,0 +1,24 @@
+{
+  "Author": "Jacob5800",
+  "Name": "Deathroll",
+  "InternalName": "Deathroll",
+  "AssemblyVersion": "0.1.0.0",
+  "Description": "Count unique player rolls, track highest and lowest, and announce elimination rounds.",
+  "ApplicableVersion": "any",
+  "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
+  "Tags": [
+    "random",
+    "roll",
+    "score",
+    "party",
+    "game"
+  ],
+  "DalamudApiLevel": 15,
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "CanUnloadAsync": true,
+  "LoadPriority": 0,
+  "Punchline": "Track highest and lowest rolls and elimination rounds.",
+  "AcceptsFeedback": true,
+  "Changelog": "- Initial release: configurable player count, highest/lowest elimination, tie rerolls, and optional announcements. Manual player exclusions and host “You” roll recognition are included."
+}
