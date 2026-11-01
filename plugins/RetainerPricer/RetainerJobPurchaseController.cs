@@ -20,6 +20,7 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
     private readonly uint itemId = data.GetExcelSheet<Item>(Dalamud.Game.ClientLanguage.English).First(x=>x.Name.ToString()=="Modern Vocation").RowId;
     private readonly uint npcId = data.GetExcelSheet<ENpcResident>(Dalamud.Game.ClientLanguage.English).First(x=>x.Singular.ToString()=="Frydwyb").RowId;
     private readonly uint ventureId = data.GetExcelSheet<Item>(Dalamud.Game.ClientLanguage.English).First(x=>x.Name.ToString()=="Venture").RowId;
+    public bool NavigationLoaded => pi.InstalledPlugins.Any(p => p.IsLoaded && string.Equals(p.InternalName, "vnavmesh", StringComparison.OrdinalIgnoreCase));
     public bool IsRunning { get; private set; }
     public bool MissingNavigationPopup { get; set; }
     public string Status { get; private set; } = "Buy one Modern Vocation for 40 Ventures.";
@@ -30,7 +31,7 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
     public void Start()
     {
         MissingNavigationPopup=false;
-        if(!pi.InstalledPlugins.Any(p=>p.IsLoaded && string.Equals(p.InternalName,"vnavmesh",StringComparison.OrdinalIgnoreCase)))
+        if(!NavigationLoaded)
         { MissingNavigationPopup=true;Status="Install and enable vnavmesh first.";return; }
         if(IsRunning || otherBusy()) { Status="Finish other Retainer Pricer operations first."; return; }
         if(!client.IsLoggedIn || condition[ConditionFlag.InCombat] || condition[ConditionFlag.BoundByDuty]) { Status="Leave combat/duties first."; return; }

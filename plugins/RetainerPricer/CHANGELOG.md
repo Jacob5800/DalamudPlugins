@@ -1,3 +1,7 @@
+## 0.5.1.45
+
+- Show the vnavmesh requirement green when enabled, or red when missing/disabled, for TT card sales and Modern Vocation trips.
+
 ## 0.5.1.44
 
 - Mark marketable, unbound armoury items green, with a Settings toggle. Red saved-gearset markers take priority.

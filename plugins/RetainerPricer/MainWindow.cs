@@ -1029,7 +1029,8 @@ internal sealed class MainWindow : Window
         if (ImGui.Button("Run now##TTCards")) dispatch(ttCards.Start);
         ImGui.EndDisabled();
         if (ttCards.IsRunning && ImGui.Button("Stop TT card sale")) dispatch(() => ttCards.Stop());
-        ImGui.TextWrapped("When enabled, runs after a successful full sequence. Teleports to the Gold Saucer, then uses vnavmesh to walk to the Triple Triad Trader and exchange registered duplicate cards in carried bags for MGP. Unregistered cards and Exceptions are kept. Requires vnavmesh and Gold Saucer access.");
+        ImGui.TextWrapped("When enabled, runs after a successful full sequence. Teleports to the Gold Saucer, then uses vnavmesh to walk to the Triple Triad Trader and exchange registered duplicate cards in carried bags for MGP. Unregistered cards and Exceptions are kept. Requires Gold Saucer access.");
+        DrawNavigationRequirement();
         ImGui.TextWrapped(ttCards.Status);
         ImGui.Separator();
         ImGui.TextUnformatted("Buy retainer job item - Modern Vocation (40 Ventures)");
@@ -1038,7 +1039,8 @@ internal sealed class MainWindow : Window
         if (ImGui.Button(jobPurchase.IsRunning ? "Stop##ModernVocation" : "Start##ModernVocation"))
             dispatch(() => { if (jobPurchase.IsRunning) jobPurchase.Stop(); else jobPurchase.Start(); });
         ImGui.EndDisabled();
-        ImGui.TextWrapped("Buys one copy from Frydwyb. Requires vnavmesh, Limsa Lominsa teleport and 40 Ventures. English menus only. Does not change your retainer's job.");
+        ImGui.TextWrapped("Buys one copy from Frydwyb. Requires Limsa Lominsa teleport and 40 Ventures. English menus only. Does not change your retainer's job.");
+        DrawNavigationRequirement();
         ImGui.TextWrapped(jobPurchase.Status);
         if (jobPurchase.MissingNavigationPopup)
         {
@@ -1053,6 +1055,14 @@ internal sealed class MainWindow : Window
             ImGui.EndPopup();
         }
 
+    }
+
+    private void DrawNavigationRequirement()
+    {
+        bool loaded = jobPurchase.NavigationLoaded;
+        ImGui.TextColored(loaded ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
+            loaded ? "Requires vnavmesh - enabled" : "Requires vnavmesh - missing or disabled");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Checks whether vnavmesh is loaded. Navigation mesh readiness is checked after arrival.");
     }
 
     private void DrawVentures()
