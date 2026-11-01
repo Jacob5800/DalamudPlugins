@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.37",
+  "AssemblyVersion": "0.5.1.38",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "- Add named settings profiles with automatic saving, create/switch/rename/delete controls, and profile import/export.\n- Make Shift stop standalone venture cycles as well as full sequences, including venture and dialogue windows.\n- Wait for the withdrawal context menu before selecting Return Items to Inventory for an approved NPC sale.\n- Wait for Extract/Retrieve Materia menus during desynthesis instead of requiring a second start attempt.",
+  "Changelog": "- Remember new-item price rejections across all retainers for the current listing run, avoiding repeat checks for 1-gil undercuts and prices below your minimum. Track NQ/HQ separately and recheck on a new run.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

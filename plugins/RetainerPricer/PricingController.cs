@@ -59,6 +59,7 @@ internal sealed class PricingController : IDisposable
     private uint requestedListingQuantity;
     private int listingSucceeded;
     private int listingSkipped;
+    private readonly ListingRunRejections listingPriceRejections = new();
     private bool batchSellingOnly;
     private readonly Dictionary<uint, uint> batchSoldQuantitiesByItemId = [];
     private readonly HashSet<uint> batchMaximumReachedItemIds = [];
@@ -362,6 +363,7 @@ internal sealed class PricingController : IDisposable
     private void StartListingItems(bool batchOnly)
     {
         if (Busy) return;
+        if (!listingTraversal) listingPriceRejections.Clear();
         if (!CanStartListingItems)
         {
             Status = StartListingAvailabilityError
@@ -732,6 +734,7 @@ internal sealed class PricingController : IDisposable
         if (Busy) return;
         LastTraversalSucceeded = false;
         listingTraversal = false;
+        listingPriceRejections.Clear();
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         if (bridge.TryReadSellItem(out _, out _))
         { Status = "Close the individual selling window first, leaving the retainer's selling list open."; return; }
@@ -1615,12 +1618,17 @@ internal sealed class PricingController : IDisposable
     {
         if (step == Step.Start)
         {
+            // Skip all remembered item/quality copies before opening any listing UI.
+            while (index < batchCandidates.Count && listingPriceRejections.Contains(batchCandidates[index].ItemId, batchCandidates[index].IsHq))
+            { listingSkipped++; index++; }
+
             if (index >= batchCandidates.Count)
             {
                 FinishBatchListing($"Automatic listing complete: {listingSucceeded} listed, {listingSkipped} skipped.");
                 return;
             }
 
+            var candidate = batchCandidates[index];
             var listedBefore = bridge.ReadExistingListings(out var listingError);
             if (listingError.Length != 0) { Cancel($"Automatic listing stopped: {listingError}"); return; }
             if (listedBefore.Count >= 20)
@@ -1629,7 +1637,6 @@ internal sealed class PricingController : IDisposable
                 return;
             }
 
-            var candidate = batchCandidates[index];
             if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var currentExcludedItemIds, out var currentSavedGearsetItemIds, out var protectionError))
             { Cancel(protectionError); return; }
             if (!marketableItemIds.Contains(candidate.ItemId) || currentExcludedItemIds.Contains(candidate.ItemId))
@@ -1781,7 +1788,10 @@ internal sealed class PricingController : IDisposable
 
             var proposal = Calculate(snapshot, current);
             if (!proposal.CanApply)
-            { SkipBatchItem($"Skipped {current.Name}: {proposal.Error}"); return; }
+            {
+                listingPriceRejections.Record(current.ItemId, current.IsHq, proposal);
+                SkipBatchItem($"Skipped {current.Name}: {proposal.Error}"); return;
+            }
             if (workSource == PriceSource.Local && !bridge.TryCloseCompare(current, out var closeError))
             { Cancel($"Automatic listing stopped before confirming {current.Name}: {closeError}"); return; }
 

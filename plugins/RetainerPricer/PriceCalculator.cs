@@ -22,8 +22,8 @@ public static class PriceCalculator
         int undercutGilAmount = 1, double undercutPercentage = 1,
         bool requireRecentSale = true, bool allowSalesFallback = false)
     {
-        static PriceProposal Fail(string message, uint lowest = 0, int count = 0, uint? salesMedian = null)
-            => new(lowest, 0, count, message, salesMedian);
+        static PriceProposal Fail(string message, uint lowest = 0, int count = 0, uint? salesMedian = null, PriceRejection rejection = PriceRejection.None)
+            => new(lowest, 0, count, message, salesMedian, Rejection: rejection);
 
         if (snapshot is null || itemId == 0 || worldId == 0)
             return Fail("Select an item and selling world, then fetch prices.");
@@ -93,7 +93,7 @@ public static class PriceCalculator
         if (requireRecentSale && snapshot.Source == PriceSource.Universalis && !hasRecentSale)
             return Fail("Universalis has no sale history for this item in the last 30 days. No price will be applied.", lowest, matches);
         if (strategy != PriceStrategy.MatchLowest && lowest == 1)
-            return Fail("The lowest competing price is already 1 gil and cannot be undercut.", lowest, matches);
+            return Fail("The lowest competing price is already 1 gil and cannot be undercut.", lowest, matches, rejection: PriceRejection.CannotUndercutOneGil);
 
         var suggested = strategy switch
         {
@@ -105,7 +105,7 @@ public static class PriceCalculator
         };
         var floor = Math.Max(1u, minimumPrice);
         if (suggested < floor)
-            return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches);
+            return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches, rejection: PriceRejection.BelowMinimum);
 
         return new(lowest, suggested, matches, null, salesMedian, usedSalesFallback);
     }

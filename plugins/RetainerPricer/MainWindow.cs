@@ -1275,6 +1275,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("New-item listing remembers 1-gil undercut and below-minimum price rejections for the current run across all retainers, with HQ/NQ tracked separately. Start a new run to check those items again.");
         ImGui.TextWrapped("Profiles: create, rename and switch named settings presets in the Profiles tab. Changes save automatically to the active profile, including item lists and toggles. Stop active operations and watchers before switching. Import/export shares the active profile without including market caches.");
         ImGui.TextWrapped("Automation can run selected collection, reassignment, listing and repricing steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
