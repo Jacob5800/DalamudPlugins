@@ -14,16 +14,18 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
 {
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly Configuration _configuration;
+    private readonly Func<bool> _isBusy;
     private static readonly JsonSerializerOptions BackupJsonOptions = new() { WriteIndented = true };
     private string _backupPath = string.Empty;
     private string _backupStatus = string.Empty;
 
-    public ConfigWindow(IDalamudPluginInterface pluginInterface, Configuration configuration)
+    public ConfigWindow(IDalamudPluginInterface pluginInterface, Configuration configuration, Func<bool> isBusy)
         : base("Workshoppa - Configuration###WorkshoppaConfigWindow")
 
     {
         _pluginInterface = pluginInterface;
         _configuration = configuration;
+        _isBusy = isBusy;
 
         Position = new Vector2(100, 100);
         PositionCondition = ImGuiCond.FirstUseEver;
@@ -64,13 +66,13 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
     private void DrawBackup()
     {
         if (!ImGui.CollapsingHeader("Backup / export settings")) return;
-        ImGui.TextWrapped("Includes calculators, keep list, presets and queued projects. Live crafting progress is excluded. Import only while Workshoppa is idle.");
+        ImGui.TextWrapped("Includes calculators, keep list, presets, queued projects and voyage settings/routes. Live crafting progress is excluded. Import only while Workshoppa is idle.");
         ImGui.InputText("Backup JSON path", ref _backupPath, 1024);
         string ExportJson() => JsonSerializer.Serialize(new {
             Plugin = "Workshoppa", BackupVersion = 1,
             Settings = new {
                 _configuration.EnableRepairKitCalculator, _configuration.EnableCeruleumTankCalculator, _configuration.AutoOpenRetainerDeposit, _configuration.ShowServerBar,
-                _configuration.RetainerDepositExcludedItemIds, _configuration.Presets, _configuration.ItemQueue
+                _configuration.RetainerDepositExcludedItemIds, _configuration.Presets, _configuration.ItemQueue, _configuration.Voyages
             }
         }, BackupJsonOptions);
         if (ImGui.Button("Export settings"))
@@ -78,7 +80,7 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
             try { File.WriteAllText(_backupPath.Trim().Trim('"'), ExportJson()); _backupStatus = "Settings exported."; }
             catch (Exception ex) { _backupStatus = ex.Message; }
         }
-        ImGui.BeginDisabled(_configuration.CurrentlyCraftedItem is not null);
+        ImGui.BeginDisabled(_configuration.CurrentlyCraftedItem is not null || _isBusy());
         if (ImGui.Button("Import settings and merge keep list"))
         {
             try {
@@ -101,6 +103,8 @@ internal sealed class ConfigWindow : LWindow, IPersistableWindowConfig
                 _configuration.RetainerDepositExcludedItemIds = _configuration.RetainerDepositExcludedItemIds.Concat(imported.RetainerDepositExcludedItemIds).Where(id => id != 0).Distinct().ToList();
                 _configuration.Presets = imported.Presets;
                 _configuration.ItemQueue = imported.ItemQueue;
+                if (root.GetProperty("Settings").TryGetProperty("Voyages", out _) && imported.Voyages is not null)
+                    _configuration.Voyages.CopyFrom(imported.Voyages);
                 _pluginInterface.SavePluginConfig(_configuration);
                 _backupStatus = $"Imported settings, presets and queue; merged keep list. Previous settings saved to {safety}";
             } catch (Exception ex) { _backupStatus = $"Import failed: {ex.Message}"; }

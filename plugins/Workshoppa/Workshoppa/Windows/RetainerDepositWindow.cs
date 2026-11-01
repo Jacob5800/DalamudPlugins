@@ -46,6 +46,7 @@ internal sealed unsafe class RetainerDepositWindow : LWindow
     private bool _hasInventoryScan;
     private bool _wasRetainerWindowOpen;
     private bool _transferActive;
+    internal bool IsTransferring => _transferActive;
     private ulong _transferRetainerId;
     private PendingMove? _pendingMove;
     private DateTime _pendingSince;

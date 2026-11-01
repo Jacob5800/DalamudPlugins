@@ -10,6 +10,7 @@ namespace Workshoppa;
 internal sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
+    public Voyages.VoyageOptions Voyages { get; set; } = new();
 
     public CurrentItem? CurrentlyCraftedItem { get; set; }
     public List<QueuedItem> ItemQueue { get; set; } = new();

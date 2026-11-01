@@ -2,9 +2,9 @@
   "Name": "Workshoppa",
   "Author": "Jacob5800",
   "Punchline": "Better Company Workshop Turn-In",
-  "Description": "Dalamud API 15 continuation of Workshoppa. Automates workshop material turn-ins, offers retainer deposits with item exclusions, and can skip cutscenes between production phases.",
+  "Description": "Automates workshop material turn-ins, retainer deposits and voyage collection/redeployment for company airships and submarines, with optional repairs and per-vessel routes.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
-  "Changelog": "## 9.3.13.4\n\n- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.\n- Keep attempting transfer cancellation and external-plugin setting restoration if another cleanup step fails.\n",
-  "AssemblyVersion": "9.3.13.4",
+  "Changelog": "- Add a Voyages tab for airships and submarines: collect rewards and repeat previous routes, with separate toggles and optional automatic panel-start.\n- Add per-vessel inclusion and ordered routes of up to five destinations, plus optional repairs for broken parts.\n- Check vessel identity, travelling status, route availability, fuel and range before dispatch; stop and notify when a run cannot continue.",
+  "AssemblyVersion": "9.3.13.5",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/Workshoppa/images/icon.png"
 }

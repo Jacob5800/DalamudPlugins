@@ -103,7 +103,8 @@ internal sealed class MainWindow : LWindow, IPersistableWindowConfig
 
         if (ImGui.BeginTabBar("WorkshoppaTabs"))
         {
-            if (ImGui.BeginTabItem("Workshop")) { DrawWorkshopContent(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Workshop")) { ImGui.BeginDisabled(_plugin.VoyagesRunning); DrawWorkshopContent(); ImGui.EndDisabled(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Voyages")) { _plugin.DrawVoyagesTab(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { _plugin.DrawSettingsTab(); ImGui.EndTabItem(); }
             ImGui.EndTabBar();
         }

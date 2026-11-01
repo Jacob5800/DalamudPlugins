@@ -54,6 +54,19 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
     private readonly CeruleumTankWindow _ceruleumTankWindow;
     private readonly RetainerDepositWindow _retainerDepositWindow;
 
+    private readonly Voyages.VoyageController _voyageController;
+    private readonly Voyages.VoyageUi _voyageUi;
+    internal bool VoyagesRunning => _voyageController.Running;
+    internal void DrawVoyagesTab() => _voyageUi.Draw();
+    private string? VoyageBlocker()
+    {
+        if (_currentStageInternal != Stage.Stopped || _retainerDepositWindow.IsTransferring || _repairKitWindow.AutoBuyEnabled || _ceruleumTankWindow.AutoBuyEnabled)
+            return "Stop crafting, retainer transfers and shop purchases before running voyages.";
+        if (_pluginInterface.InstalledPlugins.Any(p=>p.IsLoaded && p.InternalName.Equals("AutoRetainer",StringComparison.OrdinalIgnoreCase)))
+            return "Unload AutoRetainer before running Workshoppa voyages.";
+        return null;
+    }
+
     private Stage _currentStageInternal = Stage.Stopped;
     private DateTime _continueAt = DateTime.MinValue;
     private DateTime _fallbackAt = DateTime.MaxValue;
@@ -111,7 +124,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
             new IconCache(textureProvider), _chatGui, new RecipeTree(dataManager, _pluginLog), _pluginLog,
             _retainerDepositWindow);
         _windowSystem.AddWindow(_mainWindow);
-        _configWindow = new(_pluginInterface, _configuration);
+        _configWindow = new(_pluginInterface, _configuration, () => VoyagesRunning || CurrentStage != Stage.Stopped);
         _windowSystem.AddWindow(_configWindow);
         _repairKitWindow = new(_pluginLog, _gameGui, addonLifecycle, _configuration,
             _externalPluginHandler);
@@ -120,6 +133,13 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
             _externalPluginHandler, _chatGui);
         _windowSystem.AddWindow(_ceruleumTankWindow);
         _windowSystem.AddWindow(_retainerDepositWindow);
+
+        _configuration.Voyages ??= new();
+        _configuration.Voyages.Normalize();
+        var voyageGame = new Voyages.VoyageNative(_gameGui, _clientState, _condition, _objectTable, dataManager, _pluginLog);
+        _voyageController = new(voyageGame, _configuration.Voyages, VoyageBlocker, message =>
+        { _pluginLog.Warning("Voyages: {Message}",message); _chatGui.PrintError("[Workshoppa] " + message); });
+        _voyageUi = new(voyageGame, _voyageController, _configuration.Voyages, ()=>_pluginInterface.SavePluginConfig(_configuration));
 
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
         _pluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
@@ -178,6 +198,8 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
         _retainerDepositWindow.UpdateRetainerWindowState();
         _retainerDepositWindow.UpdateTransfer();
 
+        _voyageController.Update(Environment.TickCount64, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        if (_voyageController.Running) return;
         _workshopTransitionCutsceneSkip.TrySkip();
 
         if (!_clientState.IsLoggedIn ||
@@ -361,6 +383,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
             ("Alias", () => _commandManager.RemoveHandler("/ws")),
             ("Server bar", () => _serverBar.Remove()),
             ("Server bar disposal", () => _serverBar.Dispose()),
+            ("Voyages", () => _voyageController.Stop()),
             ("Retainer transfer", () => _retainerDepositWindow.StopTransfer()),
             ("Tank window", _ceruleumTankWindow.Dispose),
             ("Repair window", _repairKitWindow.Dispose),

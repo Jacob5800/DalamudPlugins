@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>9.3.13.4</Version>
+        <Version>9.3.13.5</Version>
         <OutputPath>dist</OutputPath>
     </PropertyGroup>
 
@@ -10,4 +10,7 @@
     <ItemGroup>
         <ProjectReference Include="..\LLib\LLib.csproj" />
     </ItemGroup>
+    <Target Name="IncludeVoyageAttribution" AfterTargets="DefaultDalamudPackagerRelease" Condition="'$(Configuration)' == 'Release'">
+        <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\Add-VoyageAttribution.ps1&quot; -PackageDirectory &quot;$(MSBuildProjectDirectory)\dist\Workshoppa&quot;" />
+    </Target>
 </Project>
