@@ -56,6 +56,10 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
     private readonly Voyages.VoyageController _voyageController;
     private readonly Voyages.VoyageUi _voyageUi;
+    private readonly Voyages.VoyageNative _voyageGame;
+    private readonly Voyages.VoyageHistory _voyageHistory;
+    private readonly Voyages.VoyageOptimizer _voyageOptimizer;
+    private long _nextVoyageObservation, _nextRewardObservation;
     internal bool VoyagesRunning => _voyageController.Running;
     internal void DrawVoyagesTab() => _voyageUi.Draw();
     private string? VoyageBlocker()
@@ -136,10 +140,12 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
 
         _configuration.Voyages ??= new();
         _configuration.Voyages.Normalize();
-        var voyageGame = new Voyages.VoyageNative(_gameGui, _clientState, _condition, _objectTable, dataManager, _pluginLog);
+        var voyageGame = _voyageGame = new Voyages.VoyageNative(_gameGui, _clientState, _condition, _objectTable, dataManager, _pluginLog);
         _voyageController = new(voyageGame, _configuration.Voyages, VoyageBlocker, message =>
         { _pluginLog.Warning("Voyages: {Message}",message); _chatGui.PrintError("[Workshoppa] " + message); });
-        _voyageUi = new(voyageGame, _voyageController, _configuration.Voyages, ()=>_pluginInterface.SavePluginConfig(_configuration));
+        _voyageHistory = new(System.IO.Path.Combine(_pluginInterface.GetPluginConfigDirectory(),"voyage-history.json"), message=>_pluginLog.Warning("{Message}",message));
+        _voyageOptimizer = new(voyageGame,dataManager,_configuration.Voyages,()=>_pluginInterface.SavePluginConfig(_configuration));
+        _voyageUi = new(voyageGame, _voyageController, _configuration.Voyages, ()=>_pluginInterface.SavePluginConfig(_configuration), _voyageHistory, _pluginInterface.GetPluginConfigDirectory(), _voyageOptimizer);
 
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
         _pluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
@@ -198,6 +204,24 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
         _retainerDepositWindow.UpdateRetainerWindowState();
         _retainerDepositWindow.UpdateTransfer();
 
+        if(Environment.TickCount64>=_nextVoyageObservation && _clientState.IsLoggedIn)
+        {
+            _nextVoyageObservation=Environment.TickCount64+1000;
+            try
+            {
+                var unix=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                if(_voyageGame.Available)
+                    _voyageHistory.Observe(_voyageGame.House,_voyageGame.Roster(Voyages.VesselKind.Airship).Concat(_voyageGame.Roster(Voyages.VesselKind.Submarine)).ToArray(),unix,_voyageGame.ReadRewards);
+                _voyageHistory.NotifyDue(unix,_configuration.Voyages.ReturnNotifications,message=>_chatGui.Print("[Workshoppa] "+message));
+            }
+            catch(Exception ex){_pluginLog.Warning(ex,"Voyage history observation failed");}
+        }
+        // Capture the visible result before the controller can collect it.
+        if(_voyageController.Running && Environment.TickCount64>=_nextRewardObservation && _voyageGame.Result && _voyageGame.Available)
+        {
+            _nextRewardObservation=Environment.TickCount64+250;
+            _voyageHistory.Observe(_voyageGame.House,_voyageGame.Roster(Voyages.VesselKind.Airship).Concat(_voyageGame.Roster(Voyages.VesselKind.Submarine)).ToArray(),DateTimeOffset.UtcNow.ToUnixTimeSeconds(),_voyageGame.ReadRewards);
+        }
         _voyageController.Update(Environment.TickCount64, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         if (_voyageController.Running) return;
         _workshopTransitionCutsceneSkip.TrySkip();
@@ -384,6 +408,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
             ("Server bar", () => _serverBar.Remove()),
             ("Server bar disposal", () => _serverBar.Dispose()),
             ("Voyages", () => _voyageController.Stop()),
+            ("Voyage optimiser", _voyageOptimizer.Dispose),
             ("Retainer transfer", () => _retainerDepositWindow.StopTransfer()),
             ("Tank window", _ceruleumTankWindow.Dispose),
             ("Repair window", _repairKitWindow.Dispose),

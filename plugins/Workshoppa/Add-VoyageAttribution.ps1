@@ -5,7 +5,7 @@ $zip = Join-Path $PackageDirectory 'latest.zip'
 if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'Packaged Workshoppa ZIP missing' }
 $archive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Update)
 try {
-    foreach ($name in @('AutoRetainer-LICENSE.md','VOYAGE-REFERENCES.md')) {
+    foreach ($name in @('AutoRetainer-LICENSE.md','VOYAGE-REFERENCES.md','Argus-LICENSE.md','Argus-THIRD-PARTY-NOTICES.txt','SubmarineTracker-LICENSE.md')) {
         $source = Join-Path (Join-Path $PSScriptRoot 'Workshoppa') $name
         $entry = $archive.GetEntry($name)
         if ($null -eq $entry) { $entry = $archive.CreateEntry($name) }

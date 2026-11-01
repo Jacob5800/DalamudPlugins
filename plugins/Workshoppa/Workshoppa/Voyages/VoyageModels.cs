@@ -12,18 +12,19 @@ internal sealed class VoyageOptions
     public bool Submarines { get; set; } = true;
     public bool Collect { get; set; } = true;
     public bool Redeploy { get; set; } = true;
+    public bool ReturnNotifications { get; set; } = true;
     public bool Repair { get; set; }
     public Dictionary<string, VesselPlan> Vessels { get; set; } = new();
     public void Normalize()
     {
         Vessels = (Vessels ?? new()).Where(p=>p.Value!=null).ToDictionary(p=>p.Key,p=>p.Value);
-        foreach(var plan in Vessels.Values)plan.Points ??= new();
+        foreach(var plan in Vessels.Values){plan.Points ??= new();plan.BuildParts ??= new();}
     }
     public void CopyFrom(VoyageOptions source)
     {
         source.Normalize();
         AutoRunOnPanelOpen=source.AutoRunOnPanelOpen;Airships=source.Airships;Submarines=source.Submarines;
-        Collect=source.Collect;Redeploy=source.Redeploy;Repair=source.Repair;
+        Collect=source.Collect;Redeploy=source.Redeploy;Repair=source.Repair;ReturnNotifications=source.ReturnNotifications;
         Vessels=source.Vessels.ToDictionary(p=>p.Key,p=>p.Value.Copy());
     }
 }
@@ -32,7 +33,9 @@ internal sealed class VesselPlan
     public bool Enabled { get; set; } = true;
     public bool UseCustomRoute { get; set; }
     public List<uint> Points { get; set; } = new();
-    public VesselPlan Copy() => new() { Enabled = Enabled, UseCustomRoute = UseCustomRoute, Points = (Points ?? new()).ToList() };
+    public bool AutoSwapBuild { get; set; }
+    public List<uint> BuildParts { get; set; } = new();
+    public VesselPlan Copy() => new() { Enabled = Enabled, UseCustomRoute = UseCustomRoute, Points = (Points ?? new()).ToList(), AutoSwapBuild = AutoSwapBuild, BuildParts = (BuildParts ?? new()).ToList() };
 }
 internal sealed record Vessel(VesselKind Kind, int Slot, string Name, long ReturnTime, uint Rank, ushort[] Conditions, bool PartsReady)
 {
@@ -92,6 +95,8 @@ internal interface IVoyageGame
     bool RequestRepair(Vessel vessel, int part, out string? error);
     bool ConfirmRepair(Vessel vessel, int part, out string? error);
     bool CloseRepair();
+    bool EnsureBuild(Vessel vessel,IReadOnlyList<uint> parts,out string? error);
+    void CancelBuild();
     bool OpenRoute();
     bool PickMap(uint map, out string? error);
     int SelectedCount(VesselKind kind);

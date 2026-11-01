@@ -21,7 +21,7 @@ using Lumina.Text.ReadOnly;
 
 namespace Workshoppa.Voyages;
 
-internal sealed unsafe class VoyageNative : IVoyageGame
+internal sealed unsafe partial class VoyageNative : IVoyageGame
 {
     private readonly IGameGui gui;
     private readonly IClientState client;
@@ -36,7 +36,7 @@ internal sealed unsafe class VoyageNative : IVoyageGame
     public VoyageNative(IGameGui gui, IClientState client, ICondition condition, IObjectTable objects, IDataManager data, IPluginLog log)
     {
         (this.gui,this.client,this.condition,this.objects,this.data)=(gui,client,condition,objects,data);
-        string[] wanted = { "Airship Management", "Submersible Management", "View previous voyage log", "Repair airship components", "Repair submersible components", "Deploy airship on exploratory voyage", "Deploy submersible on subaquatic voyage", "Quit", "Nothing." };
+        string[] wanted = { "Airship Management", "Submersible Management", "View previous voyage log", "Repair airship components", "Repair submersible components", "Deploy airship on exploratory voyage", "Deploy submersible on subaquatic voyage", "Quit", "Nothing.", "Change airship components", "Change submersible components" };
         var english = data.GetExcelSheet<Addon>(ClientLanguage.English);
         var local = data.GetExcelSheet<Addon>();
         foreach(var name in wanted)
@@ -151,6 +151,36 @@ internal sealed unsafe class VoyageNative : IVoyageGame
             : w->Submersible.DataPointers[4].Value!=null && w->Submersible.DataPointers[4].Value==w->Submersible.DataPointers[vessel.Slot].Value;
     }
     public uint SelectedMap => AgentSubmersibleExploration.Instance()==null ? uint.MaxValue : AgentSubmersibleExploration.Instance()->MapId;
+    internal List<VoyageLoot>? ReadRewards(Vessel vessel)
+    {
+        if(!Result||!SelectedVesselMatches(vessel)||!Available)return null;
+        var loot=new List<VoyageLoot>();
+        void Add(uint id,uint count,bool hq)
+        {
+            if(id==0||count==0)return;
+            var row=data.GetExcelSheet<Item>().GetRowOrDefault(id);
+            if(row==null)return;
+            uint price=row.Value.PriceLow;
+            if(hq)price=price*11/10;
+            loot.Add(new(id,row.Value.Name.ExtractText(),count,hq,price));
+        }
+        var w=HousingManager.Instance()->WorkshopTerritory;
+        if(vessel.Kind==VesselKind.Airship)
+        {
+            foreach(var reward in w->Airship.Data[vessel.Slot].GatheredData)
+            {
+                if(reward.AirshipItemValidPrimary)Add(reward.ItemIdPrimary,reward.ItemCountPrimary,false);
+                if(reward.AirshipItemValidAdditional)Add(reward.ItemIdAdditional,reward.ItemCountAdditional,false);
+            }
+        }
+        else
+        {
+            var sub=w->Submersible.DataPointers[vessel.Slot].Value;if(sub==null)return null;
+            foreach(var reward in sub->GatheredData)
+            {Add(reward.ItemIdPrimary,reward.ItemCountPrimary,reward.ItemHQPrimary);Add(reward.ItemIdAdditional,reward.ItemCountAdditional,reward.ItemHQAdditional);}
+        }
+        return loot;
+    }
     public bool SelectKind(VesselKind kind) => Root && Select(kind==VesselKind.Airship?"Airship Management":"Submersible Management");
     public bool SelectVessel(Vessel v)
     {

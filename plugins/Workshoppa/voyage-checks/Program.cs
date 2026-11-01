@@ -63,6 +63,24 @@ var optionsTarget=new VoyageOptions();var sameOptions=optionsTarget;optionsTarge
 Check(ReferenceEquals(optionsTarget,sameOptions)&&optionsTarget.Vessels[subV.Key(1)].Points.SequenceEqual(new uint[]{2,1}),"import preserves live options object");
 customOptions.Vessels[subV.Key(1)].Points.Clear();
 Check(optionsTarget.Vessels[subV.Key(1)].Points.Count==2,"imported plans are independent copies");
+var historyDir=Path.Combine(Path.GetTempPath(),"Workshoppa-history-check-"+Guid.NewGuid().ToString("N"));
+var historyFile=Path.Combine(historyDir,"history.json");var errors=new List<string>();
+var history=new VoyageHistory(historyFile,errors.Add);var alerts=new List<string>();
+history.Observe(1,new[]{away},utc,_=>null);history.NotifyDue(utc,true,alerts.Add);
+Check(alerts.Count==0,"no early return alert");
+history.NotifyDue(utc+1001,false,alerts.Add);Check(alerts.Count==0,"notification toggle respected");
+history.NotifyDue(utc+1001,true,alerts.Add);history.NotifyDue(utc+1002,true,alerts.Add);
+Check(alerts.Count==1,"return notification once");
+var loadedHistory=new VoyageHistory(historyFile,errors.Add);loadedHistory.NotifyDue(utc+1003,true,alerts.Add);
+Check(alerts.Count==1,"notification dedup survives reload");
+history.Observe(1,new[]{done},utc,_=>new(){new VoyageLoot(8143,"Clear Demimateria II",2,false,1000)});
+Check(history.Records.Count==0,"visible results alone not counted as collected");
+history.Observe(1,new[]{idle},utc,_=>null);history.Observe(1,new[]{idle},utc,_=>null);
+Check(history.Records.Count==1&&history.Records[0].VendorValue==2000,"confirmed collection counted once with gross value");
+var persisted=new VoyageHistory(historyFile,errors.Add);Check(persisted.Records.Count==1,"loot history persists");
+history.Export(Path.Combine(historyDir,"export.csv"));Check(File.ReadAllText(Path.Combine(historyDir,"export.csv")).Contains("Clear Demimateria II"),"CSV loot export");
+Check(errors.Count==0,"history persistence no errors");
+checks+=OptimizerChecks.Run();
 Console.WriteLine($"PASS: {checks} voyage policy/state-machine checks; native UI behavior remains untested.");
 
 sealed class FakeGame(IReadOnlyList<Destination> destinations):IVoyageGame
@@ -90,6 +108,8 @@ sealed class FakeGame(IReadOnlyList<Destination> destinations):IVoyageGame
     public bool RequestRepair(Vessel v,int part,out string? error){error=null;Actions++;Window="yesno";return true;}
     public bool ConfirmRepair(Vessel v,int part,out string? error){error=null;Actions++;Repairs++;Vessels[CurrentIndex].Conditions[part]=30000;Window="repair";return true;}
     public bool CloseRepair(){Actions++;Window="vessel";return true;}
+    public bool EnsureBuild(Vessel vessel,IReadOnlyList<uint> parts,out string? error){error=null;return true;}
+    public void CancelBuild(){}
     public bool OpenRoute(){Actions++;Points.Clear();Window=Kind==VesselKind.Submarine?"map":"editor";return true;}
     public bool PickMap(uint map,out string? error){Actions++;SelectedMap=map;error=null;Window="editor";return true;}
     public int SelectedCount(VesselKind kind)=>Points.Count;

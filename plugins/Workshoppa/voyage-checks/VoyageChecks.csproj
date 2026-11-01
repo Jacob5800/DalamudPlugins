@@ -1,1 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><Compile Include="../Workshoppa/Voyages/VoyageModels.cs" Link="VoyageModels.cs"/><Compile Include="../Workshoppa/Voyages/VoyageController.cs" Link="VoyageController.cs"/></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><Compile Include="../Workshoppa/Voyages/VoyageModels.cs" Link="VoyageModels.cs"/><Compile Include="../Workshoppa/Voyages/VoyageController.cs" Link="VoyageController.cs"/><Compile Include="../Workshoppa/Voyages/VoyageHistory.cs" Link="VoyageHistory.cs"/><Compile Include="../Workshoppa/Voyages/Optimization/Model/*.cs" Link="Optimization/Model/%(Filename)%(Extension)"/>
+<Compile Include="../Workshoppa/Voyages/Optimization/Calc/*.cs" Link="Optimization/Calc/%(Filename)%(Extension)"/>
+<Compile Include="../Workshoppa/Voyages/Optimization/Data/*.cs" Link="Optimization/Data/%(Filename)%(Extension)"/>
+<EmbeddedResource Include="../Workshoppa/Voyages/Optimization/Data/LootTable.json" LogicalName="Workshoppa.Voyages.Optimization.Data.LootTable.json"/>
+<None Update="gamedata.json" CopyToOutputDirectory="PreserveNewest"/>
+<PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+</ItemGroup></Project>

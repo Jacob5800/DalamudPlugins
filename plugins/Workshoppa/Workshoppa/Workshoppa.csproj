@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
     <PropertyGroup>
-        <Version>9.3.13.5</Version>
+        <Version>9.3.13.6</Version>
         <OutputPath>dist</OutputPath>
     </PropertyGroup>
 
@@ -8,6 +8,7 @@
     <Import Project="..\LLib\RenameZip.targets"/>
 
     <ItemGroup>
+        <EmbeddedResource Include="Voyages/Optimization/Data/LootTable.json" LogicalName="Workshoppa.Voyages.Optimization.Data.LootTable.json" />
         <ProjectReference Include="..\LLib\LLib.csproj" />
     </ItemGroup>
     <Target Name="IncludeVoyageAttribution" AfterTargets="DefaultDalamudPackagerRelease" Condition="'$(Configuration)' == 'Release'">

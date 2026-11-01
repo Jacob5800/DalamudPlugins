@@ -5,9 +5,9 @@ using Dalamud.Bindings.ImGui;
 
 namespace Workshoppa.Voyages;
 
-internal sealed class VoyageUi(VoyageNative game, VoyageController controller, VoyageOptions options, Action save)
+internal sealed class VoyageUi(VoyageNative game, VoyageController controller, VoyageOptions options, Action save, VoyageHistory history, string configDirectory, VoyageOptimizer optimizer)
 {
-    private string search = "";
+    private string search = "", exportError = "";
     private readonly Dictionary<string,uint> maps = new();
     private Vessel[] roster = Array.Empty<Vessel>();
     private long nextRefresh;
@@ -31,6 +31,8 @@ internal sealed class VoyageUi(VoyageNative game, VoyageController controller, V
         if(ImGui.Checkbox("Redeploy idle/collected vessels",ref resend)){options.Redeploy=resend;changed=true;}
         if(ImGui.Checkbox("Repair broken parts before redeploying",ref repair)){options.Repair=repair;changed=true;}
         if(ImGui.IsItemHovered())ImGui.SetTooltip("Uses Magitek repair materials in carried inventory. Repairs parts at zero condition. When disabled, a vessel needing repairs stops the run and notifies you.");
+        var notifications=options.ReturnNotifications;
+        if(ImGui.Checkbox("Notify in chat when a vessel returns",ref notifications)){options.ReturnNotifications=notifications;changed=true;}
         if(changed)save();
         ImGui.TextWrapped("Missing fuel, repairs, unavailable routes or permissions stop the run with a message. This does not buy materials, change vessel parts, register vessels, move the character or choose an optimized route. Unload AutoRetainer before running voyages here.");
         ImGui.Separator();
@@ -90,8 +92,30 @@ internal sealed class VoyageUi(VoyageNative game, VoyageController controller, V
                 if(VoyagePolicy.ValidateRoute(plan,vessel.Kind,game.Destinations,vessel.Rank) is { } error)ImGui.TextWrapped(error);
                 ImGui.TextWrapped("Listed destinations come from game data. Actual unlocks, availability, fuel and range are checked in the voyage chart before dispatch.");
             }
+            optimizer.Draw(vessel,controller.Running);
             ImGui.PopID();ImGui.TreePop();
         }
         ImGui.EndDisabled();
+        ImGui.Separator();
+        if(ImGui.CollapsingHeader("Loot / profit history"))
+        {
+            ImGui.TextWrapped("NPC gross value is an estimate of collected loot, not realised sales or net profit. Fuel, repairs and market prices are not deducted. Airship rewards use NQ value because their quality flags are not established.");
+            ImGui.TextUnformatted($"Recorded collections: {history.Records.Count} | NPC gross value: {history.Records.Aggregate(0UL,(sum,r)=>sum+r.VendorValue):N0} gil");
+            if(ImGui.Button("Export loot history CSV"))
+            {try{history.Export(System.IO.Path.Combine(configDirectory,$"voyage-loot-{DateTime.Now:yyyyMMdd-HHmmss}.csv"));}catch(Exception ex){exportError=ex.Message;}}
+            ImGui.TextWrapped(history.Status);
+            if(exportError.Length>0)ImGui.TextWrapped(exportError);
+            if(ImGui.BeginChild("voyageHistory",new System.Numerics.Vector2(0,250),true))
+            {
+                foreach(var record in history.Records.Reverse().Take(100))
+                {
+                    if(!ImGui.TreeNode($"{record.CollectedAt.ToLocalTime():g} {record.Kind} {record.Vessel} — {record.VendorValue:N0} gil##{record.Key}/{record.ReturnTime}"))continue;
+                    foreach(var item in record.Loot)ImGui.TextWrapped($"{item.Quantity}x {item.Name}{(item.Hq?" HQ":"")} — {(ulong)item.Quantity*item.VendorUnitValue:N0} gil NPC value");
+                    ImGui.TreePop();
+                }
+            }
+            ImGui.EndChild();
+            ImGui.TextWrapped("Return alerts use last observed timers, including outside the workshop while logged in. Changes made by another player are unknown until this client sees updated vessel data.");
+        }
     }
 }

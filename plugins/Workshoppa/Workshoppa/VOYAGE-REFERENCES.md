@@ -12,3 +12,6 @@ Reference revision: PunishXIV/AutoRetainer cc020df0efee3ea65a45117e2b89999108c70
 Also checked FFXIVClientStructs WorkshopTerritory, HousingManager, AgentSubmersibleExploration and AddonAirShipExploration, and ECommons AtkReader argument order. No AutoRetainer runtime dependency or hook registration is used.
 
 Native event delivery, repairs, route selection and reward collection remain pending in-game observation. Compilation and simulated tests do not establish live success.
+
+
+Optimisation models, loot tables, part mappings and calculation code adapted from ofnature/Argus (MIT). See Argus-LICENSE.md and Argus-THIRD-PARTY-NOTICES.txt. The latter preserves its sources, including Infi/SubmarineTracker and community voyage spreadsheets. Adaptations rename namespaces, load local Lumina sheets, remove plugin services from pure calculations and use Workshoppa-owned UI/controller state. Part-picker event shapes follow Argus PartsInterop; build recommendations and execution remain separate.

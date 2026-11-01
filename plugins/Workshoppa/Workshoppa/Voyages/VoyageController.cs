@@ -25,6 +25,7 @@ internal sealed class VoyageController(IVoyageGame game, VoyageOptions options, 
     public void Stop(string message = "Voyage run stopped. Already completed actions remain applied.", bool error = false)
     {
         var wasRunning = Running;
+        game.CancelBuild();
         step = Step.Idle; kinds.Clear(); vessels.Clear(); vessel = null; visitHandled = true;
         Status = message;
         if (error && wasRunning) notify(message);
@@ -116,10 +117,17 @@ internal sealed class VoyageController(IVoyageGame game, VoyageOptions options, 
                 if (Current()!.ReturnTime == 0 && game.VesselMenu) Go(redeploy ? Step.Prepare : Step.ReturnPicker,now,$"Rewards collected from {vessel!.Name}.");
                 break;
             case Step.Prepare:
-                if (!game.VesselMenu) return;
+                if (!game.VesselMenu && !plan.AutoSwapBuild) return;
                 if (!redeploy) { Go(Step.ReturnPicker,now,"Collection complete."); return; }
                 var ready = Current()!;
                 if (ready.ReturnTime != 0) { Stop("Vessel is not idle; deployment stopped.",true); return; }
+                if(plan.AutoSwapBuild)
+                {
+                    if(plan.BuildParts.Count!=4){Stop("The saved build must contain four component rows.",true);return;}
+                    if(!game.EnsureBuild(ready,plan.BuildParts,out var swapError))
+                    {if(swapError!=null)Stop(swapError,true);return;}
+                    ready=Current()!;
+                }
                 if (!ready.PartsReady) { Stop("Vessel component data is not ready; no deployment submitted.",true); return; }
                 if (ready.Conditions.Any(c => c == 0))
                 {

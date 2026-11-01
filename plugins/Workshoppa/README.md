@@ -35,3 +35,17 @@ Repair broken parts before redeploying uses carried Magitek repair materials for
 Native menu delivery, dialogs and departures still require in-game observation. Build and simulated workflow checks do not prove a successful live dispatch. First observe a manual pass before enabling automatic panel-start.
 
 Native voyage details adapted from AutoRetainer (Puni.sh), BSD-3-Clause; see Workshoppa/AutoRetainer-LICENSE.md and Workshoppa/VOYAGE-REFERENCES.md. Original Workshoppa and LLib licensing/attribution are retained.
+
+## Loot history and return alerts
+
+Voyages contains Loot / profit history with per-collection loot, quantity, quality and NPC gross value, plus CSV export. Values use the game NPC sale price when observed; they are not realised sales or net profit and exclude fuel/repairs and market prices. Airship loot is valued as NQ because native quality flags are unverified. Records require an observed completed-voyage result followed by its collected timer transition; old or unseen collections cannot be reconstructed. History is stored separately as voyage-history.json in the plugin configuration folder.
+
+Notify in chat when a vessel returns is enabled by default and can be toggled independently. Last observed vessel timers persist across restarts and notify once per voyage while logged in, even outside the workshop. Updates made by other players are unknown until this client observes fresh workshop data. This is not an out-of-game notification service.
+
+## Route and build optimisation
+
+Expand a vessel in Voyages, then Route / build optimisation. NPC value per hour is the submarine default; EXP per hour or voyage are alternatives. Select a map and duration cap, and optionally restrict parts to equipped/carried components. Search runs in the background. Save a recommendation to its per-vessel custom route and saved build. Automatic part installation is a separate default-off checkbox; saving a recommendation does not enable it. At the next redeployment the selected vessel must be idle and each changed part must be in carried inventory, legal for the rank/slot and within capacity. The parts picker and resulting installed row are verified between changes. Stop cancels remaining changes; already installed parts stay installed. It does not purchase or craft components.
+
+NPC farming estimates use the bundled community submarine loot model, per-draw rates, retrieval quantities and NPC prices. These are gross estimates, exclude fuel/repair costs, and do not promise actual yields. Build farming recommendations search a shortlist of eight valuable sampled sectors on the chosen map, not every possible global route/build pair. EXP builds optimise the best current-build route. Estimates use offline distance/time models; actual chart fuel/range validation still gates dispatch. Airship NPC drop probabilities are unavailable, so its recommendations use EXP. Airship unlock information requires the selected vessel's open empty chart. Submarine unlocks come from live workshop data. Neither search ignores unlocks or permits arbitrary unavailable routes.
+
+Optimiser calculation/model code adapted from Argus (ofnature), MIT, with its SubmarineTracker/community data attribution preserved in the packaged notices. Calculation tests do not validate native part-picker or dispatch behavior.

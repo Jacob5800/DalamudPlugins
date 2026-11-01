@@ -20,3 +20,12 @@
 - Repair request, exact confirmation and material/condition changes.
 - Submarine map selection and point-count acknowledgement; airship point selection and range change acknowledgement; fuel/range failure behavior.
 - Actual dispatch completion/cutscene transitions, GUI layout and automatic once-per-visit start. Simulated tests do not establish native gameplay success.
+
+
+## 9.3.13.6
+
+- Saved observed reward records and fleet return timestamps, deduplicated notifications, CSV and NPC gross-value totals. No realised-sales/net-profit claim. Airship quality valued as NQ.
+- Integrated Argus MIT models with local game sheets and community loot data for route search and build recommendations, explicit shortlist/model limitations, owned-part filter, duration/fuel constraints and manual saving of a chosen plan.
+- Saved-build swapping is default-off, uses native component menu/picker flow and verifies actual installed parts before advancing. It verifies identity, idle status, rank, capacity, slot, inventory availability and deadlines; it performs no purchasing.
+- Release build succeeded. 57 isolated checks pass, including 45 workflow/history checks and 12 optimiser checks using a game-data fixture: routes, fuel/unlocks, unavailable required sectors, embedded loot data, no airship gil fabrication, build rank/capacity/range, owned parts and cancellation.
+- Pending native: loot capture/collection transition, alert presentation, optimiser UI, live selected-map data, part swap request/picker/installed verification and dispatch after swapping. These are not passed game tests.

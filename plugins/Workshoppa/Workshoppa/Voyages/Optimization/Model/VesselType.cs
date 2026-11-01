@@ -1,0 +1,1 @@
+namespace Workshoppa.Voyages.Optimization.Model; public enum VesselType { Submarine, Airship }

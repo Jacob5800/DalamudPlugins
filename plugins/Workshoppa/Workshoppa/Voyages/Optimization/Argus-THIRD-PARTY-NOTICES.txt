@@ -1,0 +1,36 @@
+Argus bundles or derives from the following third-party work.
+
+SubmarineTracker — https://github.com/Infiziert90/SubmarineTracker
+  Copyright (c) 2023 Infi <infiziert@protonmail.ch>. MIT License.
+  Argus ports the submarine voyage model from this project: per-sector
+  surveillance/retrieval/favor breakpoints, EXP bonus tiers, rank/part stat
+  composition, voyage distance and duration formulas, and the sector unlock
+  chain (Argus/Core/Data/SubmarineData.cs and Argus/Core/Calc/*). The sector
+  breakpoint data originates from the community spreadsheet credited in that
+  project (docs.google.com/spreadsheets/d/1eiuGRrQTjJ5n4ogybKOBxJRT7EiJLlX93fge-Z8MmD4).
+
+ECommons — https://github.com/NightmareXIV/ECommons
+  Copyright (c) 2023 NightmareXIV. MIT License. Included as a git submodule.
+
+AutoRetainer — https://github.com/PunishXIV/AutoRetainer
+  The technique for selecting a destination in the in-game voyage planner
+  (dispatching AtkEventType 35 to the AirShipExploration addon with an index
+  payload) follows AutoRetainer's implementation.
+
+FFXIV Airship Log Data — community spreadsheet maintained by Nyalia / Neri Feralheart
+  (docs.google.com/spreadsheets/d/1lv43Af1vOnco4narozL6JebwO5KuQA6uckMuYG8VyFE)
+  and submarine.girin.dev — used to seed airship sector surveillance tiers and
+  the airship EXP rating estimate (Argus/Core/Data/AirshipData.cs).
+
+FFXIVGachaSpreadsheet — https://github.com/Infiziert90/FFXIVGachaSpreadsheet
+  Crowd-sourced voyage records. Argus bakes the per-sector submarine loot pools
+  (per-draw chance and quantity range per retrieval tier) from
+  website/static/data/Submarines.json into Argus/Core/Data/LootTable.json.
+
+submarine.girin.dev — FFXIV Submarine Info
+  Per-sector airship loot tier lists, baked into the same file. No public
+  airship drop-rate data exists, so those entries record only which items a
+  sector can produce.
+
+FINAL FANTASY XIV © SQUARE ENIX CO., LTD. Game data (sector, part and rank
+tables) is read from the game client at runtime via Lumina.
