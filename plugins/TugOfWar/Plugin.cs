@@ -97,7 +97,7 @@ public sealed class Plugin : IDalamudPlugin
         Diagnostic($"Started; team A members={MatchEngine.ParseRoster(mainWindow.Config.TeamARoster).Count}, team B members={MatchEngine.ParseRoster(mainWindow.Config.TeamBRoster).Count}, winning score={engine.WinningScore}, party size={partyList.Length}.");
         mainWindow.SetStatus($"Match started: {engine.TeamAName} vs {engine.TeamBName}. Waiting for /random 100 rolls.");
         if (mainWindow.Config.AnnounceToParty)
-            SendAnnouncement($"[Tug of War] Match started: {engine.TeamAName} vs {engine.TeamBName}. First to {engine.WinningScore}.");
+            SendAnnouncement($"[Tug of War] Match started: {engine.TeamAName} vs {engine.TeamBName}. First to {engine.WinningScore}. Both teams: use /random 100 to roll. Use Say, Shout or Party so the host running Tug of War can see your result.");
     }
 
     private void OnChatMessage(IHandleableChatMessage message)

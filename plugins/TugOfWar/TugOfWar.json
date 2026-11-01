@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Tug of War",
   "InternalName": "TugOfWar",
-  "AssemblyVersion": "0.2.0.6",
+  "AssemblyVersion": "0.2.0.7",
   "Description": "Track Tug of War scores from /random 100 rolls and import current party members into teams.",
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -20,5 +20,5 @@
   "LoadPriority": 0,
   "Punchline": "Track team scores from FFXIV /random rolls.",
   "AcceptsFeedback": true,
-  "Changelog": "## 0.2.0.6\n\n- Fix garbled punctuation in the manual roll range, turn header and recorded roll labels.\n"
+  "Changelog": "## 0.2.0.7\n\n- Include /random 100 instructions and remind both teams to make their rolls visible to the host when announcing a match start.\n"
 }
