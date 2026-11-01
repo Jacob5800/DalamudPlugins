@@ -1,6 +1,3 @@
-# Retainer Pricer 0.5.1.42
+# Retainer Pricer 0.5.1.43
 
-- Handle the retainer buyback warning during automated departure after NPC sales.
-- Improve withdrawal-menu detection and diagnostics for Vendor item instead.
-- Fill saved-gearset armoury markers with translucent red.
-- Add Retainer sales beside Run Desynthesis and group Price lookup, Existing listings and Universalis lookup together.
+- Collect rewards and reassign ventures during the same retainer visit when both actions or the full sequence are enabled, avoiding a second venture pass.
