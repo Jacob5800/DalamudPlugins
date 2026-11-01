@@ -1,3 +1,7 @@
+## 0.5.1.36
+
+- Run the full sequence in this order: collect venture rewards, reassign ventures, list new items, then update existing listings. The manual Auto update button uses the same order.
+
 ## 0.5.1.35
 
 - Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.

@@ -4,7 +4,7 @@ namespace RetainerPricer;
 internal sealed class AutomationController(NativeMarketBridge bridge, PricingController pricing,
     VentureController ventures, AutoVendorController vendor, PluginConfig config, Func<bool> autoRetainerLoaded)
 {
-    private enum Stage { Idle, Collect, Reprice, List, Assign }
+    private enum Stage { Idle, Collect, Assign, List, Reprice }
     private Stage stage;
     private bool collectEnabled, repriceEnabled, listEnabled, assignEnabled;
     private ulong contentId;
@@ -50,10 +50,10 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
             return;
         }
-        if (previous < Stage.Reprice && repriceEnabled)
+        if (previous < Stage.Assign && assignEnabled)
         {
-            stage = Stage.Reprice; pricing.AutoUpdateAllRetainers(); Status = "Updating existing listings...";
-            if (!pricing.Busy) Fail(pricing.Status);
+            stage = Stage.Assign; ventures.ReassignVentures(); Status = "Reassigning ventures...";
+            if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
             return;
         }
         if (previous < Stage.List && listEnabled)
@@ -62,10 +62,10 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             if (!pricing.Busy) Fail(pricing.Status);
             return;
         }
-        if (previous < Stage.Assign && assignEnabled)
+        if (previous < Stage.Reprice && repriceEnabled)
         {
-            stage = Stage.Assign; ventures.ReassignVentures(); Status = "Reassigning ventures...";
-            if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
+            stage = Stage.Reprice; pricing.AutoUpdateAllRetainers(); Status = "Updating existing listings...";
+            if (!pricing.Busy) Fail(pricing.Status);
             return;
         }
         stage = Stage.Idle; CompletedRuns++; Status = "Selected automation steps complete.";

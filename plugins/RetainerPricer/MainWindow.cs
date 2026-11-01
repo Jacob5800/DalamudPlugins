@@ -348,7 +348,7 @@ internal sealed class MainWindow : Window
             });
             ImGui.PopStyleColor(3);
         }
-        ImGui.TextDisabled("Auto update: collect rewards, reprice, list new items, then reassign ventures. Optional automatic runs are in Automation.");
+        ImGui.TextDisabled("Auto update: collect rewards, reassign ventures, list new items, then update existing listings. Optional automatic runs are in Automation.");
         if (UiBusy)
             ImGui.TextDisabled("The active listing task is highlighted. Stop cancels it; changes already submitted remain applied.");
         if (controller.StartListingAvailabilityError is { } pricingError) ImGui.TextWrapped(pricingError);
@@ -933,20 +933,20 @@ internal sealed class MainWindow : Window
         var autoVentures = config.AutoRunVentures;
         if (ImGui.Checkbox("Auto collect venture rewards", ref autoVentures))
         { config.AutoRunVentures = autoVentures; save(); }
-        ImGui.TextWrapped("Collect completed rewards using your Ventures settings. Enable Auto reassign ventures below to send retainers back out.");
-        var reprice = config.AutoUpdateExistingListings;
-        if (ImGui.Checkbox("Auto update existing listings", ref reprice)) { config.AutoUpdateExistingListings = reprice; save(); }
-        var list = config.AutoListNewItems;
-        if (ImGui.Checkbox("Auto list new items", ref list)) { config.AutoListNewItems = list; save(); }
+        ImGui.TextWrapped("Collect completed rewards using your Ventures settings. Enable Auto reassign ventures to send retainers back out.");
         var assign = config.AutoReassignVentures;
         if (ImGui.Checkbox("Auto reassign ventures", ref assign)) { config.AutoReassignVentures = assign; save(); }
+        var list = config.AutoListNewItems;
+        if (ImGui.Checkbox("Auto list new items", ref list)) { config.AutoListNewItems = list; save(); }
+        var reprice = config.AutoUpdateExistingListings;
+        if (ImGui.Checkbox("Auto update existing listings", ref reprice)) { config.AutoUpdateExistingListings = reprice; save(); }
         var shiftStop = config.ShiftStopsAutomation;
         if (ImGui.Checkbox("Hold Shift to stop automation", ref shiftStop)) { config.ShiftStopsAutomation = shiftStop; save(); }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Enabled by default. Holding Shift during an active run stops it only while the retainer picker, menu or selling list is open. It will not restart automatically during the same bell visit. Saved step settings are unchanged.");
         var full = config.AutoRunFullSequence;
         if (ImGui.Checkbox("Automatically run the full sequence", ref full))
         { config.AutoRunFullSequence = full; save(); }
-        ImGui.TextWrapped("Collect venture rewards -> update existing listings -> list eligible new items across retainers -> reassign ventures. Full sequence overrides the individual toggles and runs all four steps.");
+        ImGui.TextWrapped("Collect venture rewards -> reassign ventures -> list eligible new items across retainers -> update existing listings. Full sequence overrides the individual toggles and runs all four steps.");
         ImGui.TextWrapped("Listing uses Exceptions, gear protections, quantity settings and available selling slots. Review these before enabling. Run ventures must be enabled when collection or reassignment is selected. Manual Auto update runs this same full sequence once without enabling automatic runs.");
         ImGui.EndDisabled();
         if (automation.AutoRetainerLoaded)
@@ -1223,7 +1223,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
-        ImGui.TextWrapped("Automation can run selected collection, repricing, listing and reassignment steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
+        ImGui.TextWrapped("Automation can run selected collection, reassignment, listing and repricing steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
@@ -1243,7 +1243,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
         ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers and does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
-        ImGui.BulletText("Auto update collects rewards, updates existing listings, lists new items, then reassigns ventures. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a pricing failure does not start ventures. Your existing venture selections and repeat/assignment settings apply.");
+        ImGui.BulletText("Auto update collects rewards, reassigns ventures, lists new items, then updates existing listings. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a failure prevents further steps; already reassigned ventures remain running. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
 
         ImGui.Separator();
