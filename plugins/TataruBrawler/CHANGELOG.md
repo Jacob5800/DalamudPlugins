@@ -1,3 +1,7 @@
+## 1.0.8.25
+
+- Set minimum and maximum typing delays to 0 ms whenever Illegal mode is enabled. Delays remain adjustable afterward.
+
 ## 1.0.8.24
 
 - Identify Keybound invitations by the native popped-duty ID, including party invitations with missing or differently formatted title text.

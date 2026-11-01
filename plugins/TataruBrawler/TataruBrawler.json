@@ -2,7 +2,7 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.24",
+  "AssemblyVersion": "1.0.8.25",
   "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Keybound Automation interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
   "ApplicableVersion": "any",
   "Tags": [
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/TataruBrawler/images/icon.png",
-  "Changelog": "- Identify Keybound invitations by the native popped-duty ID, including party invitations with missing or differently formatted title text.\n- Record why party auto-commence is blocked, or whether its button click was dispatched, while a confirmation is open.",
+  "Changelog": "- Set minimum and maximum typing delays to 0 ms whenever Illegal mode is enabled. Delays remain adjustable afterward.",
   "IsHide": false,
   "IsTestingExclusive": false
 }

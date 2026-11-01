@@ -1145,7 +1145,7 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
         if (illegalChanged)
         {
             config.IllegalMode = illegalMode;
-            config.SetRange(config.MinimumMs, config.MaximumMs);
+            config.SetRange(illegalMode ? 0 : config.MinimumMs, illegalMode ? 0 : config.MaximumMs);
             backgroundKeys.Release(force: true);
             Keyboard.Release(force: true);
             wholeWordDue = 0;
