@@ -80,6 +80,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private long wholeWordDue;
     private readonly RoundLoop autoLeave = new();
     private bool autoLeaveAttempted;
+    private readonly CofferOpener coffers = new();
 
 	private long loopSample;
 
@@ -253,6 +254,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		lock (executionGate)
 		{
 			stopping = true;
+            coffers.Stop();
             rewards.Flush();
 			loop.Stop();
 			typing.Stop();
@@ -312,6 +314,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void StopByUser()
 	{
+		coffers.Stop();
 		SetPlayEnabled(enabled: false);
 		loop.Stop();
 		activity.Reset();
@@ -339,6 +342,10 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
+        coffers.Tick(Environment.TickCount64,
+            client.IsLoggedIn && !condition[ConditionFlag.BetweenAreas] && !condition[ConditionFlag.BetweenAreas51]
+                && !condition[ConditionFlag.InCombat] && !condition[ConditionFlag.BoundByDuty],
+            condition[ConditionFlag.Casting], loop.Active || typing.Running);
         pi.UiBuilder.DisableAutomaticUiHide = mgcPopupPending || ((config.ShowDutyButton || config.ShowPluginListDutyButton) && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory);
         pi.UiBuilder.DisableUserUiHide = pi.UiBuilder.DisableAutomaticUiHide;
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
@@ -1013,6 +1020,16 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     {
         Interface.AutomationShell.Card("QUICK CONTROLS", () =>
         {
+            ImGui.TextUnformatted("Open Keybound Coffers");
+            ImGui.SameLine();
+            if (ImGui.Button(coffers.Running ? "Stop###CofferOpening" : "Start###CofferOpening"))
+            {
+                if (coffers.Running) coffers.Stop();
+                else coffers.Start();
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Opens carried Keybound Coffers one at a time, waiting for the cast and inventory update. Stop prevents the next opening.");
+            ImGui.TextWrapped(coffers.Status);
+            ImGui.Separator();
 ImGui.BeginDisabled(loop.Active);
 							int loopCount = config.LoopCount;
 							ImGui.TextDisabled("Number of runs");
