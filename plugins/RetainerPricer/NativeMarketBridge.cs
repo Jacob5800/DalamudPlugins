@@ -1187,7 +1187,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return OpenRetainerSell(agent, type, checked((ushort)expected.Slot), out error);
     }
 
-    public bool TryReturnListingToInventory(SellItem expected, out string error)
+    public bool TryOpenListingReturnMenu(SellItem expected, out string error)
     {
         if (!expected.IsExisting || !TryReadExistingPrice(expected, out var price, out error))
         { error = "Listing could not be verified before withdrawal."; return false; }
@@ -1195,27 +1195,44 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (IsSessionIdentityChanged(expected.Session)) { error = "Retainer changed before withdrawal."; return false; }
         var context = AgentInventoryContext.Instance();
         if (context == null) { error = "Inventory context unavailable."; return false; }
+        var owner = gameGui.GetAddonByName<AtkUnitBase>("RetainerSellList");
+        if (owner == null || !owner->IsVisible || !owner->IsReady)
+        { error = "Wait for the retainer selling list before opening the withdrawal menu."; return false; }
+        context->OpenForItemSlot(InventoryType.RetainerMarket, expected.Slot, 0, owner->Id);
+        error = "";
+        return true;
+    }
+
+    public bool TrySelectListingReturn(SellItem expected, out bool pending, out string error)
+    {
+        pending = false;
+        if (!TryReadExistingPrice(expected, out var price, out error) || price != expected.CurrentPrice || IsSessionIdentityChanged(expected.Session))
+        { error = "Listing or retainer changed before withdrawal; no withdrawal submitted."; return false; }
+        var context = AgentInventoryContext.Instance();
+        if (context == null) { error = "Inventory context unavailable."; return false; }
         var label = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English)
             .FirstOrDefault(row => row.Text.ToString().Equals("Return Items to Inventory", StringComparison.OrdinalIgnoreCase)).RowId;
         if (label == 0) { error = "Return Items to Inventory label unavailable."; return false; }
         string localized = data.GetExcelSheet<Addon>().GetRow(label).Text.ToString();
-        context->OpenForItemSlot(InventoryType.RetainerMarket, expected.Slot, 0, 0);
         if (context->TargetInventoryId != InventoryType.RetainerMarket || context->TargetInventorySlotId != expected.Slot)
         { error = "Withdrawal menu targets a different listing."; return false; }
         var menu = gameGui.GetAddonByName<AtkUnitBase>("ContextMenu");
         error = "Return Items to Inventory is unavailable or disabled; no withdrawal submitted.";
-        if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9) return false;
+        if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9)
+        { pending = true; error = ""; return false; }
         int count = (int)menu->AtkValues[0].UInt;
         if (count < 1 || count > 64 || menu->AtkValuesCount < count + 8) return false;
         var list = menu->GetComponentListById(2);
-        if (list == null) return false;
+        if (list == null) { pending = true; error = ""; return false; }
         for (int i=0; i<count; i++)
         {
             var value = menu->AtkValues[i+8];
             if (value.Type is not (AtkValueType.String or AtkValueType.ManagedString) || value.String.Value == null) continue;
             if (!Dalamud.Game.Text.SeStringHandling.SeString.Parse(value.String.Value).TextValue.Equals(localized, StringComparison.Ordinal)) continue;
             var renderer = list->GetItemRenderer(i);
-            if (renderer == null || !renderer->IsEnabled) return false;
+            if (renderer == null) { pending = true; error = ""; return false; }
+            if (!renderer->IsEnabled)
+            { error = "Return Items to Inventory is disabled for this listing; no withdrawal submitted."; return false; }
             AtkValue* args = stackalloc AtkValue[3];
             args[0] = new AtkValue { Type = AtkValueType.Int, Int = 0 };
             args[1] = new AtkValue { Type = AtkValueType.Int, Int = i };

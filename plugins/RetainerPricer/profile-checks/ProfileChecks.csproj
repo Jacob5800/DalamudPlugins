@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../PluginConfig.cs" Link="PluginConfig.cs" />
+    <Compile Include="../PricingModels.cs" Link="PricingModels.cs" />
+    <Compile Include="../SniperModels.cs" Link="SniperModels.cs" />
+    <Compile Include="../SettingsBackup.cs" Link="SettingsBackup.cs" />
+    <Compile Include="../SettingsProfiles.cs" Link="SettingsProfiles.cs" />
+    <Compile Include="../ShiftStopPolicy.cs" Link="ShiftStopPolicy.cs" />
+  </ItemGroup>
+</Project>

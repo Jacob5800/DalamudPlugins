@@ -10,28 +10,40 @@ namespace RetainerPricer;
 
 internal static unsafe class MateriaRetrieval
 {
-    public static bool TryBegin(IGameGui gui, IDataManager data, InventoryType bag, int index, InventoryItem* slot, out string error, bool extraction = false)
+    public static bool TryOpen(IGameGui gui, InventoryType bag, int index, out string error, bool extraction = false)
     {
-        error = "Materia retrieval dialog is already open. Close it and retry.";
+        error = "Materia dialog is already open. Close it and retry.";
         var existing = gui.GetAddonByName<AtkUnitBase>(extraction ? "MaterializeDialog" : "MateriaRetrieveDialog");
         if (existing != null && existing->IsVisible) return false;
+        var agent = AgentInventoryContext.Instance();
+        if (agent == null) { error = "Inventory context agent is unavailable."; return false; }
+        agent->OpenForItemSlot(bag, index, 0, 0);
+        error = "";
+        return true;
+    }
+
+    public static bool TrySelect(IGameGui gui, IDataManager data, InventoryType bag, int index, InventoryItem* slot,
+        out bool pending, out string error, bool extraction = false)
+    {
+        pending = false;
+        string action = extraction ? "Extract Materia" : "Retrieve Materia";
         uint label = data.GetExcelSheet<Addon>(ClientLanguage.English)
             .FirstOrDefault(row => row.Text.ToString().Equals(extraction ? "Extract Materia" : "Retrieve Materia", StringComparison.OrdinalIgnoreCase)).RowId;
         var agent = AgentInventoryContext.Instance();
-        error = "Retrieve Materia menu label or inventory agent is unavailable.";
+        error = action + " menu label or inventory agent is unavailable.";
         if (label == 0 || agent == null) return false;
         string expected = data.GetExcelSheet<Addon>().GetRow(label).Text.ToString();
-        agent->OpenForItemSlot(bag, index, 0, 0);
         error = "Inventory context target changed before materia retrieval.";
         if (agent->TargetInventoryId != bag || agent->TargetInventorySlotId != index || agent->TargetInventorySlot != slot) return false;
         var menu = gui.GetAddonByName<AtkUnitBase>("ContextMenu");
         error = "Inventory context menu did not open for materia retrieval.";
-        if (menu == null || !menu->IsVisible || menu->AtkValues == null || menu->AtkValuesCount < 9) return false;
+        if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9)
+        { pending = true; error = ""; return false; }
         int count = (int)menu->AtkValues[0].UInt;
         if (count < 1 || count > 64 || menu->AtkValuesCount < count + 8) return false;
         var list = menu->GetComponentListById(2);
-        error = "Retrieve Materia is missing or disabled in the item's context menu.";
-        if (list == null) return false;
+        error = action + " is missing or disabled in the item's context menu.";
+        if (list == null) { pending = true; error = ""; return false; }
         // Native context-menu layout and callback: ECommons AddonMaster.ContextMenu.
         for (int i=0; i<count; i++)
         {
@@ -39,7 +51,8 @@ internal static unsafe class MateriaRetrieval
             if (value.Type is not (AtkValueType.String or AtkValueType.ManagedString) || value.String.Value == null) continue;
             if (!SeString.Parse(value.String.Value).TextValue.Equals(expected, StringComparison.Ordinal)) continue;
             var renderer = list->GetItemRenderer(i);
-            if (renderer == null || !renderer->IsEnabled) return false;
+            if (renderer == null) { pending = true; error = ""; return false; }
+            if (!renderer->IsEnabled) return false;
             AtkValue* args = stackalloc AtkValue[3];
             args[0] = new AtkValue { Type = AtkValueType.Int, Int = 0 };
             args[1] = new AtkValue { Type = AtkValueType.Int, Int = i };

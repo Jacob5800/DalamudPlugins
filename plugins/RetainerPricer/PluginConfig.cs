@@ -4,6 +4,9 @@ namespace RetainerPricer;
 
 public sealed class PluginConfig : IPluginConfiguration
 {
+    public Dictionary<string, string> SettingsProfiles { get; set; } = [];
+    public string ActiveSettingsProfile { get; set; } = "";
+
     // null asks before each increase; true allows; false skips increases.
     public bool DebugListingSelector { get; set; } = true;
     public bool? AllowListingPriceIncreases { get; set; }

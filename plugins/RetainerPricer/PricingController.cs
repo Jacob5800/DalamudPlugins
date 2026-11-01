@@ -551,11 +551,17 @@ internal sealed class PricingController : IDisposable
         if (vendorStage == 1)
         {
             if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible) return;
-            if (!bridge.TryReturnListingToInventory(item, out error)) { Cancel(error); return; }
+            if (!bridge.TryOpenListingReturnMenu(item, out error)) { Cancel(error); return; }
             vendorStage = 2; return;
         }
-        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var total, out error)) return;
         if (vendorStage == 2)
+        {
+            if (!bridge.TrySelectListingReturn(item, out var pending, out error))
+            { if (!pending) Cancel(error); return; }
+            vendorStage = 3; vendorDeadline = now.AddSeconds(15); return;
+        }
+        if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var total, out error)) return;
+        if (vendorStage == 3)
         {
             if (total != (ulong)vendorBeforeTotal + item.Quantity) return;
             var listings = bridge.ReadExistingListings(out error);
@@ -566,9 +572,9 @@ internal sealed class PricingController : IDisposable
                 !vendorBeforeInventory.Any(b => b.InventoryType == x.InventoryType && b.Slot == x.Slot && b.ItemId == x.ItemId && b.IsHq == x.IsHq)).ToArray();
             if (returned.Length != 1) { Cancel("Listing returned, but its stack merged or could not be isolated safely. No NPC sale submitted; check inventory."); return; }
             if (!bridge.TrySellInventoryItemThroughRetainer(returned[0], item.Session, false, out error)) { Cancel(error); return; }
-            vendorStage = 3; vendorDeadline = now.AddSeconds(15); return;
+            vendorStage = 4; vendorDeadline = now.AddSeconds(15); return;
         }
-        if (vendorStage == 3 && total == vendorBeforeTotal)
+        if (vendorStage == 4 && total == vendorBeforeTotal)
         {
             // Withdrawing listings can change subsequent native slots. Stop rather than use stale queued rows.
             Cancel($"Sold the approved {item.Name} x {item.Quantity} to the NPC. Restart Update existing listings to refresh the remaining listing slots.");

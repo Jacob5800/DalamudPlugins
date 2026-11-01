@@ -18,7 +18,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
     private (InventoryType Bag, int Slot, uint Id, bool Hq)? extractionItem;
-    private bool extractionConfirmed;
+    private bool extractionConfirmed, extractionMenuSelected;
     private DateTimeOffset extractionDeadline;
     private void UpdateExtraction(InventoryManager* inventory, DateTimeOffset now)
     {
@@ -32,6 +32,14 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         { Stop("Materia extraction stopped: item is now protected or removed from the list."); return; }
         if (slot->GetSpiritbondOrCollectability() < 10000)
         { extractionItem = null; next = now.AddSeconds(1); Status = "Materia extracted; continuing desynthesis."; return; }
+        if (!extractionMenuSelected)
+        {
+            if (now >= extractionDeadline) { Stop("Extract Materia menu did not become ready; no desynthesis was attempted."); return; }
+            if (!MateriaRetrieval.TrySelect(gui, data, item.Bag, item.Slot, slot, out var menuPending, out var menuError, extraction: true))
+            { if (!menuPending) Stop(menuError + " No desynthesis was attempted."); return; }
+            extractionMenuSelected = true; extractionDeadline = now.AddSeconds(15);
+            return;
+        }
         if (!extractionConfirmed)
         {
             var dialog = gui.GetAddonByName<FFXIVClientStructs.FFXIV.Client.UI.AddonMaterializeDialog>("MaterializeDialog");
@@ -43,7 +51,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     public string MateriaItemName { get; private set; } = "";
     private (InventoryType Bag, int Slot, uint Id, bool Hq, string Melds)? materiaItem;
     private readonly HashSet<(InventoryType, int, uint)> skippedMateria = [];
-    private bool retrieveApproved, retrievalSent, retrievalConfirmed;
+    private bool retrieveApproved, retrievalSent, retrievalConfirmed, retrievalMenuOpened;
     private string retrievalBefore = "";
     private DateTimeOffset retrievalDeadline;
     public void AnswerMateria(bool retrieve)
@@ -124,7 +132,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = false; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
@@ -132,7 +140,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         { Status = "Log in and unlock desynthesis first."; return; }
         if (config.DesynthesisItemIds.Count == 0) { Status = "Add items to the desynthesis list first."; return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out _, out _, out var error)) { Status = error; return; }
-        skippedMateria.Clear(); materiaItem = null; retrieveApproved = retrievalSent = WaitingForMateria = false;
+        skippedMateria.Clear(); materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = WaitingForMateria = false;
         extractionItem = null;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
         brothHandled = brothRequested = WaitingForBroth = false;
@@ -155,7 +163,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         {
             if (current != retrievalBefore)
             {
-                retrievalSent = false;
+                retrievalSent = retrievalMenuOpened = false;
                 materiaItem = item with { Melds = current };
                 next = now.AddSeconds(1);
             }
@@ -167,12 +175,22 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         for (int m=0;m<5;m++) if (slot->Materia[m]!=0) melded = true;
         if (!melded) { materiaItem = null; retrieveApproved = false; Status = "Materia removed; continuing desynthesis."; return; }
         if (current != item.Melds) { Stop("Materia retrieval stopped: the selected item's melds changed."); return; }
+        if (retrievalMenuOpened)
+        {
+            if (now >= retrievalDeadline) { Stop("Retrieve Materia menu did not become ready; no desynthesis was attempted."); return; }
+            if (!MateriaRetrieval.TrySelect(gui, data, item.Bag, item.Slot, slot, out var menuPending, out var menuError))
+            { if (!menuPending) Stop(menuError + " No desynthesis was attempted."); return; }
+            retrievalMenuOpened = false; retrievalBefore = current; retrievalSent = true; retrievalConfirmed = false;
+            retrievalDeadline = now.AddSeconds(15);
+            Status = $"Retrieving materia from {MateriaItemName}...";
+            return;
+        }
         if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
             || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return;
         if (inventory->GetEmptySlotsInBag() < 5) { Stop("Free at least five carried inventory slots before retrieving materia."); return; }
-        if (!MateriaRetrieval.TryBegin(gui, data, item.Bag, item.Slot, slot, out var retrievalError))
+        if (!MateriaRetrieval.TryOpen(gui, item.Bag, item.Slot, out var retrievalError))
         { Stop(retrievalError + " No desynthesis was attempted."); return; }
-        retrievalBefore = current; retrievalSent = true; retrievalConfirmed = false; retrievalDeadline = now.AddSeconds(15);
+        retrievalMenuOpened = true; retrievalDeadline = now.AddSeconds(15);
         Status = $"Retrieving materia from {MateriaItemName}...";
     }
 
@@ -222,9 +240,9 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 if (slot->GetSpiritbondOrCollectability() >= 10000)
                 {
                     if (inventory->GetEmptySlotsInBag() < 1) { Stop("Free a carried inventory slot before extracting materia."); return; }
-                    if (!MateriaRetrieval.TryBegin(gui, data, type, i, slot, out var extractError, extraction: true))
+                    if (!MateriaRetrieval.TryOpen(gui, type, i, out var extractError, extraction: true))
                     { Stop("Materia extraction could not start: " + extractError + " No desynthesis was attempted."); return; }
-                    extractionItem = (type, i, id, slot->IsHighQuality()); extractionConfirmed = false; extractionDeadline = now.AddSeconds(15);
+                    extractionItem = (type, i, id, slot->IsHighQuality()); extractionConfirmed = extractionMenuSelected = false; extractionDeadline = now.AddSeconds(15);
                     Status = $"Extracting materia from {item.Name} before desynthesis...";
                     return;
                 }
@@ -236,7 +254,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                     materiaItem = (type,i,id,slot->IsHighQuality(),Melds(slot));
                     MateriaItemName = item.Name.ToString();
                     WaitingForMateria = true;
-                    retrieveApproved = retrievalSent = false;
+                    retrieveApproved = retrievalSent = retrievalMenuOpened = false;
                     Status = $"Materia found on {MateriaItemName}. Choose Retrieve materia or Skip item.";
                     return;
                 }

@@ -71,7 +71,7 @@ public sealed class Plugin : IDalamudPlugin
         if (config.Version < 16 && config.AutoRunVentures) config.AutoReassignVentures = true;
         if (migrateConfig) config.Version = 16;
         config.Normalize();
-        if (migrateConfig) pluginInterface.SavePluginConfig(config);
+        if (SettingsProfiles.Initialize(config) || migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
         serverInfoBarEntry.Tooltip = "Click to open Retainer Pricer";
         serverInfoBarEntry.OnClick = _ => Toggle();
@@ -166,11 +166,12 @@ public sealed class Plugin : IDalamudPlugin
         try
         {
             // Check before any controller can submit its next action. Do not consume Shift.
-            if (config.ShiftStopsAutomation && automation.IsRunning && condition[ConditionFlag.OccupiedSummoningBell] &&
-                (bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible || bridge.IsRetainerSellListVisible) &&
-                keyState[VirtualKey.SHIFT])
+            if (ShiftStopPolicy.ShouldStop(config.ShiftStopsAutomation,
+                keyState[VirtualKey.SHIFT] || keyState[VirtualKey.LSHIFT] || keyState[VirtualKey.RSHIFT],
+                condition[ConditionFlag.OccupiedSummoningBell], automation.IsRunning, ventures.IsRunning))
             {
-                automation.Cancel("Automation stopped for this run: Shift held in the retainer menu.");
+                if (automation.IsRunning) automation.Cancel("Automation stopped for this run: Shift held at the summoning bell.");
+                else ventures.Cancel("Venture cycle stopped for this run: Shift held at the summoning bell.");
                 ventureVisitHandled = true;
                 venturePickerReadyAt = null;
             }
@@ -426,7 +427,11 @@ public sealed class Plugin : IDalamudPlugin
     private void Toggle() { if (!disposed) window.Toggle(); }
     private bool UndercutsPaused() => !config.ShowUndercutNotifier || config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
-    private void Save() => pluginInterface.SavePluginConfig(config);
+    private void Save()
+    {
+        SettingsProfiles.Capture(config);
+        pluginInterface.SavePluginConfig(config);
+    }
 
     public void Dispose()
     {

@@ -4,11 +4,12 @@ using System.Text.Json.Nodes;
 namespace RetainerPricer;
 internal static class SettingsBackup
 {
-    private static readonly HashSet<string> Omitted = [nameof(PluginConfig.UniversalisRetainerListings), nameof(PluginConfig.UniversalisPendingItemIds), nameof(PluginConfig.UniversalisLastBoardSearchAt), nameof(PluginConfig.Version)];
+    private static readonly HashSet<string> Omitted = [nameof(PluginConfig.UniversalisRetainerListings), nameof(PluginConfig.UniversalisPendingItemIds), nameof(PluginConfig.UniversalisLastBoardSearchAt), nameof(PluginConfig.Version), nameof(PluginConfig.SettingsProfiles), nameof(PluginConfig.ActiveSettingsProfile)];
     internal static JsonObject Export(PluginConfig config)
     {
-        var settings = JsonSerializer.SerializeToNode(config)!.AsObject();
-        foreach (var key in Omitted) settings.Remove(key);
+        var settings = new JsonObject();
+        foreach (var property in typeof(PluginConfig).GetProperties().Where(p => p.CanRead && !Omitted.Contains(p.Name)))
+            settings[property.Name] = JsonSerializer.SerializeToNode(property.GetValue(config), property.PropertyType);
         return new JsonObject { ["Plugin"] = "RetainerPricer", ["BackupVersion"] = 1, ["Settings"] = settings };
     }
     internal static JsonObject Read(string path)

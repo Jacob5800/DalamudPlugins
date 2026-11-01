@@ -28,6 +28,7 @@ internal sealed class MainWindow : Window
     private readonly DesynthesisController desynthesis;
     private readonly TtCardSaleController ttCards;
     private readonly IReadOnlySet<uint> desynthesizableIds;
+    private string profileName = "", selectedProfile = "", profileStatus = "";
     private string desynthesisSearch = "";
     private IReadOnlyList<uint> desynthesisSnapshot = [];
     private string desynthesisSnapshotStatus = "";
@@ -405,6 +406,7 @@ internal sealed class MainWindow : Window
             if (BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Profiles")) { DrawProfiles(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
             ImGui.EndTabBar();
@@ -738,6 +740,57 @@ internal sealed class MainWindow : Window
         ImGui.EndPopup();
     }
 
+    private void DrawProfiles()
+    {
+        ImGui.TextUnformatted($"Active profile: {config.ActiveSettingsProfile}");
+        ImGui.TextWrapped("Settings, toggles, item lists, batch quantities and venture assignments save automatically to the active profile. Switching saves the current profile first. Market caches and listing snapshots are shared. Venture assignments keep their retainer IDs.");
+        if (!config.SettingsProfiles.ContainsKey(selectedProfile)) selectedProfile = config.ActiveSettingsProfile;
+        var busy = UiBusy || ventures.IsRunning || vendor.IsRunning || sniper.IsRunning || undercuts.Running;
+        ImGui.BeginDisabled(busy);
+        if (ImGui.BeginCombo("Saved profile", selectedProfile))
+        {
+            foreach (var name in config.SettingsProfiles.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+                if (ImGui.Selectable(name, name == selectedProfile)) selectedProfile = name;
+            ImGui.EndCombo();
+        }
+        void Change(Action action, string message)
+        {
+            try { action(); setServerInfoBarShown(config.ShowServerInfoBarButton); save(); profileStatus = message; }
+            catch (Exception ex) { profileStatus = ex.Message; }
+        }
+        ImGui.BeginDisabled(selectedProfile == config.ActiveSettingsProfile);
+        if (ImGui.Button("Switch to selected"))
+            Change(() => SettingsProfiles.Switch(config, selectedProfile), "Profile loaded.");
+        ImGui.SameLine();
+        if (ImGui.Button("Delete selected")) ImGui.OpenPopup("Delete saved profile?");
+        ImGui.EndDisabled();
+        if (ImGui.BeginPopupModal("Delete saved profile?", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted($"Delete '{selectedProfile}'?");
+            if (ImGui.Button("Delete"))
+            {
+                Change(() => SettingsProfiles.Delete(config, selectedProfile), "Profile deleted.");
+                selectedProfile = config.ActiveSettingsProfile;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+        ImGui.InputText("Profile name", ref profileName, 65);
+        if (ImGui.Button("Save current as new profile"))
+            Change(() => { SettingsProfiles.Create(config, profileName); selectedProfile = config.ActiveSettingsProfile; profileName = ""; }, "New profile created and active.");
+        ImGui.SameLine();
+        if (ImGui.Button("Rename selected"))
+            Change(() => { SettingsProfiles.Rename(config, selectedProfile, profileName); selectedProfile = profileName.Trim(); profileName = ""; }, "Profile renamed.");
+        ImGui.EndDisabled();
+        if (busy) ImGui.TextDisabled("Stop active operations and watchers before changing profiles.");
+        if (profileStatus.Length > 0) ImGui.TextWrapped(profileStatus);
+        ImGui.Separator();
+        ImGui.TextWrapped("Import/export applies to the active profile. Create a new profile first to import into a separate preset. Existing backup files remain supported.");
+        DrawSettingsBackup();
+    }
+
     private void DrawSettingsBackup()
     {
         if (!ImGui.CollapsingHeader("Backup / export settings")) return;
@@ -786,7 +839,6 @@ internal sealed class MainWindow : Window
     }
     private void DrawSettings()
     {
-        DrawSettingsBackup();
         ImGui.TextUnformatted("Existing listing increases: " + (config.AllowListingPriceIncreases is true ? "Always allow" : config.AllowListingPriceIncreases is false ? "Always skip" : "Ask each time"));
         if (ImGui.Button("Ask before price increases again")) { config.AllowListingPriceIncreases = null; save(); }
         ImGui.Separator();
@@ -927,7 +979,7 @@ internal sealed class MainWindow : Window
 
     private void DrawAutomation()
     {
-        ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Hold Shift while a retainer menu is open to stop the current automation run; automatic runs stay stopped until you leave the bell. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
+        ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Hold Shift during a bell interaction to stop the current sequence or venture cycle; automatic runs stay stopped until you leave the bell. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
         var busy = UiBusy || ventures.IsRunning || vendor.IsRunning;
         ImGui.BeginDisabled(busy);
         var autoVentures = config.AutoRunVentures;
@@ -942,7 +994,7 @@ internal sealed class MainWindow : Window
         if (ImGui.Checkbox("Auto update existing listings", ref reprice)) { config.AutoUpdateExistingListings = reprice; save(); }
         var shiftStop = config.ShiftStopsAutomation;
         if (ImGui.Checkbox("Hold Shift to stop automation", ref shiftStop)) { config.ShiftStopsAutomation = shiftStop; save(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Enabled by default. Holding Shift during an active run stops it only while the retainer picker, menu or selling list is open. It will not restart automatically during the same bell visit. Saved step settings are unchanged.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Enabled by default. Holding either Shift key during a summoning-bell interaction stops an active full sequence or standalone venture cycle, including dialogue and venture result/assignment windows. It will not restart automatically during the same bell visit. Saved step settings are unchanged.");
         var full = config.AutoRunFullSequence;
         if (ImGui.Checkbox("Automatically run the full sequence", ref full))
         { config.AutoRunFullSequence = full; save(); }
@@ -1223,6 +1275,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("Profiles: create, rename and switch named settings presets in the Profiles tab. Changes save automatically to the active profile, including item lists and toggles. Stop active operations and watchers before switching. Import/export shares the active profile without including market caches.");
         ImGui.TextWrapped("Automation can run selected collection, reassignment, listing and repricing steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
