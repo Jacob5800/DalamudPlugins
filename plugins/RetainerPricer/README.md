@@ -35,7 +35,7 @@ The **Don't vendor** list at the bottom of **Retainer sell** blocks NPC sales of
 Retainer sell's whitelist and Don't vendor lists can be expanded or collapsed using their headers, which show saved item counts. Collapsing a list does not disable it. The green Start retainer sales button remains outside these sections.
 
 
-Auto update runs **Collect venture rewards → Update existing listings → List new items → Reassign ventures**. Start it from the retainer picker with **Run ventures** enabled. It uses your existing venture settings and remembers the collected task when repeating ventures. A failed or stopped pass prevents subsequent passes. Auto update is orange.
+Auto update runs **Collect and reassign each retainer → List new items → Update existing listings**. Start it from the retainer picker with **Run ventures** enabled. It uses your existing venture settings and remembers the collected task when repeating ventures. A failed or stopped pass prevents subsequent passes. Auto update is orange.
 
 
 **Update existing listings** reprices all retainers, without collecting rewards, listing new items, or assigning ventures. It can start from the picker or an open selling list. **Auto update** runs the full sequence from the retainer picker; the new-item pass uses the existing exclusions, protections, per-listing quantities and selling-slot limit.
@@ -133,11 +133,11 @@ The Status tab keeps the latest 300 messages for the current plugin session, inc
 The **Automation** tab has two independent settings, both **off by default**, including for existing users:
 
 - **Auto ventures:** run the normal venture cycle once at an idle retainer picker, using the collection/repeat/assignment settings in Ventures. No repricing or new-item listing.
-- **Automatically run the full sequence:** collect rewards from completed ventures across retainers, reassign ventures, list eligible carried items across available retainers, then update existing listings. If both toggles are enabled, only the full sequence starts.
+- **Automatically run the full sequence:** collect rewards and reassign each retainer in the same visit, list eligible carried items across available retainers, then update existing listings. If both toggles are enabled, only the full sequence starts.
 
 **Run ventures** in Ventures must be enabled. The manual **Auto update** button starts the full sequence once without enabling either automatic trigger. Review Exceptions, gear protections and listing quantities before using the full sequence. If Exceptions is empty, manual Auto update uses the existing listing confirmation; unattended full runs require the saved acknowledgement first.
 
-An automatic run requires the picker to remain idle for one second. Opening a retainer and returning to the list does not start another run. Automation only rearms after all retainer windows are closed and the bell interaction has ended for four seconds. Price checks, repricing, listing and retainer selling take priority. The sequence owns the UI through all four passes; standalone venture automation cannot double-run between them. No completed venture is reassigned during the initial collection pass. Running ventures are left alone; reassignment before market work respects the selected venture or repeats the collected task according to your settings.
+An automatic run requires the picker to remain idle for one second. Opening a retainer and returning to the list does not start another run. Automation only rearms after all retainer windows are closed and the bell interaction has ended for four seconds. Price checks, repricing, listing and retainer selling take priority. The sequence owns the UI through all selected steps; standalone venture automation cannot double-run between them. When collection and reassignment are both selected, each retainer is collected and reassigned in the same visit before moving to the next retainer. Running ventures are left alone; reassignment before market work respects the selected venture or repeats the collected task according to your settings.
 
 **AutoRetainer conflict protection:** automatic ventures and the full sequence are blocked whenever the AutoRetainer plugin is loaded. This checks the loaded plugin, not merely whether its files are installed. Unload AutoRetainer before using these automations. Loading it during a full sequence stops the remaining work.
 
@@ -202,3 +202,5 @@ The materia listing prompt’s **Don’t ask again during this run (all retainer
 New-item listing, batch selling, automatic single-item listing and manual price filling also pause for **Below NPC sale value** review before submitting/filling a below-vendor price. Choose Approve this price, Skip or Vendor item instead. The comparison uses the quality-adjusted per-item NPC value, before market tax. Vendoring a new listing requires the approved quantity to match an exact carried stack; changed or partial stacks are not sold. A verified NPC sale continues the current listing sequence.
 
 **Mark saved gearset items red in armoury chest** in Settings adds translucent red slot fills for items referenced by saved in-game gearsets. NQ/HQ are distinguished; identical copies receive the same marker. Disabled by default.
+
+When both collection and reassignment are enabled (including the full sequence), they share one retainer traversal. Collection-only and reassignment-only remain independent options. Listing and repricing follow the combined venture pass.

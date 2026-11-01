@@ -1010,7 +1010,7 @@ internal sealed class MainWindow : Window
         var full = config.AutoRunFullSequence;
         if (ImGui.Checkbox("Automatically run the full sequence", ref full))
         { config.AutoRunFullSequence = full; save(); }
-        ImGui.TextWrapped("Collect venture rewards -> reassign ventures -> list eligible new items across retainers -> update existing listings. Full sequence overrides the individual toggles and runs all four steps.");
+        ImGui.TextWrapped("Collect and reassign each retainer in one visit -> list eligible new items across retainers -> update existing listings. Full sequence overrides the individual toggles and runs all four steps.");
         ImGui.TextWrapped("Listing uses Exceptions, gear protections, quantity settings and available selling slots. Review these before enabling. Run ventures must be enabled when collection or reassignment is selected. Manual Auto update runs this same full sequence once without enabling automatic runs.");
         ImGui.EndDisabled();
         if (automation.AutoRetainerLoaded)

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Collect rewards and reassign ventures during the same retainer visit when both actions or the full sequence are enabled, avoiding a second venture pass.
+
 ## 0.5.1.42
 
 - Handle the retainer buyback warning when automated pricing or ventures dismisses a retainer after NPC sales.

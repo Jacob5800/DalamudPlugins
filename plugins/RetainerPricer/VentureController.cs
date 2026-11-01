@@ -6,7 +6,7 @@ namespace RetainerPricer;
 /// </summary>
 internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig config)
 {
-    private enum CycleMode { Normal, CollectOnly, AssignOnly }
+    private enum CycleMode { Normal, CollectOnly, AssignOnly, CollectAndAssign }
     private CycleMode mode;
     private readonly Dictionary<ulong, uint> collectedTasks = [];
     public bool LastRunSucceeded { get; private set; }
@@ -105,6 +105,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     }
 
     public void Start() => Start(CycleMode.Normal);
+    public void CollectAndReassign() => Start(CycleMode.CollectAndAssign);
     public void CollectRewards() => Start(CycleMode.CollectOnly);
     public void ReassignVentures() => Start(CycleMode.AssignOnly);
 
@@ -319,14 +320,14 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
             { Cancel($"Venture cycle stopped because {expected.Name}'s menu and venture data disagree."); return; }
             if (!bridge.TrySelectRetainerMenuEntry(text => string.Equals(text, labels.ViewReport, StringComparison.Ordinal), out _, out error))
             { Cancel($"Venture cycle stopped before opening {expected.Name}'s venture report: {error}"); return; }
-            if (mode == CycleMode.CollectOnly) collectedTasks[expected.RetainerId] = ventureId;
-            actionReassigns = mode == CycleMode.Normal && config.RepeatCompletedVentures;
+            if (mode is CycleMode.CollectOnly or CycleMode.CollectAndAssign) collectedTasks[expected.RetainerId] = ventureId;
+            actionReassigns = (mode is CycleMode.Normal or CycleMode.CollectAndAssign) && config.RepeatCompletedVentures;
             SetStep(Step.WaitForResult, now, $"Opening {expected.Name}'s completed venture...");
             return;
         }
 
         if (mode == CycleMode.CollectOnly)
-        { SelectQuit(expected, now, $"Collected {expected.Name}; leaving ventures unassigned until listing finishes."); return; }
+        { SelectQuit(expected, now, $"Collected {expected.Name}; leaving ventures unassigned."); return; }
 
         if (ventureId == 0 && (config.AssignQuickExplorationWhenIdle || collectedTasks.ContainsKey(expected.RetainerId)))
         {

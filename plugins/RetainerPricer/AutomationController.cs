@@ -46,7 +46,15 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         var previous = stage;
         if (previous < Stage.Collect && collectEnabled && !AllVenturesStillAway(DateTimeOffset.UtcNow))
         {
-            stage = Stage.Collect; ventures.CollectRewards(); Status = "Collecting venture rewards...";
+            if (assignEnabled)
+            {
+                stage = Stage.Assign; ventures.CollectAndReassign();
+                Status = "Collecting rewards and reassigning each retainer before moving on...";
+            }
+            else
+            {
+                stage = Stage.Collect; ventures.CollectRewards(); Status = "Collecting venture rewards...";
+            }
             if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
             return;
         }
