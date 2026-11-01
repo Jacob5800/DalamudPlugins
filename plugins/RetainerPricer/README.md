@@ -181,7 +181,7 @@ Desynthesis extracts materia from eligible 100%-spiritbond items first and waits
 
 With **Hold Shift to stop automation** enabled (the default), hold either Shift key during a summoning-bell interaction to stop the active full sequence or standalone venture cycle, including greeting, reward and assignment windows. Submitted actions remain applied. Saved automatic settings stay enabled, but the visit will not restart automatically until the bell interaction ends.
 
-When lowering an existing listing below its NPC sale value, review **Approve this price**, **Vendor item instead**, or **Skip**. Vendor returns the listed stack to carried inventory, verifies it, and uses the retainer NPC-sale action. Item protections and Don't vendor still apply. If it merges into another stack or cannot be isolated, no sale is submitted. A completed vendor sale stops the current update run; restart it to refresh listing slots. This compares per-item prices before market tax.
+When lowering an existing listing below its NPC sale value, review **Approve this price**, **Vendor item instead**, or **Skip**. Vendor returns the listed stack to carried inventory, verifies it, and uses the retainer NPC-sale action. Item protections and Don't vendor still apply. If it merges into another stack or cannot be isolated, no sale is submitted. After a verified NPC sale, the update run refreshes remaining listing slots and continues. Unexpected listing changes stop the run safely. This compares per-item prices before market tax.
 
 Shutdown detaches update/UI callbacks before cancelling operations and disposing their dependencies. Cleanup failures are logged per step while remaining cleanup is still attempted. Repeated shutdown calls are ignored. Pending network cancellation may finish asynchronously; this is not a runtime unload guarantee.
 
@@ -191,7 +191,7 @@ The **Profiles** tab saves settings, toggles, item lists (including Exceptions, 
 
 Backup/import/export is now in **Profiles** and applies to the active profile. Existing backup JSON files remain supported. Create a new profile before importing when you want to keep the imported settings as a separate preset. Imports preserve the profile library and shared caches; exports contain one profile's settings without embedding the entire library.
 
-**Hold Shift to stop automation** also stops standalone venture cycles, including greetings, rewards and assignment windows. Either Shift key works during the bell interaction; automatic runs stay stopped for that bell visit. Approved **Vendor item instead** withdrawal opens its context menu once, then waits for it to be ready before selecting the localized return action. The existing inventory/quantity verification and stop-after-sale behavior remain in place.
+**Hold Shift to stop automation** also stops standalone venture cycles, including greetings, rewards and assignment windows. Either Shift key works during the bell interaction; automatic runs stay stopped for that bell visit. Approved **Vendor item instead** withdrawal opens its context menu once, then waits for it to be ready before selecting the localized return action. Inventory and quantity verification remain in place; confirmed sales resume the current sequence.
 
 Desynthesis opens the Extract/Retrieve Materia context menu once and waits for readiness before selecting the action. It still verifies extraction or retrieval completed before desynthesizing the item.
 
@@ -199,4 +199,6 @@ During a new-item listing pass, a 1-gil price that cannot be undercut or a propo
 
 The materia listing prompt’s **Don’t ask again during this run (all retainers)** choice applies after choosing Proceed for the whole current listing pass, including later retainers in a full sequence. It is not saved to settings or profiles and resets for a new run.
 
-New-item listing, batch selling, automatic single-item listing and manual price filling also pause for **Below NPC sale value** review before submitting/filling a below-vendor price. Choose Approve this price, Skip or Vendor item instead. The comparison uses the quality-adjusted per-item NPC value, before market tax. Vendoring a new listing requires the approved quantity to match an exact carried stack; changed or partial stacks are not sold. A successful NPC sale stops the current run to refresh inventory.
+New-item listing, batch selling, automatic single-item listing and manual price filling also pause for **Below NPC sale value** review before submitting/filling a below-vendor price. Choose Approve this price, Skip or Vendor item instead. The comparison uses the quality-adjusted per-item NPC value, before market tax. Vendoring a new listing requires the approved quantity to match an exact carried stack; changed or partial stacks are not sold. A verified NPC sale continues the current listing sequence.
+
+**Mark saved gearset items red in armoury chest** in Settings adds red slot borders for items referenced by saved in-game gearsets. NQ/HQ are distinguished; identical copies receive the same marker. Disabled by default.

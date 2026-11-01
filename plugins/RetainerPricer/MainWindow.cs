@@ -856,6 +856,8 @@ internal sealed class MainWindow : Window
         Feature("Show Retainer sell", config.ShowRetainerSell, v => config.ShowRetainerSell = v);
         ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
         Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
+        Feature("Mark saved gearset items red in armoury chest", config.MarkArmouryGearsetItems, v => config.MarkArmouryGearsetItems = v);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Red borders identify items referenced by saved gearsets, matching HQ quality too. Identical copies share the marker.");
 
         if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
         {

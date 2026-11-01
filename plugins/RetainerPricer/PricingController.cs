@@ -2,7 +2,7 @@ namespace RetainerPricer;
 
 internal sealed class PriceRow(SellItem item, string retainerName = "")
 {
-    public SellItem Item { get; } = item;
+    public SellItem Item { get; set; } = item;
     public string RetainerName { get; } = retainerName;
     public PriceSnapshot? Snapshot { get; set; }
     public MarketSale? LastRecordedSale => (Snapshot?.Sales ?? [])
@@ -574,7 +574,7 @@ internal sealed class PricingController : IDisposable
         {
             if (bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var remaining, out _) &&
                 (ulong)remaining + item.Quantity == vendorBeforeTotal)
-                Cancel($"Sold the approved {item.Name} x {item.Quantity} to the NPC. Restart listing to refresh carried inventory.");
+                CompleteReviewedVendor(item, now);
             return;
         }
         if (vendorStage == 1)
@@ -605,9 +605,44 @@ internal sealed class PricingController : IDisposable
         }
         if (vendorStage == 4 && total == vendorBeforeTotal)
         {
-            // Withdrawing listings can change subsequent native slots. Stop rather than use stale queued rows.
-            Cancel($"Sold the approved {item.Name} x {item.Quantity} to the NPC. Restart Update existing listings to refresh the remaining listing slots.");
+            CompleteReviewedVendor(item, now);
         }
+    }
+
+    private void CompleteReviewedVendor(SellItem sold, DateTimeOffset now)
+    {
+        // Keep the parent traversal alive, but never continue with slots captured before withdrawal.
+        if (work is Work.Scan or Work.AutoUpdateAllRetainers)
+        {
+            var fresh = bridge.ReadExistingListings(out var error).ToList();
+            if (error.Length != 0) { Cancel($"NPC sale completed, but listings could not be refreshed: {error}"); return; }
+            var pending = Rows.Skip(index + 1).ToArray();
+            if (!ListingRefresh.TryRemap(pending.Select(row => row.Item).ToArray(), fresh, x => (x.Session, x.ItemId, x.IsHq, x.Quantity, x.CurrentPrice), out var replacements))
+            { Cancel("NPC sale completed, but remaining listings changed unexpectedly. No further prices submitted."); return; }
+            for (var i = 0; i < pending.Length; i++) pending[i].Item = replacements[i];
+            Rows[index].Status = "Sold to NPC";
+            index++;
+        }
+        else if (work == Work.BatchListing)
+        {
+            listingSkipped++;
+            index++;
+            listingCandidate = null;
+        }
+        else
+        {
+            vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
+            Finish($"Sold the approved {sold.Name} x {sold.Quantity} to the NPC.");
+            return;
+        }
+        vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
+        approvedBelowVendor = null;
+        workingItem = null;
+        step = Step.Start;
+        ResetRequest();
+        deadline = now.AddSeconds(10);
+        nextTick = now.AddSeconds(1);
+        Status = $"Sold the approved {sold.Name} x {sold.Quantity} to the NPC. Continuing automation with refreshed listings.";
     }
 
     public SellItem? BelowVendorItem { get; private set; }

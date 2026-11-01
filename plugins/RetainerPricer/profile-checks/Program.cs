@@ -64,4 +64,11 @@ Check(!BelowVendorPolicy.RequiresReview(false,0,1100,1000), "above vendor price 
 Check(!BelowVendorPolicy.RequiresReview(false,0,1,0), "no NPC sale value does not warn");
 Check(BelowVendorPolicy.RequiresReview(true,1200,799,1000), "existing reduction still warns");
 Check(!BelowVendorPolicy.RequiresReview(true,700,799,1000), "existing increases keep established behavior");
+var pendingSlots = new[] { (Item: 42, Slot: 3), (Item: 43, Slot: 4), (Item: 42, Slot: 5) };
+var refreshedSlots = new[] { (Item: 42, Slot: 0), (Item: 42, Slot: 1), (Item: 43, Slot: 2) };
+Check(ListingRefresh.TryRemap(pendingSlots, refreshedSlots, x => x.Item, out var mapped) &&
+    mapped.Select(x => x.Slot).SequenceEqual(new[] { 0, 2, 1 }), "withdrawal refresh maps changed slots and consumes duplicates once");
+Check(!ListingRefresh.TryRemap(pendingSlots, refreshedSlots.Take(2).ToArray(), x => x.Item, out mapped) && mapped.Count == 0,
+    "changed inventory rejects entire remap");
+Check(ListingRefresh.TryRemap(Array.Empty<int>(), Array.Empty<int>(), x => x, out var empty) && empty.Count == 0, "last sold listing can finish traversal");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

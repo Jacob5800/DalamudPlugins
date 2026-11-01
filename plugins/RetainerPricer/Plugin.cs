@@ -42,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IChatGui chat;
     private readonly ItemPriceTooltip itemPriceTooltip;
     private readonly MarketboardRoi marketboardRoi;
+    private readonly ArmouryGearsetMarkers armouryMarkers;
     private bool wasOpen;
     private bool ventureVisitHandled;
     private DateTimeOffset? venturePickerReadyAt;
@@ -78,6 +79,7 @@ public sealed class Plugin : IDalamudPlugin
         serverInfoBarEntry.Shown = config.ShowServerInfoBarButton;
         bridge = new NativeMarketBridge(gameGui, data, player, clientState, condition, addons, interop, sigScanner, log);
         marketboardRoi = new MarketboardRoi(gameGui, bridge, universalis, config);
+        armouryMarkers = new ArmouryGearsetMarkers(gameGui, bridge, config);
         var itemSheet = data.GetExcelSheet<Item>();
         var itemChoices = itemSheet
             .Select(item => new ItemChoice(item.RowId, item.Name.ToString()))
@@ -130,6 +132,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.Draw += DrawRetainerListingButton;
         pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
         pluginInterface.UiBuilder.Draw += marketboardRoi.Draw;
+        pluginInterface.UiBuilder.Draw += armouryMarkers.Draw;
         pluginInterface.UiBuilder.OpenMainUi += Toggle;
         pluginInterface.UiBuilder.OpenConfigUi += Toggle;
         framework.Update += Update;
@@ -444,6 +447,7 @@ public sealed class Plugin : IDalamudPlugin
             ("Listing button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerListingButton),
             ("Tooltip drawing", () => pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw),
             ("ROI drawing", () => pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw),
+            ("Armoury markers", () => pluginInterface.UiBuilder.Draw -= armouryMarkers.Draw),
             ("Main UI", () => pluginInterface.UiBuilder.OpenMainUi -= Toggle),
             ("Config UI", () => pluginInterface.UiBuilder.OpenConfigUi -= Toggle),
             ("Inventory menus", inventoryMenus.Dispose),

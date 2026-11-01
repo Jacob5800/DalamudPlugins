@@ -1,3 +1,4 @@
-## 0.5.1.40
+# Retainer Pricer 0.5.1.41
 
-- Pause new-item and batch listings for review when the proposed price is below NPC sale value, including automatic single-item listings. Offer Approve, Skip, or Vendor instead before submitting the market listing.
+- Continue automation after an approved NPC sale, refreshing remaining listing slots before repricing.
+- Add an optional red armoury-chest marker for items referenced by saved gearsets.
