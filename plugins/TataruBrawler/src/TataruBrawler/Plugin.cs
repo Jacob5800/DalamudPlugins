@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
@@ -65,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
     private readonly IObjectTable objects;
     private readonly IPartyList party;
     private readonly IPlayerState playerState;
+    private readonly HashSet<uint> airbusterNameIds;
     private long partyCommenceDue;
     private string? partyCommenceStatus;
     private readonly BackgroundKeys backgroundKeys = new();
@@ -136,6 +138,10 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		this.log = log;
 		this.condition = condition;
         this.objects = objects;
+        airbusterNameIds = data.GetExcelSheet<BNpcName>(Dalamud.Game.ClientLanguage.English)
+            .Where(row => string.Equals(row.Singular.ToString().Trim(), "airbuster", StringComparison.OrdinalIgnoreCase))
+            .Select(row => row.RowId).ToHashSet();
+        if (airbusterNameIds.Count == 0) log.Warning("Airbuster name identity unavailable; Illegal mode keeps its normal target priority.");
         this.party = party;
         this.playerState = playerState;
         this.chat = chat;
@@ -479,6 +485,18 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
                     controlGate = "WholeWordWait";
                     if (typing.ManualPaused || loop.Paused || tickCount < wholeWordDue) break;
                     string word = reader.Words.FirstOrDefault();
+                    if (client.TerritoryType == LoopGameUi.GameTerritory && airbusterNameIds.Count > 0)
+                    {
+                        foreach (var obj in objects)
+                        {
+                            if (obj is not Dalamud.Game.ClientState.Objects.Types.IBattleNpc boss
+                                || !airbusterNameIds.Contains(boss.NameId)) continue;
+                            string bossWord = reader.Words.FirstOrDefault(w => reader.Source(w) == boss.EntityId);
+                            if (bossWord == null) continue;
+                            word = bossWord;
+                            break;
+                        }
+                    }
                     uint entity = word == null ? 0 : reader.Source(word);
                     if (word != null && entity != 0)
                     {

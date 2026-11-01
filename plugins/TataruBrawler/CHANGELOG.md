@@ -1,3 +1,7 @@
+## 1.0.8.29
+
+- In Illegal mode only, prioritize visible Airbuster prompts over barriers and other enemies. Use the existing priority when Airbuster has no recognized prompt.
+
 ## 1.0.8.28
 
 - Show the current play status beneath the in-duty buttons, including Playing, Paused and stopped/completed states.
