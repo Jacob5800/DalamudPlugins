@@ -1,3 +1,3 @@
-## 0.2.0.5
+## 0.2.0.6
 
-- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Fix garbled punctuation in the manual roll range, turn header and recorded roll labels.
