@@ -57,4 +57,11 @@ var low = PriceCalculator.Calculate(Quote(100),42,74,false,new HashSet<ulong>(),
 Check(low.Rejection == PriceRejection.BelowMinimum, "real below-minimum quote classified");
 var match = PriceCalculator.Calculate(Quote(1),42,74,false,new HashSet<ulong>(),1,clock,null,strategy:PriceStrategy.MatchLowest);
 Check(match.CanApply && match.Rejection == PriceRejection.None, "allowed matching one-gil not rejected");
+Check(BelowVendorPolicy.RequiresReview(false,0,799,1000), "new listing warns below vendor example");
+Check(BelowVendorPolicy.RequiresReview(false,0,800,1000), "matching below-vendor price warns");
+Check(!BelowVendorPolicy.RequiresReview(false,0,1000,1000), "equal vendor price allowed");
+Check(!BelowVendorPolicy.RequiresReview(false,0,1100,1000), "above vendor price allowed");
+Check(!BelowVendorPolicy.RequiresReview(false,0,1,0), "no NPC sale value does not warn");
+Check(BelowVendorPolicy.RequiresReview(true,1200,799,1000), "existing reduction still warns");
+Check(!BelowVendorPolicy.RequiresReview(true,700,799,1000), "existing increases keep established behavior");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

@@ -1,3 +1,3 @@
-## 0.5.1.39
+## 0.5.1.40
 
-- Keep the materia listing warning’s Don’t ask again choice for the entire current listing sequence across all retainers. Reset it when starting a new run.
+- Pause new-item and batch listings for review when the proposed price is below NPC sale value, including automatic single-item listings. Offer Approve, Skip, or Vendor instead before submitting the market listing.

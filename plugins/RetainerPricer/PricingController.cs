@@ -527,6 +527,7 @@ internal sealed class PricingController : IDisposable
     }
 
     private SellItem? vendorListing;
+    private CarriedItemCandidate? vendorCarriedCandidate;
     private int vendorStage;
     private DateTimeOffset vendorDeadline;
     private uint vendorBeforeTotal;
@@ -542,10 +543,18 @@ internal sealed class PricingController : IDisposable
         vendorBeforeInventory = bridge.ReadCarriedInventory(marketableItemIds, new HashSet<uint>(), out _, out _, out error);
         if (error.Length != 0) { Status = error; return; }
         if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out vendorBeforeTotal, out error)) { Status = error; return; }
+        vendorCarriedCandidate = null;
+        if (!item.IsExisting)
+        {
+            vendorCarriedCandidate = vendorBeforeInventory.SingleOrDefault(stock => stock.InventoryType == item.InventoryType &&
+                stock.Slot == item.Slot && stock.ItemId == item.ItemId && stock.IsHq == item.IsHq && stock.Quantity == item.Quantity);
+            if (vendorCarriedCandidate is null)
+            { Status = "The approved quantity is not an isolated carried stack. No NPC sale submitted; choose Approve or Skip."; return; }
+        }
         if (!bridge.TryClosePriceWindows(item, out error)) { Status = error; return; }
         BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null;
-        vendorListing = item; vendorStage = 1; vendorDeadline = DateTimeOffset.UtcNow.AddSeconds(15);
-        Status = $"Withdrawing {item.Name} for the approved NPC sale...";
+        vendorListing = item; vendorStage = item.IsExisting ? 1 : 5; vendorDeadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        Status = item.IsExisting ? $"Withdrawing {item.Name} for the approved NPC sale..." : $"Closing the listing window before selling {item.Name} to the NPC...";
     }
     private void TickReviewedVendor(DateTimeOffset now)
     {
@@ -554,6 +563,20 @@ internal sealed class PricingController : IDisposable
         if (now > vendorDeadline) { Cancel("Approved vendor operation timed out. Check inventory and listing before retrying; no automatic retry was sent."); return; }
         if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var excluded, out _, out var error)) { Cancel(error); return; }
         if (excluded.Contains(item.ItemId) || config.DontVendorItemIds.Contains(item.ItemId)) { Cancel("Item protection changed; vendor operation stopped."); return; }
+        if (vendorStage == 5)
+        {
+            if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible) return;
+            if (vendorCarriedCandidate is null || !bridge.TrySellInventoryItemThroughRetainer(vendorCarriedCandidate, item.Session, false, out error))
+            { Cancel(error.Length > 0 ? error : "Approved carried stack is unavailable; no sale submitted."); return; }
+            vendorStage = 6; vendorDeadline = now.AddSeconds(15); return;
+        }
+        if (vendorStage == 6)
+        {
+            if (bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var remaining, out _) &&
+                (ulong)remaining + item.Quantity == vendorBeforeTotal)
+                Cancel($"Sold the approved {item.Name} x {item.Quantity} to the NPC. Restart listing to refresh carried inventory.");
+            return;
+        }
         if (vendorStage == 1)
         {
             if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible) return;
@@ -595,7 +618,7 @@ internal sealed class PricingController : IDisposable
     private bool AwaitBelowVendor(SellItem item, uint price, Action proceed, Action skip)
     {
         uint vendor = bridge.VendorUnitPrice(item.ItemId, item.IsHq);
-        if (!item.IsExisting || price >= item.CurrentPrice || price >= vendor || approvedBelowVendor == (item, price)) return false;
+        if (!BelowVendorPolicy.RequiresReview(item.IsExisting, item.CurrentPrice, price, vendor) || approvedBelowVendor == (item, price)) return false;
         BelowVendorItem = item; BelowVendorTarget = price; BelowVendorValue = vendor;
         belowVendorProceed = proceed; belowVendorSkip = skip;
         Status = $"Review {item.Name}: proposed price is below its NPC sale value.";
@@ -1443,6 +1466,9 @@ internal sealed class PricingController : IDisposable
             return;
         }
 
+        if (AwaitBelowVendor(workingItem, CurrentProposal.SuggestedPrice, () => deadline = DateTimeOffset.UtcNow.AddSeconds(12),
+            () => Cancel("Skipped below-vendor new listing; no market sale submitted."))) return;
+
         listingSubmittedPrice = CurrentProposal.SuggestedPrice;
         if (!bridge.TryConfirmNewListing(workingItem, listingSubmittedPrice, out var confirmError))
         { Cancel($"Automatic listing stopped before confirming {workingItem.Name}: {confirmError}"); return; }
@@ -1799,6 +1825,8 @@ internal sealed class PricingController : IDisposable
                 listingPriceRejections.Record(current.ItemId, current.IsHq, proposal);
                 SkipBatchItem($"Skipped {current.Name}: {proposal.Error}"); return;
             }
+            if (AwaitBelowVendor(current, proposal.SuggestedPrice, () => deadline = DateTimeOffset.UtcNow.AddSeconds(8),
+                () => SkipBatchItem($"Skipped {current.Name}: below-vendor price declined."))) return;
             if (workSource == PriceSource.Local && !bridge.TryCloseCompare(current, out var closeError))
             { Cancel($"Automatic listing stopped before confirming {current.Name}: {closeError}"); return; }
 
@@ -2100,7 +2128,7 @@ internal sealed class PricingController : IDisposable
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
         if (disposed) return;
-        vendorListing = null; vendorStage = 0; vendorBeforeInventory = [];
+        vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
         BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null; approvedBelowVendor = null;
         PriceIncreaseItem = null;
         increaseProceed = increaseSkip = null;

@@ -9,5 +9,6 @@
     <Compile Include="../ShiftStopPolicy.cs" Link="ShiftStopPolicy.cs" />
     <Compile Include="../ListingRunRejections.cs" Link="ListingRunRejections.cs" />
     <Compile Include="../PriceCalculator.cs" Link="PriceCalculator.cs" />
+    <Compile Include="../BelowVendorPolicy.cs" Link="BelowVendorPolicy.cs" />
   </ItemGroup>
 </Project>
