@@ -31,6 +31,7 @@ internal sealed unsafe partial class VoyageNative : IVoyageGame
     private readonly Dictionary<string,string> labels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Regex? repairPrompt;
     private readonly uint repairMaterial;
+    internal uint HomeWorld => objects.LocalPlayer?.HomeWorld.RowId ?? 0;
     public IReadOnlyList<Destination> Destinations { get; }
     internal IReadOnlyDictionary<uint,string> MapNames { get; }
     public VoyageNative(IGameGui gui, IClientState client, ICondition condition, IObjectTable objects, IDataManager data, IPluginLog log)

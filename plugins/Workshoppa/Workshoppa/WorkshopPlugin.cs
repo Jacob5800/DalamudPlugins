@@ -144,7 +144,7 @@ public sealed partial class WorkshopPlugin : IDalamudPlugin
         _voyageController = new(voyageGame, _configuration.Voyages, VoyageBlocker, message =>
         { _pluginLog.Warning("Voyages: {Message}",message); _chatGui.PrintError("[Workshoppa] " + message); });
         _voyageHistory = new(System.IO.Path.Combine(_pluginInterface.GetPluginConfigDirectory(),"voyage-history.json"), message=>_pluginLog.Warning("{Message}",message));
-        _voyageOptimizer = new(voyageGame,dataManager,_configuration.Voyages,()=>_pluginInterface.SavePluginConfig(_configuration));
+        _voyageOptimizer = new(voyageGame,dataManager,_configuration.Voyages,()=>_pluginInterface.SavePluginConfig(_configuration),_pluginInterface.GetPluginConfigDirectory());
         _voyageUi = new(voyageGame, _voyageController, _configuration.Voyages, ()=>_pluginInterface.SavePluginConfig(_configuration), _voyageHistory, _pluginInterface.GetPluginConfigDirectory(), _voyageOptimizer);
 
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;

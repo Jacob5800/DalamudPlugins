@@ -7,6 +7,8 @@ namespace Workshoppa.Voyages;
 internal enum VesselKind { Airship, Submarine }
 internal sealed class VoyageOptions
 {
+    public float MarketTaxPercent { get; set; } = 5;
+    public float MarketRunningCostPerHour { get; set; }
     public bool AutoRunOnPanelOpen { get; set; }
     public bool Airships { get; set; } = true;
     public bool Submarines { get; set; } = true;
@@ -23,6 +25,7 @@ internal sealed class VoyageOptions
     public void CopyFrom(VoyageOptions source)
     {
         source.Normalize();
+        MarketTaxPercent=source.MarketTaxPercent;MarketRunningCostPerHour=source.MarketRunningCostPerHour;
         AutoRunOnPanelOpen=source.AutoRunOnPanelOpen;Airships=source.Airships;Submarines=source.Submarines;
         Collect=source.Collect;Redeploy=source.Redeploy;Repair=source.Repair;ReturnNotifications=source.ReturnNotifications;
         Vessels=source.Vessels.ToDictionary(p=>p.Key,p=>p.Value.Copy());

@@ -1,5 +1,4 @@
-## 9.3.13.6
+## Workshoppa 9.3.13.7
 
-- Add saved voyage loot history, NPC gross-value estimates and CSV export, plus optional return notifications from remembered timers.
-- Add route/build recommendations with NPC-value farming as the submarine default and EXP alternatives; save chosen routes and recommended parts per vessel.
-- Add optional automatic installation of saved builds using carried parts, with vessel, rank, capacity and inventory checks.
+- Separate vessel routes and optimisation into tabs, with a scrollable recommendation list and collapsible build details.
+- Add submarine gil-profit/hour estimates using locally cached Universalis average sale prices, background refreshes, adjustable tax and running-cost allowances, and NPC fallback values.

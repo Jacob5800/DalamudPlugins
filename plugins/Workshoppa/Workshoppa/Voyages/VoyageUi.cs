@@ -53,6 +53,10 @@ internal sealed class VoyageUi(VoyageNative game, VoyageController controller, V
             void SavePlan(){options.Vessels[key]=plan;save();}
             var enabled=plan.Enabled;
             if(ImGui.Checkbox("Include this vessel",ref enabled)){plan.Enabled=enabled;SavePlan();}
+            if(ImGui.BeginTabBar("vesselTools"))
+            {
+            if(ImGui.BeginTabItem("Voyage route"))
+            {
             var custom=plan.UseCustomRoute;
             if(ImGui.Checkbox("Use specific destinations instead of previous voyage",ref custom)){plan.UseCustomRoute=custom;SavePlan();}
             if(custom)
@@ -92,7 +96,15 @@ internal sealed class VoyageUi(VoyageNative game, VoyageController controller, V
                 if(VoyagePolicy.ValidateRoute(plan,vessel.Kind,game.Destinations,vessel.Rank) is { } error)ImGui.TextWrapped(error);
                 ImGui.TextWrapped("Listed destinations come from game data. Actual unlocks, availability, fuel and range are checked in the voyage chart before dispatch.");
             }
-            optimizer.Draw(vessel,controller.Running);
+            ImGui.EndTabItem();
+            }
+            if(ImGui.BeginTabItem("Optimise / recommendations"))
+            {
+                optimizer.Draw(vessel,controller.Running);
+                ImGui.EndTabItem();
+            }
+            ImGui.EndTabBar();
+            }
             ImGui.PopID();ImGui.TreePop();
         }
         ImGui.EndDisabled();
