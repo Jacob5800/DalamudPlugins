@@ -203,7 +203,7 @@ internal sealed class MainWindow : Window
                 if (controller.IsMateriaListingBatch)
                 {
                     var dontAsk = controller.DontAskMateriaAgainThisRun;
-                    if (ImGui.Checkbox("Don't ask again during current listing", ref dontAsk)) controller.DontAskMateriaAgainThisRun = dontAsk;
+                    if (ImGui.Checkbox("Don't ask again during this run (all retainers)", ref dontAsk)) controller.DontAskMateriaAgainThisRun = dontAsk;
                     if (ImGui.IsItemHovered()) ImGui.SetTooltip("Proceed without further materia warnings for this listing batch only. Resets when a new batch starts. Skip still skips only this item.");
                 }
                 if (ImGui.Button("Proceed")) { controller.ResolveMateriaWarning(true); ImGui.CloseCurrentPopup(); }

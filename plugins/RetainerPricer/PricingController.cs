@@ -363,7 +363,12 @@ internal sealed class PricingController : IDisposable
     private void StartListingItems(bool batchOnly)
     {
         if (Busy) return;
-        if (!listingTraversal) listingPriceRejections.Clear();
+        if (!listingTraversal)
+        {
+            listingPriceRejections.Clear();
+            skipMateriaWarningsThisRun = false;
+            DontAskMateriaAgainThisRun = false;
+        }
         if (!CanStartListingItems)
         {
             Status = StartListingAvailabilityError
@@ -398,7 +403,6 @@ internal sealed class PricingController : IDisposable
         batchMaximumReachedItemIds.Clear();
         step = Step.Start;
         workSource = PriceSource.Universalis;
-        skipMateriaWarningsThisRun = false;
         approvedMateriaItem = null;
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
@@ -735,6 +739,9 @@ internal sealed class PricingController : IDisposable
         LastTraversalSucceeded = false;
         listingTraversal = false;
         listingPriceRejections.Clear();
+        skipMateriaWarningsThisRun = false;
+        DontAskMateriaAgainThisRun = false;
+        approvedMateriaItem = null;
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         if (bridge.TryReadSellItem(out _, out _))
         { Status = "Close the individual selling window first, leaving the retainer's selling list open."; return; }

@@ -9,3 +9,5 @@
 Materia extraction/retrieval uses the same open-once, select-on-subsequent-tick sequence. The controller waits for an owned ready menu and rechecks the exact bag/slot/item and protection state. It still waits for spiritbond reset or meld changes before desynthesis. Live first-attempt behavior remains pending.
 
 0.5.1.38: 29 isolated checks include run-wide item/quality rejection memory, reset on a new run, transient-error exclusion, and actual calculator classifications including allowed matching at 1 gil. Source review verifies this memory survives per-retainer StartListingItems/FinishBatchListing transitions, clears for top-level starts, and is checked before any remaining copy opens a price window. Native multi-retainer behavior remains pending.
+
+0.5.1.39: source read-through verifies materia approval suppression survives per-retainer listing setup and resets for a top-level standalone/traversal start or cancellation. This changes the lifetime of the existing Proceed approval only, not warning eligibility or saved profile settings. Native cross-retainer observation remains pending.

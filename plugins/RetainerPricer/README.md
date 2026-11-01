@@ -196,3 +196,5 @@ Backup/import/export is now in **Profiles** and applies to the active profile. E
 Desynthesis opens the Extract/Retrieve Materia context menu once and waits for readiness before selecting the action. It still verifies extraction or retrieval completed before desynthesizing the item.
 
 During a new-item listing pass, a 1-gil price that cannot be undercut or a proposed price below the configured minimum is remembered for that item and quality across all remaining stacks and retainers. Remaining copies skip before opening their price windows. HQ and NQ are separate. This memory lasts only for the current run; a new run rechecks prices. Network failures, incomplete data and other transient errors do not enter this price-rejection memory.
+
+The materia listing prompt’s **Don’t ask again during this run (all retainers)** choice applies after choosing Proceed for the whole current listing pass, including later retainers in a full sequence. It is not saved to settings or profiles and resets for a new run.
