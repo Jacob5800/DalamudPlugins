@@ -7,7 +7,7 @@ A single custom Dalamud repository for separately built API 15 plugins.
 | Plugin | What it does | Project |
 | --- | --- | --- |
 | Portrait Atelier | Creates and applies curated portrait designs from the in-game Portrait Editor. | [Source](plugins/PortraitAtelier) |
-| Strategy Board Library | Stores, searches, and imports FFXIV Strategy Board share codes. | [Source](plugins/StrategyBoardLibrary) |
+| Strategy Board Library (deprecated) | Final release for the current game version; scheduled for removal on the next update. | [Source](plugins/StrategyBoardLibrary) |
 | Retainer Pricer | Prices and manages retainer listings using Universalis. | [Source](plugins/RetainerPricer) |
 | Housing Timeout Reminder | Reminds you to visit configured housing plots across your saved characters. | [Source](plugins/HousingTimeoutReminder) |
 | Workshoppa | Automates company workshop material turn-ins and retainer deposits. | [Source](plugins/Workshoppa) |

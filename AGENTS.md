@@ -34,3 +34,9 @@
 - Housing Timeout Reminder canonical source is `plugins/HousingTimeoutReminder`, built using its nested solution. Preserve AGPL-1.0 and third-party notices. Existing standalone release links remain valid until the next consolidated release; do not rewrite them to nonexistent assets. InternalName and configuration identity remain HousingTimeoutReminder.
 
 - BiSplanner is the AGPL-3.0-or-later BISBuddy fork in `plugins/BiSplanner`. Preserve `LICENSE.md`, `UPSTREAM.md`, KamiToolKit's MIT license and source provenance. Build `BiSplanner/BiSplanner.csproj` through `Package.ps1`; publish the matching source archive with each release. Stable tags use `BiSplanner-v<version>`. Original upstream data is not overwritten.
+
+## Strategy Board Library retirement — next update
+
+- StrategyBoardLibrary 0.1.2.4 is the final maintained release. At the next repository update, remove Strategy Board Library from the root README/plugin description, `repo.json`, and the current source tree (`plugins/StrategyBoardLibrary`), together with its dedicated release workflow and any remaining active listing references.
+- Do not publish another maintained release or compatibility update. Maintenance ends with the next game version. Preserve historical Git commits/releases; do not rewrite history or delete users' saved data.
+- This is a pending removal instruction, not a request to remove the final deprecation update before existing users can receive it.

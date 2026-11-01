@@ -1,6 +1,6 @@
 # Deprecated — final release
 
-Strategy Board Library is deprecated. This is the final maintained release. It remains available to existing users for the current game version; starting with the next game version, no compatibility updates, fixes or support will be provided. No forced disable or data deletion is performed. This final update remains in the feed for existing installations, hidden from new-install discovery. Source and historical releases remain available.
+Strategy Board Library is deprecated. This is the final maintained release. It remains available to existing users for the current game version; starting with the next game version, no compatibility updates, fixes or support will be provided. No forced disable or data deletion is performed. This final update remains in the feed for existing installations, hidden from new-install discovery. On the next repository update, remove its GitHub listing, current source files, and feed entry. Historical Git commits and releases remain available.
 
 # Strategy Board Library
 
