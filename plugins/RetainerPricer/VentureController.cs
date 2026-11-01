@@ -39,6 +39,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
     private ulong previouslySelectedRetainerId;
     private int retainerIndex;
     private int dialogueClicks;
+    private bool buybackRecallSubmitted;
     private int processed;
     private int skipped;
     private DateTimeOffset nextActionAt;
@@ -217,6 +218,8 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
                 WaitForPostAction(now);
                 break;
             case Step.WaitForPicker:
+                if (currentRetainer is { } departing && now <= deadline &&
+                    bridge.HandleBuybackRecallPrompt(departing.RetainerId, ref buybackRecallSubmitted)) return;
                 if (bridge.IsRetainerPickerVisible)
                 {
                     retainerIndex++;
@@ -462,6 +465,7 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         { Cancel($"Venture cycle stopped before leaving {expected.Name}'s menu: {error}"); return; }
         dialogueClicks = 0;
         previouslySelectedRetainerId = expected.RetainerId;
+        buybackRecallSubmitted = false;
         SetStep(Step.WaitForPicker, now, status);
     }
 

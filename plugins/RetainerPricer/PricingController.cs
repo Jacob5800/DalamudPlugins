@@ -77,6 +77,7 @@ internal sealed class PricingController : IDisposable
     private uint autoWorldId;
     private ulong autoLastSelectedRetainerId;
     private int autoRetainerDialogueClicks;
+    private bool buybackRecallSubmitted;
     private DateTimeOffset autoRetainerNextDialogueClick;
     private readonly List<uint> marketboardLookupQueue = [];
     private int marketboardLookupIndex;
@@ -586,7 +587,7 @@ internal sealed class PricingController : IDisposable
         if (vendorStage == 2)
         {
             if (!bridge.TrySelectListingReturn(item, out var pending, out error))
-            { if (!pending) Cancel(error); return; }
+            { if (!pending) Cancel(error); else if (error.Length > 0) Status = error; return; }
             vendorStage = 3; vendorDeadline = now.AddSeconds(15); return;
         }
         if (!bridge.TryGetCarriedItemTotal(item.ItemId, item.IsHq, out var total, out error)) return;
@@ -1233,6 +1234,7 @@ internal sealed class PricingController : IDisposable
                     session = null;
                     autoRetainerDialogueClicks = 0;
                     autoRetainerNextDialogueClick = now;
+                    buybackRecallSubmitted = false;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
                     return;
@@ -1242,6 +1244,7 @@ internal sealed class PricingController : IDisposable
                     session = null;
                     autoRetainerDialogueClicks = 0;
                     autoRetainerNextDialogueClick = now;
+                    buybackRecallSubmitted = false;
                     step = Step.AutoWaitPicker;
                     deadline = now.AddSeconds(10);
                     return;
@@ -1249,6 +1252,11 @@ internal sealed class PricingController : IDisposable
                 if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer option menu did not appear after closing the sale list.");
                 return;
             case Step.AutoWaitPicker:
+                if (now <= deadline && bridge.HandleBuybackRecallPrompt(autoRetainers[autoRetainerIndex].RetainerId, ref buybackRecallSubmitted))
+                {
+                    Status = $"{TraversalOperation} · confirming departure after NPC sales...";
+                    return;
+                }
                 if (bridge.IsRetainerDialogueVisible && !bridge.IsRetainerPickerVisible)
                 {
                     var departing = autoRetainers[autoRetainerIndex];

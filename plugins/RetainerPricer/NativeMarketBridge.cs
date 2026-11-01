@@ -651,6 +651,27 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return result;
     }
 
+    private string? buybackRecallPrompt;
+    public bool HandleBuybackRecallPrompt(ulong expectedRetainerId, ref bool submitted)
+    {
+        var addon = gameGui.GetAddonByName<AddonSelectYesno>("SelectYesno");
+        if (disposed || addon == null || !addon->IsVisible || !addon->IsReady || addon->PromptText == null) return false;
+        if (!TryGetSelectedRetainerId(out var selected) || selected != expectedRetainerId) return false;
+        if (buybackRecallPrompt is null)
+        {
+            var row = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English).FirstOrDefault(x =>
+                x.Text.ToString().Contains("buyback requests once recalled", StringComparison.Ordinal));
+            buybackRecallPrompt = row.RowId == 0 ? string.Empty : data.GetExcelSheet<Addon>().GetRow(row.RowId).Text.ToString();
+        }
+        if (buybackRecallPrompt.Length == 0 || addon->PromptText->NodeText.ExtractText() != buybackRecallPrompt) return false;
+        if (!submitted)
+        {
+            addon->AtkUnitBase.FireCallbackInt(0);
+            submitted = true;
+        }
+        return true;
+    }
+
     public IReadOnlyList<SavedGearsetMatch> ReadSavedGearsets(uint rawItemId)
     {
         if (disposed || !player.IsLoaded || player.ContentId == 0) return [];
@@ -1220,18 +1241,20 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         error = "Return Items to Inventory is unavailable or disabled; no withdrawal submitted.";
         if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9)
         { pending = true; error = ""; return false; }
-        int count = (int)menu->AtkValues[0].UInt;
-        if (count < 1 || count > 64 || menu->AtkValuesCount < count + 8) return false;
         var list = menu->GetComponentListById(2);
         if (list == null) { pending = true; error = ""; return false; }
-        for (int i=0; i<count; i++)
+        int count = list->GetItemCount();
+        if (count < 1 || count > 32) { pending = true; error = ""; return false; }
+        var observedLabels = new List<string>();
+        for (int i = 0; i < count; i++)
         {
-            var value = menu->AtkValues[i+8];
-            if (value.Type is not (AtkValueType.String or AtkValueType.ManagedString) || value.String.Value == null) continue;
-            if (!Dalamud.Game.Text.SeStringHandling.SeString.Parse(value.String.Value).TextValue.Equals(localized, StringComparison.Ordinal)) continue;
-            var renderer = list->GetItemRenderer(i);
-            if (renderer == null) { pending = true; error = ""; return false; }
-            if (!renderer->IsEnabled)
+            // Read the actual list labels rather than assuming a fixed AtkValues string offset.
+            var labelPointer = list->GetItemLabel(i);
+            if (labelPointer.Value == null) { pending = true; continue; }
+            var actual = Dalamud.Game.Text.SeStringHandling.SeString.Parse(labelPointer.Value).TextValue;
+            observedLabels.Add(actual);
+            if (!actual.Equals(localized, StringComparison.Ordinal)) continue;
+            if (list->GetItemDisabledState(i) || context->IsContextItemDisabled(i))
             { error = "Return Items to Inventory is disabled for this listing; no withdrawal submitted."; return false; }
             AtkValue* args = stackalloc AtkValue[3];
             args[0] = new AtkValue { Type = AtkValueType.Int, Int = 0 };
@@ -1240,6 +1263,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             menu->FireCallback(3, args, true);
             error = ""; return true;
         }
+        pending = true;
+        error = "Waiting for Return Items to Inventory. Observed menu: " + string.Join(" | ", observedLabels);
         return false;
     }
 

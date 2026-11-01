@@ -1,3 +1,10 @@
+## 0.5.1.42
+
+- Handle the retainer buyback warning when automated pricing or ventures dismisses a retainer after NPC sales.
+- Read the withdrawal option from the context menu list instead of assuming a fixed text offset; include observed menu labels when waiting.
+- Fill saved-gearset armoury markers with translucent red.
+- Add Retainer sales beside Run Desynthesis and group Price lookup, Existing listings and Universalis lookup together.
+
 ## 0.5.1.41
 
 - Continue automation after an approved NPC sale, refreshing remaining listing slots before repricing.

@@ -174,8 +174,8 @@ internal sealed class MainWindow : Window
                 if (ImGui.Button("Skip")) { controller.ResolveBelowVendor(false); ImGui.CloseCurrentPopup(); }
                 if (ImGui.Button("Vendor item instead")) { controller.VendorReviewedListing(); if (controller.BelowVendorItem is null) ImGui.CloseCurrentPopup(); }
                 ImGui.TextWrapped(cheap.IsExisting
-                    ? "Vendor withdraws this stack and sells it through the retainer, then stops the run so remaining listing slots can be refreshed. Don't vendor and item protections still apply."
-                    : "Vendor sells this exact carried stack through the retainer, then stops the run to refresh inventory. Don't vendor and item protections still apply; partial or changed stacks are not sold.");
+                    ? "Vendor withdraws this stack and sells it through the retainer, then refreshes remaining listing slots and continues the run. Don't vendor and item protections still apply."
+                    : "Vendor sells this exact carried stack through the retainer, then continues the run after verifying the inventory change. Don't vendor and item protections still apply; partial or changed stacks are not sold.");
                 ImGui.TextWrapped(controller.Status);
                 ImGui.EndPopup();
             }
@@ -287,6 +287,12 @@ internal sealed class MainWindow : Window
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
         if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
         ImGui.PopStyleColor(3);
+        if (config.ShowRetainerSell)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Retainer sales")) dispatch(vendor.Start);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Run retainer NPC sales using your configured threshold, whitelist and item protections. Open Sell items in your inventory first.");
+        }
         ImGui.EndDisabled();
         if (desynthesis.IsRunning)
         {
@@ -395,13 +401,13 @@ internal sealed class MainWindow : Window
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
             if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawSniper(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Sniper results", new Vector4(.46f,.26f,.68f,1), openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
             { openSniperResultsTab = false; DrawSniperResults(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
@@ -857,7 +863,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
         Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
         Feature("Mark saved gearset items red in armoury chest", config.MarkArmouryGearsetItems, v => config.MarkArmouryGearsetItems = v);
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Red borders identify items referenced by saved gearsets, matching HQ quality too. Identical copies share the marker.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("A translucent red fill identifies items referenced by saved gearsets, matching HQ quality too. Identical copies share the marker.");
 
         if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
         {

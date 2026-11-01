@@ -34,6 +34,7 @@ internal sealed unsafe class ArmouryGearsetMarkers(IGameGui gui, NativeMarketBri
             var node = component->OwnerNode;
             var pos = new Vector2(node->ScreenX, node->ScreenY);
             var size = new Vector2(node->Width * addon->Scale, node->Height * addon->Scale);
+            ImGui.GetForegroundDrawList().AddRectFilled(pos, pos + size, 0x503030FF, 3);
             ImGui.GetForegroundDrawList().AddRect(pos, pos + size, 0xFF3030FF, 3, ImDrawFlags.None, 2);
         }
     }
