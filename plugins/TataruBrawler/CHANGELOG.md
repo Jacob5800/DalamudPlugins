@@ -1,3 +1,7 @@
+## 1.0.8.27
+
+- Add an optional in-duty Installed Plugins button beside the keyboard button. Enable it separately in Settings; it is off by default.
+
 ## 1.0.8.26
 
 - Fix automatic Keybound commencement for cross-world party members, whose party is absent from the normal party list.

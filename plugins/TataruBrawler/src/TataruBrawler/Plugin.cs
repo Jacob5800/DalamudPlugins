@@ -333,7 +333,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			return;
 		}
 		settings.Tick();
-        pi.UiBuilder.DisableAutomaticUiHide = mgcPopupPending || (config.ShowDutyButton && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory);
+        pi.UiBuilder.DisableAutomaticUiHide = mgcPopupPending || ((config.ShowDutyButton || config.ShowPluginListDutyButton) && client.IsLoggedIn && client.TerritoryType == LoopGameUi.GameTerritory);
         pi.UiBuilder.DisableUserUiHide = pi.UiBuilder.DisableAutomaticUiHide;
         rewards.Tick(Environment.TickCount64, client.IsLoggedIn, client.TerritoryType, condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]);
         if (warning.Update(rewards.MgcBalance, rewards.MgcCap, config.WarnMgcCap, config.MgcWarningPercent))
@@ -910,22 +910,34 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
     private void DrawDutyButton()
     {
-        if (!config.ShowDutyButton || !client.IsLoggedIn || client.TerritoryType != LoopGameUi.GameTerritory) return;
+        if ((!config.ShowDutyButton && !config.ShowPluginListDutyButton) || !client.IsLoggedIn || client.TerritoryType != LoopGameUi.GameTerritory) return;
         ImGui.SetNextWindowPos(new Vector2(20, 180), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowBgAlpha(.85f);
         if (ImGui.Begin("Keybound duty button", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoScrollbar))
         {
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(.3f, .8f, .82f, 1));
-            bool clicked;
+            bool keyboardHovered = false, pluginsHovered = false;
             using (pi.UiBuilder.IconFontHandle.Push())
             {
                 ImGui.SetWindowFontScale(1.75f);
-                clicked = ImGui.Button(FontAwesomeIcon.Keyboard.ToIconString(), new Vector2(64, 52) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+                var buttonSize = new Vector2(64, 52) * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale;
+                if (config.ShowDutyButton)
+                {
+                    if (ImGui.Button(FontAwesomeIcon.Keyboard.ToIconString(), buttonSize)) open = !open;
+                    keyboardHovered = ImGui.IsItemHovered();
+                }
+                if (config.ShowPluginListDutyButton)
+                {
+                    if (config.ShowDutyButton) ImGui.SameLine();
+                    if (ImGui.Button(FontAwesomeIcon.PuzzlePiece.ToIconString(), buttonSize))
+                        pi.OpenPluginInstallerTo(PluginInstallerOpenKind.InstalledPlugins);
+                    pluginsHovered = ImGui.IsItemHovered();
+                }
                 ImGui.SetWindowFontScale(1f);
             }
             ImGui.PopStyleColor();
-            if (clicked) open = !open;
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Open / close Keybound Automation. Drag this button to reposition it.");
+            if (keyboardHovered) ImGui.SetTooltip("Open / close Keybound Automation. Drag this button to reposition it.");
+            if (pluginsHovered) ImGui.SetTooltip("Open Dalamud Installed Plugins. Drag this button bar to reposition it.");
         }
         ImGui.End();
     }
@@ -1166,6 +1178,10 @@ PlaybackControls.Draw(typing.Running || loop.Active, loop.Active ? loop.Paused :
         bool dutyButton = config.ShowDutyButton;
         if (Interface.AutomationShell.Toggle("Show floating keyboard button inside Keybound duty", ref dutyButton))
         { config.ShowDutyButton = dutyButton; settings.Update(config); }
+        bool pluginListButton = config.ShowPluginListDutyButton;
+        if (Interface.AutomationShell.Toggle("Show Installed Plugins button inside Keybound duty", ref pluginListButton))
+        { config.ShowPluginListDutyButton = pluginListButton; settings.Update(config); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Show a puzzle-piece button beside the keyboard button to open Dalamud Installed Plugins, including while the game UI is hidden. Off by default.");
         bool commenceParty = config.AutoCommencePartyMember;
         if (Interface.AutomationShell.Toggle("Auto commence Keybound Brawler as a party member", ref commenceParty))
         { config.AutoCommencePartyMember = commenceParty; settings.Update(config); }

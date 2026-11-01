@@ -46,3 +46,5 @@ Based on Auto Keybound Brawler by XeldarAlz
 https://github.com/XeldarAlz/FFXIV-AutoKeyboundBrawler
 
 Modified layout and controls; not endorsed by the original author. AGPL-3.0 derivative; see LICENSE-AGPL.md and preserved component notices.
+
+Settings → **Show Installed Plugins button inside Keybound duty** adds a puzzle-piece button to the draggable duty button bar. It opens Dalamud’s Installed Plugins page, works with the game UI hidden and is independent of the keyboard button. Off by default.

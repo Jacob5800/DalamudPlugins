@@ -8,11 +8,11 @@ namespace TataruBrawler;
 
 public sealed class ConfigurationStore : IDisposable
 {
-	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode, bool AutoLeaveDuty, bool AutoCommencePartyMember, bool ShowDutyButton = true)
+	private sealed record Snapshot(int Version, string? Language, int MinimumMs, int MaximumMs, bool AutoStart, bool AutoEnableOnMap, bool AutoQueueOnLobbyEntry, bool BackgroundInput, int BetweenWordsMs, bool RecordDiagnostics, int LoopCount, bool ShowServerBarButton, bool SkipOptionalPunctuation, bool WarnMgcCap, int MgcWarningPercent, bool IllegalMode, bool AutoLeaveDuty, bool AutoCommencePartyMember, bool ShowDutyButton = true, bool ShowPluginListDutyButton = false)
 	{
 		public static Snapshot From(Configuration c)
 		{
-			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode, c.AutoLeaveDuty, c.AutoCommencePartyMember, c.ShowDutyButton);
+			return new Snapshot(c.Version, c.Language, c.MinimumMs, c.MaximumMs, c.AutoStart, c.AutoEnableOnMap, c.AutoQueueOnLobbyEntry, c.BackgroundInput, c.BetweenWordsMs, c.RecordDiagnostics, c.LoopCount, c.ShowServerBarButton, c.SkipOptionalPunctuation, c.WarnMgcCap, c.MgcWarningPercent, c.IllegalMode, c.AutoLeaveDuty, c.AutoCommencePartyMember, c.ShowDutyButton, c.ShowPluginListDutyButton);
 		}
 
 		public Configuration ToConfig()
@@ -37,7 +37,8 @@ public sealed class ConfigurationStore : IDisposable
                 IllegalMode = IllegalMode,
                 AutoLeaveDuty = AutoLeaveDuty,
                 AutoCommencePartyMember = AutoCommencePartyMember,
-                ShowDutyButton = ShowDutyButton
+                ShowDutyButton = ShowDutyButton,
+                ShowPluginListDutyButton = ShowPluginListDutyButton
 			};
 		}
 	}
@@ -195,6 +196,7 @@ public sealed class ConfigurationStore : IDisposable
                 Configuration.AutoLeaveDuty = configuration.AutoLeaveDuty;
                 Configuration.AutoCommencePartyMember = configuration.AutoCommencePartyMember;
                 Configuration.ShowDutyButton = configuration.ShowDutyButton;
+                Configuration.ShowPluginListDutyButton = configuration.ShowPluginListDutyButton;
 				current = Snapshot.From(configuration);
 			}
 			failures = 0;
