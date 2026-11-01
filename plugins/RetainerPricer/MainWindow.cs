@@ -27,12 +27,13 @@ internal sealed class MainWindow : Window
     private readonly AutomationController automation;
     private readonly DesynthesisController desynthesis;
     private readonly TtCardSaleController ttCards;
+    private readonly RetainerJobPurchaseController jobPurchase;
     private readonly IReadOnlySet<uint> desynthesizableIds;
     private string profileName = "", selectedProfile = "", profileStatus = "";
     private string desynthesisSearch = "";
     private IReadOnlyList<uint> desynthesisSnapshot = [];
     private string desynthesisSnapshotStatus = "";
-    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning;
+    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
@@ -102,12 +103,13 @@ internal sealed class MainWindow : Window
         Func<MarketWorld?> homeWorld, Action save, Action<Action> dispatch,
         Func<string?> retainerError, FeedbackClient feedback, SniperMonitor sniper, AutoVendorController vendor,
         Action<bool> setServerInfoBarShown, VentureController ventures, AutomationController automation, bool isTesting,
-        UndercutNotifier undercuts, Func<bool> undercutsPaused, DesynthesisController desynthesis, IReadOnlySet<uint> desynthesizableIds, TtCardSaleController ttCards) : base("Retainer Pricer")
+        UndercutNotifier undercuts, Func<bool> undercutsPaused, DesynthesisController desynthesis, IReadOnlySet<uint> desynthesizableIds, TtCardSaleController ttCards, RetainerJobPurchaseController jobPurchase) : base("Retainer Pricer")
     {
         (this.config, this.controller, this.itemChoices, this.homeWorld, this.save, this.dispatch, this.retainerError) =
             (config, controller, itemChoices, homeWorld, save, dispatch, retainerError);
         this.desynthesis = desynthesis;
         this.ttCards = ttCards;
+        this.jobPurchase = jobPurchase;
         this.desynthesizableIds = desynthesizableIds;
         this.feedback = feedback;
         this.sniper = sniper;
@@ -863,6 +865,8 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
         Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
         Feature("Mark saved gearset items red in armoury chest", config.MarkArmouryGearsetItems, v => config.MarkArmouryGearsetItems = v);
+        Feature("Mark marketable unbound items green in armoury chest", config.MarkMarketableArmouryItems, v => config.MarkMarketableArmouryItems = v);
+        ImGui.TextDisabled("Bound, untradeable and collectable items are excluded. Enabled red gearset markers take priority.");
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("A translucent red fill identifies items referenced by saved gearsets, matching HQ quality too. Identical copies share the marker.");
 
         if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
@@ -1027,6 +1031,27 @@ internal sealed class MainWindow : Window
         if (ttCards.IsRunning && ImGui.Button("Stop TT card sale")) dispatch(() => ttCards.Stop());
         ImGui.TextWrapped("When enabled, runs after a successful full sequence. Teleports to the Gold Saucer, then uses vnavmesh to walk to the Triple Triad Trader and exchange registered duplicate cards in carried bags for MGP. Unregistered cards and Exceptions are kept. Requires vnavmesh and Gold Saucer access.");
         ImGui.TextWrapped(ttCards.Status);
+        ImGui.Separator();
+        ImGui.TextUnformatted("Buy retainer job item - Modern Vocation (40 Ventures)");
+        ImGui.SameLine();
+        ImGui.BeginDisabled(!jobPurchase.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
+        if (ImGui.Button(jobPurchase.IsRunning ? "Stop##ModernVocation" : "Start##ModernVocation"))
+            dispatch(() => { if (jobPurchase.IsRunning) jobPurchase.Stop(); else jobPurchase.Start(); });
+        ImGui.EndDisabled();
+        ImGui.TextWrapped("Buys one copy from Frydwyb. Requires vnavmesh, Limsa Lominsa teleport and 40 Ventures. English menus only. Does not change your retainer's job.");
+        ImGui.TextWrapped(jobPurchase.Status);
+        if (jobPurchase.MissingNavigationPopup)
+        {
+            ImGui.OpenPopup("vnavmesh required");
+            jobPurchase.MissingNavigationPopup = false;
+        }
+        if (ImGui.BeginPopupModal("vnavmesh required", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted("Install and enable vnavmesh in Dalamud before starting this trip.");
+            ImGui.TextUnformatted("Once it is enabled, close this popup and press Start again.");
+            if (ImGui.Button("OK##MissingVnavmesh")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
 
     }
 

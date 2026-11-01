@@ -16,6 +16,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool ShowRetainerSell { get; set; }
     public bool ShowGearsetTooltip { get; set; }
     public bool MarkArmouryGearsetItems { get; set; }
+    public bool MarkMarketableArmouryItems { get; set; } = true;
     public bool AutoSellTTCards { get; set; }
 
     public List<SniperDeal> SniperBuyList { get; set; } = [];
