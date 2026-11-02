@@ -13,7 +13,7 @@ A single custom Dalamud repository for separately built API 15 plugins.
 | Deathroll | Tracks highest/lowest rolls and player elimination, with optional announcements. | [Source](plugins/Deathroll) |
 | Tug of War | Tracks team scores from /random rolls, with optional party announcements. | [Source](plugins/TugOfWar) |
 | BiSplanner | Plans BiS gearsets with per-set enable checkboxes, imports, tracking and highlighting. | [Source and attribution](plugins/BiSplanner) |
-| Keybound Automation | Automates Keybound Brawler typing and repeat queueing. | [Package and attribution](plugins/TataruBrawler) |
+| Keybound Automation | Automates Keybound Brawler typing and repeat queueing. | [Package and attribution](plugins/KeyboundAutomation) |
 
 ## Install
 
