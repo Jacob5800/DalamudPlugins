@@ -104,11 +104,11 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath $install -Force
           "DALAMUD_HOME=$install" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Build
-        run: dotnet build .\plugins\Deathroll\Deathroll.csproj --configuration Release
+        run: dotnet build .\plugins\RollKnockout\RollKnockout.csproj --configuration Release
 
 
       - name: Check elimination rules
-        run: dotnet run --project plugins/Deathroll/tests/Deathroll.Tests.csproj -c Release
+        run: dotnet run --project plugins/RollKnockout/tests/RollKnockout.Tests.csproj -c Release
 
   housing-timeout-reminder:
     runs-on: windows-latest

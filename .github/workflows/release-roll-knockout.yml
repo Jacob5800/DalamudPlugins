@@ -1,8 +1,8 @@
-name: Release Deathroll
+name: Release Roll Knockout
 
 on:
   push:
-    tags: ["Deathroll-v*"]
+    tags: ["RollKnockout-v*"]
 
 permissions:
   contents: write
@@ -26,29 +26,29 @@ jobs:
       - name: Verify tag version
         shell: pwsh
         run: |
-          $tagVersion = $env:GITHUB_REF_NAME -replace '^Deathroll-v', ''
-          [xml]$project = Get-Content 'plugins/Deathroll/Deathroll.csproj' -Raw
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^RollKnockout-v', ''
+          [xml]$project = Get-Content 'plugins/RollKnockout/RollKnockout.csproj' -Raw
           $projectVersion = [string]$project.Project.PropertyGroup.Version
           if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion must match project version $projectVersion." }
       - name: Check elimination rules
-        run: dotnet run --project plugins/Deathroll/tests/Deathroll.Tests.csproj -c Release
+        run: dotnet run --project plugins/RollKnockout/tests/RollKnockout.Tests.csproj -c Release
       - name: Build and package
-        run: dotnet build .\plugins\Deathroll\Deathroll.csproj --configuration Release -p:RestoreLockedMode=true
+        run: dotnet build .\plugins\RollKnockout\RollKnockout.csproj --configuration Release -p:RestoreLockedMode=true
       - name: Stamp packaged publication date
         shell: pwsh
-        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/Deathroll/dist/dev/Deathroll' -InternalName 'Deathroll'
+        run: ./scripts/Stamp-PackageDate.ps1 -PackageDirectory 'plugins/RollKnockout/dist/dev/RollKnockout' -InternalName 'RollKnockout'
       - name: Name release asset
         shell: pwsh
-        run: Copy-Item -LiteralPath 'plugins/Deathroll/dist/dev/Deathroll/latest.zip' -Destination 'Deathroll.zip' -Force
+        run: Copy-Item -LiteralPath 'plugins/RollKnockout/dist/dev/RollKnockout/latest.zip' -Destination 'RollKnockout.zip' -Force
       - name: Preserve packaged plugin manifest
         shell: pwsh
-        run: Copy-Item -LiteralPath 'plugins/Deathroll/dist/dev/Deathroll/Deathroll.json' -Destination (Join-Path $env:RUNNER_TEMP 'Deathroll.json') -Force
+        run: Copy-Item -LiteralPath 'plugins/RollKnockout/dist/dev/RollKnockout/RollKnockout.json' -Destination (Join-Path $env:RUNNER_TEMP 'RollKnockout.json') -Force
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
-          body_path: plugins/Deathroll/RELEASE-NOTES.md
-          files: Deathroll.zip
+          body_path: plugins/RollKnockout/RELEASE-NOTES.md
+          files: RollKnockout.zip
       - name: Update combined feed
         shell: pwsh
         env:
@@ -62,7 +62,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Feed fetch failed' }
             git switch --force-create feed-update --track origin/main
             if ($LASTEXITCODE -ne 0) { throw 'Feed branch setup failed' }
-            ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'Deathroll.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'Deathroll.zip'
+            ./scripts/Update-RepoFeed.ps1 -ManifestPath (Join-Path $env:RUNNER_TEMP 'RollKnockout.json') -ReleaseTag $env:GITHUB_REF_NAME -AssetName 'RollKnockout.zip'
             git add repo.json
             git diff --cached --quiet
             if ($LASTEXITCODE -eq 0) { $published = $true; break }

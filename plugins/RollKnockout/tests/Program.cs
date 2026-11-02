@@ -1,4 +1,4 @@
-using Deathroll;
+using RollKnockout;
 int checks = 0;
 void Check(bool ok) { checks++; if (!ok) throw new Exception($"Failed check {checks}"); }
 var m = new Match();

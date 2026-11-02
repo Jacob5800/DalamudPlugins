@@ -1,10 +1,11 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.1.0.0</Version>
+    <AssemblyName>RollKnockout</AssemblyName>
+    <Version>0.1.0.1</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Authors>Jacob5800</Authors>
-    <Name>Deathroll</Name>
+    <Name>Roll Knockout</Name>
     <Punchline>Track highest and lowest rolls and elimination rounds.</Punchline>
     <Description>Track elimination rounds from chat rolls.</Description>
     <PackageProjectUrl>https://github.com/Jacob5800/DalamudPlugins</PackageProjectUrl>

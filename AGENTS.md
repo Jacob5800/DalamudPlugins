@@ -1,7 +1,7 @@
 # Consolidated Dalamud plugins
 
 ## Canonical source and scope
-- This repository is the canonical source and release location for Portrait Atelier, Deathroll, Retainer Pricer, Workshoppa, Housing Timeout Reminder, and Tug of War.
+- This repository is the canonical source and release location for Portrait Atelier, Roll Knockout, Retainer Pricer, Workshoppa, Housing Timeout Reminder, and Tug of War.
 - Make plugin code, version, metadata, changelog, and release changes only in the matching `plugins/<PluginName>/` folder here.
 - Do not update the old standalone repositories for these plugins. They are historical copies; keep their source, workflows, and releases unchanged except for their migration notices and repository-level `AGENTS.md` instructions.
 - Workshoppa source and releases belong in plugins/Workshoppa; Workshoppa-API15 is a historical copy.
@@ -38,4 +38,4 @@
 ## Retired plugins
 
 - Strategy Board Library is retired and removed from the current source tree and feed. Preserve historical releases and Git history; do not resume maintenance.
-- Deathroll is maintained in `plugins/Deathroll`; stable release tags use `Deathroll-v<version>`.
+- Roll Knockout is maintained in `plugins/RollKnockout`; build `RollKnockout.csproj`, InternalName is `RollKnockout`, and stable release tags use `RollKnockout-v<version>`.

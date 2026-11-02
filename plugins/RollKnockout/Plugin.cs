@@ -9,7 +9,7 @@ using Dalamud.Plugin.Services;
 using ECommons.Automation;
 using System.Text.RegularExpressions;
 
-namespace Deathroll;
+namespace RollKnockout;
 
 public sealed class Config : IPluginConfiguration
 {
@@ -42,7 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         this.pi = pi; this.commands = commands; this.chat = chat; this.player = player; this.log = log;
         config = pi.GetPluginConfig() as Config ?? new();
-        commands.AddHandler("/deathroll", new CommandInfo((_, _) => Toggle()) { HelpMessage = "Open Deathroll." });
+        commands.AddHandler("/rollknockout", new CommandInfo((_, _) => Toggle()) { HelpMessage = "Open Roll Knockout." });
         pi.UiBuilder.Draw += Draw; pi.UiBuilder.OpenMainUi += Toggle; pi.UiBuilder.OpenConfigUi += Toggle;
         chat.ChatMessage += OnChat;
     }
@@ -70,7 +70,7 @@ public sealed class Plugin : IDalamudPlugin
     private void Resolve()
     {
         announcement = match.Resolve();
-        chat.Print(announcement, "Deathroll");
+        chat.Print(announcement, "Roll Knockout");
         if (config.AutoAnnounce) Publish();
     }
     private void Publish()
@@ -79,18 +79,18 @@ public sealed class Plugin : IDalamudPlugin
         try
         {
             var prefix = config.Channel switch { 1 => "/say", 2 => "/shout", _ => "/p" };
-            var text = Chat.SanitiseText("[Deathroll] " + announcement);
+            var text = Chat.SanitiseText("[Roll Knockout] " + announcement);
             // Keep within the game's UTF-8 chat limit, even with large tied groups.
             if (System.Text.Encoding.UTF8.GetByteCount(text) > 450)
-            { chat.Print("Announcement too long. Copy it or announce a shorter summary manually.", "Deathroll"); return; }
+            { chat.Print("Announcement too long. Copy it or announce a shorter summary manually.", "Roll Knockout"); return; }
             Chat.SendMessage(prefix + " " + text); nextPublish = DateTime.UtcNow.AddSeconds(2);
         }
-        catch (Exception ex) { log.Error(ex, "Deathroll announcement failed."); }
+        catch (Exception ex) { log.Error(ex, "Roll Knockout announcement failed."); }
     }
     private void Draw()
     {
         if (!open) return;
-        if (ImGui.Begin("Deathroll", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (ImGui.Begin("Roll Knockout", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextWrapped("First unique players to roll join the match. Only their first roll counts. English random-result text is supported; manual entry is available below.");
             ImGui.BeginDisabled(match.Active);
@@ -140,6 +140,6 @@ public sealed class Plugin : IDalamudPlugin
     {
         chat.ChatMessage -= OnChat; pi.UiBuilder.Draw -= Draw;
         pi.UiBuilder.OpenMainUi -= Toggle; pi.UiBuilder.OpenConfigUi -= Toggle;
-        commands.RemoveHandler("/deathroll");
+        commands.RemoveHandler("/rollknockout");
     }
 }
