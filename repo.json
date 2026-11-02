@@ -235,7 +235,7 @@
     "Changelog": "- Rename to Roll Knockout with a separate plugin identity so it appears alongside the official DeathRoll plugin. Open with /rollknockout.",
     "IsHide": false,
     "IsTestingExclusive": false,
-    "LastUpdate": 1793575536,
+    "LastUpdate": 1793662103,
     "DownloadLinkInstall": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RollKnockout-v0.1.0.1/RollKnockout.zip",
     "DownloadLinkUpdate": "https://github.com/Jacob5800/DalamudPlugins/releases/download/RollKnockout-v0.1.0.1/RollKnockout.zip",
     "DownloadLinkTesting": null,
