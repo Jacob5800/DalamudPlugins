@@ -204,3 +204,5 @@ New-item listing, batch selling, automatic single-item listing and manual price 
 **Mark saved gearset items red in armoury chest** in Settings adds translucent red slot fills for items referenced by saved in-game gearsets. NQ/HQ are distinguished; identical copies receive the same marker. Disabled by default.
 
 When both collection and reassignment are enabled (including the full sequence), they share one retainer traversal. Collection-only and reassignment-only remain independent options. Listing and repricing follow the combined venture pass.
+
+The optional **Blue fill on items in the desynthesis list** setting is available in Settings and Desynthesis, off by default. It marks matching HQ/NQ item types in carried bags, chocobo saddlebags and the armoury chest. The fill shows list membership, not permission to destroy an item; existing protections still apply. Enabled red gear-set markers take priority in the armoury chest.

@@ -865,6 +865,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
         Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
         Feature("Mark saved gearset items red in armoury chest", config.MarkArmouryGearsetItems, v => config.MarkArmouryGearsetItems = v);
+        Feature("Blue fill on items in the desynthesis list", config.MarkDesynthesisItems, v => config.MarkDesynthesisItems = v);
         Feature("Mark marketable unbound items green in armoury chest", config.MarkMarketableArmouryItems, v => config.MarkMarketableArmouryItems = v);
         ImGui.TextDisabled("Bound, untradeable and collectable items are excluded. Enabled red gearset markers take priority.");
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("A translucent red fill identifies items referenced by saved gearsets, matching HQ quality too. Identical copies share the marker.");
@@ -1326,6 +1327,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Profiles: create, rename and switch named settings presets in the Profiles tab. Changes save automatically to the active profile, including item lists and toggles. Stop active operations and watchers before switching. Import/export shares the active profile without including market caches.");
         ImGui.TextWrapped("Automation can run selected collection, reassignment, listing and repricing steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
+        ImGui.TextWrapped("Optional blue desynthesis-list fill is available in Settings and Desynthesis. It marks list membership in bags, saddlebags and armoury chest; item protections still apply.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. All matching copies in carried bags are processed; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
         if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
         {
@@ -1989,6 +1991,9 @@ internal sealed class MainWindow : Window
     private void DrawDesynthesis()
     {
         ImGui.TextWrapped("Run Desynthesis processes all copies of listed items in your four carried bags. Exceptions, saved gear sets, collectables and items you cannot desynthesize are skipped. Melded copies ask before retrieving materia and continuing; No skips that copy. Add or remove items here or through their inventory right-click menu. This list is included in settings backups.");
+        var markItems = config.MarkDesynthesisItems;
+        if (ImGui.Checkbox("Blue fill on items in the desynthesis list", ref markItems)) { config.MarkDesynthesisItems = markItems; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Marks listed item types in carried bags, chocobo saddlebags and armoury chest, including HQ copies. This marks list membership, not eligibility: exceptions and gear-set protections still apply. Red saved-gear-set markers take priority in the armoury chest.");
         var useBroth = config.UseBaconBroth;
         ImGui.BeginDisabled(desynthesis.IsRunning);
         if (ImGui.Checkbox("Use Bacon Broth", ref useBroth)) { config.UseBaconBroth = useBroth; save(); }

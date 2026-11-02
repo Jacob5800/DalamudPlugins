@@ -9,9 +9,11 @@ namespace RetainerPricer;
 
 internal sealed unsafe class ArmouryGearsetMarkers(IGameGui gui, NativeMarketBridge bridge, PluginConfig config, IReadOnlySet<uint> marketableIds)
 {
+    private readonly DesynthesisItemMarkers desynthesisMarkers = new(gui, config);
     public void Draw()
     {
-        if (!config.MarkArmouryGearsetItems && !config.MarkMarketableArmouryItems) return;
+        desynthesisMarkers.Draw();
+        if (!config.MarkArmouryGearsetItems && !config.MarkMarketableArmouryItems && !config.MarkDesynthesisItems) return;
         var addon = gui.GetAddonByName<AddonArmouryBoard>("ArmouryBoard");
         if (addon == null || !addon->IsVisible || addon->TabIndex is < 0 or >= 12) return;
         var order = ItemOrderModule.Instance();
@@ -34,12 +36,13 @@ internal sealed unsafe class ArmouryGearsetMarkers(IGameGui gui, NativeMarketBri
             bool saved = config.MarkArmouryGearsetItems && ids != null && ids.Contains(raw);
             bool marketable = config.MarkMarketableArmouryItems && marketableIds.Contains(item->GetBaseItemId())
                 && item->GetSpiritbondOrCollectability() == 0 && !item->IsCollectable();
-            if (!saved && !marketable) continue;
+            bool desynthesis = config.MarkDesynthesisItems && config.DesynthesisItemIds.Contains(item->GetBaseItemId());
+            if (!saved && !marketable && !desynthesis) continue;
             var node = component->OwnerNode;
             var pos = new Vector2(node->ScreenX, node->ScreenY);
             var size = new Vector2(node->Width * addon->Scale, node->Height * addon->Scale);
-            ImGui.GetForegroundDrawList().AddRectFilled(pos, pos + size, saved ? 0x503030FFu : 0x5030CC30u, 3);
-            ImGui.GetForegroundDrawList().AddRect(pos, pos + size, saved ? 0xFF3030FFu : 0xFF30CC30u, 3, ImDrawFlags.None, 2);
+            ImGui.GetForegroundDrawList().AddRectFilled(pos, pos + size, saved ? 0x503030FFu : desynthesis ? 0x70FF9933u : 0x5030CC30u, 3);
+            ImGui.GetForegroundDrawList().AddRect(pos, pos + size, saved ? 0xFF3030FFu : desynthesis ? 0xFFFF9933u : 0xFF30CC30u, 3, ImDrawFlags.None, 2);
         }
     }
 }
