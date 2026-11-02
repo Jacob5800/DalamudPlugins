@@ -1,3 +1,7 @@
+## 0.5.1.46
+
+- Fix “Vendor item instead” getting stuck after opening a listed item’s withdrawal menu when the game offers “Retrieve from Retainer”.
+
 ## 0.5.1.45
 
 - Show the vnavmesh requirement green when enabled, or red when missing/disabled, for TT card sales and Modern Vocation trips.

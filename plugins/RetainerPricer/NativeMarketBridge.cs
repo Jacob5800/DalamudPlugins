@@ -1231,14 +1231,21 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         { error = "Listing or retainer changed before withdrawal; no withdrawal submitted."; return false; }
         var context = AgentInventoryContext.Instance();
         if (context == null) { error = "Inventory context unavailable."; return false; }
-        var label = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English)
-            .FirstOrDefault(row => row.Text.ToString().Equals("Return Items to Inventory", StringComparison.OrdinalIgnoreCase)).RowId;
-        if (label == 0) { error = "Return Items to Inventory label unavailable."; return false; }
-        string localized = data.GetExcelSheet<Addon>().GetRow(label).Text.ToString();
+        // RetainerMarket can expose the standard inventory-context retrieval command,
+        // not just the sell-list-specific "Return Items to Inventory" label.
+        // Resolve exact localized labels; never select Retrieve Quantity or a sale command.
+        var english = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English);
+        var localizedSheet = data.GetExcelSheet<Addon>();
+        var returnLabels = english.Where(row =>
+                row.Text.ToString().Equals("Return Items to Inventory", StringComparison.OrdinalIgnoreCase) ||
+                row.Text.ToString().Equals("Retrieve from Retainer", StringComparison.OrdinalIgnoreCase))
+            .Select(row => localizedSheet.GetRow(row.RowId).Text.ToString().Trim())
+            .Where(text => text.Length > 0).ToHashSet(StringComparer.Ordinal);
+        if (returnLabels.Count == 0) { error = "Retainer withdrawal labels unavailable."; return false; }
         if (context->TargetInventoryId != InventoryType.RetainerMarket || context->TargetInventorySlotId != expected.Slot)
         { error = "Withdrawal menu targets a different listing."; return false; }
         var menu = gameGui.GetAddonByName<AtkUnitBase>("ContextMenu");
-        error = "Return Items to Inventory is unavailable or disabled; no withdrawal submitted.";
+        error = "Retainer withdrawal is unavailable or disabled; no withdrawal submitted.";
         if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9)
         { pending = true; error = ""; return false; }
         var list = menu->GetComponentListById(2);
@@ -1253,9 +1260,9 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             if (labelPointer.Value == null) { pending = true; continue; }
             var actual = Dalamud.Game.Text.SeStringHandling.SeString.Parse(labelPointer.Value).TextValue;
             observedLabels.Add(actual);
-            if (!actual.Equals(localized, StringComparison.Ordinal)) continue;
+            if (!returnLabels.Contains(actual.Trim())) continue;
             if (list->GetItemDisabledState(i) || context->IsContextItemDisabled(i))
-            { error = "Return Items to Inventory is disabled for this listing; no withdrawal submitted."; return false; }
+            { error = "Retainer withdrawal is disabled for this listing; no withdrawal submitted."; return false; }
             AtkValue* args = stackalloc AtkValue[3];
             args[0] = new AtkValue { Type = AtkValueType.Int, Int = 0 };
             args[1] = new AtkValue { Type = AtkValueType.Int, Int = i };
@@ -1264,7 +1271,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             error = ""; return true;
         }
         pending = true;
-        error = "Waiting for Return Items to Inventory. Observed menu: " + string.Join(" | ", observedLabels);
+        error = "Waiting for retainer withdrawal (Return Items to Inventory / Retrieve from Retainer). Observed menu: " + string.Join(" | ", observedLabels);
         return false;
     }
 
