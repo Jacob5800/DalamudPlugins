@@ -652,21 +652,30 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     }
 
     private string? buybackRecallPrompt;
+    private MarketSession? approvedVendorDeparture;
+    internal void MarkApprovedVendorSale(MarketSession soldSession) => approvedVendorDeparture = soldSession;
+    internal void ClearApprovedVendorDeparture() => approvedVendorDeparture = null;
     public bool HandleBuybackRecallPrompt(ulong expectedRetainerId, ref bool submitted)
     {
+        var approved = approvedVendorDeparture;
+        if (approved is null || approved.RetainerId != expectedRetainerId ||
+            IsCharacterOrWorldChanged(approved.ContentId, approved.WorldId)) return false;
         var addon = gameGui.GetAddonByName<AddonSelectYesno>("SelectYesno");
         if (disposed || addon == null || !addon->IsVisible || !addon->IsReady || addon->PromptText == null) return false;
-        if (!TryGetSelectedRetainerId(out var selected) || selected != expectedRetainerId) return false;
+        // Quit may clear the native selected-retainer field before the confirmation appears.
+        // The verified sale owns this departure; a different nonzero selection still aborts.
+        if (TryGetSelectedRetainerId(out var selected) && selected != 0 && selected != expectedRetainerId) return false;
+        static string Plain(string text) => string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (buybackRecallPrompt is null)
         {
             var row = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English).FirstOrDefault(x =>
-                x.Text.ToString().Contains("buyback requests once recalled", StringComparison.Ordinal));
-            buybackRecallPrompt = row.RowId == 0 ? string.Empty : data.GetExcelSheet<Addon>().GetRow(row.RowId).Text.ToString();
+                x.Text.ExtractText().Contains("buyback requests once recalled", StringComparison.Ordinal));
+            buybackRecallPrompt = row.RowId == 0 ? string.Empty : Plain(data.GetExcelSheet<Addon>().GetRow(row.RowId).Text.ExtractText());
         }
-        if (buybackRecallPrompt.Length == 0 || addon->PromptText->NodeText.ExtractText() != buybackRecallPrompt) return false;
+        if (buybackRecallPrompt.Length == 0 || Plain(addon->PromptText->NodeText.ExtractText()) != buybackRecallPrompt) return false;
         if (!submitted)
         {
-            addon->AtkUnitBase.FireCallbackInt(0);
+            if (!NativeUiButton.Click((AtkUnitBase*)addon, addon->YesButton)) return true;
             submitted = true;
         }
         return true;

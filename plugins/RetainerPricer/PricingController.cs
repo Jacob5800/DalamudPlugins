@@ -612,6 +612,7 @@ internal sealed class PricingController : IDisposable
 
     private void CompleteReviewedVendor(SellItem sold, DateTimeOffset now)
     {
+        bridge.MarkApprovedVendorSale(sold.Session);
         // Keep the parent traversal alive, but never continue with slots captured before withdrawal.
         if (work is Work.Scan or Work.AutoUpdateAllRetainers)
         {
@@ -1274,6 +1275,7 @@ internal sealed class PricingController : IDisposable
                 }
                 if (bridge.IsRetainerPickerVisible && !bridge.IsRetainerMenuVisible)
                 {
+                    bridge.ClearApprovedVendorDeparture();
                     autoRetainerIndex++;
                     if (autoRetainerIndex >= autoRetainers.Count) { FinishRetainerTraversal(); return; }
                     step = Step.AutoSelectRetainer;
@@ -2161,6 +2163,7 @@ internal sealed class PricingController : IDisposable
 
     private void Finish(string message)
     {
+        bridge.ClearApprovedVendorDeparture();
         work = Work.Idle;
         workingItem = null;
         priceDropDecisionsThisRun.Clear();
@@ -2170,6 +2173,7 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        bridge.ClearApprovedVendorDeparture();
         if (disposed) return;
         vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
         BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null; approvedBelowVendor = null;

@@ -206,3 +206,5 @@ New-item listing, batch selling, automatic single-item listing and manual price 
 When both collection and reassignment are enabled (including the full sequence), they share one retainer traversal. Collection-only and reassignment-only remain independent options. Listing and repricing follow the combined venture pass.
 
 The optional **Blue fill on items in the desynthesis list** setting is available in Settings and Desynthesis, off by default. It marks matching HQ/NQ item types in carried bags, chocobo saddlebags and the armoury chest. The fill shows list membership, not permission to destroy an item; existing protections still apply. Enabled red gear-set markers take priority in the armoury chest.
+
+After a verified **Vendor item instead** sale, an ongoing retainer traversal confirms the matching buyback-on-recall warning before continuing. Other confirmation prompts are left alone. The Modern Vocation trip confirms only its expected 40-Venture purchase and waits for the item to arrive.

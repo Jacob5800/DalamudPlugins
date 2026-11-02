@@ -89,7 +89,11 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
             string text=yes->PromptText==null?"":yes->PromptText->NodeText.ExtractText();
             if(!text.Contains("Modern Vocation",StringComparison.OrdinalIgnoreCase) || !text.Contains("40")){Stop("Unexpected confirmation; no purchase confirmed.");return;}
             if(inv->GetInventoryItemCount(ventureId)<40){Stop("Insufficient Ventures.");return;}
-            yes->AtkUnitBase.FireCallbackInt(0);submitted=true;deadline=DateTimeOffset.UtcNow.AddSeconds(15);return;
+            if(!lastChoice.Contains("Purchase a copy of Modern Vocation",StringComparison.OrdinalIgnoreCase))
+            {Stop("Purchase confirmation appeared outside the requested purchase step.");return;}
+            if(!NativeUiButton.Click((AtkUnitBase*)yes,yes->YesButton))
+            {Status="Waiting for the Modern Vocation Yes button to become available...";return;}
+            submitted=true;deadline=DateTimeOffset.UtcNow.AddSeconds(15);Status="Confirmed 40 Ventures; waiting for Modern Vocation in inventory...";return;
         }
         if(bridge.TrySelectRetainerMenuEntry(t=>t!=lastChoice && (t.Contains("Inquire about retainer jobs",StringComparison.OrdinalIgnoreCase) || t.Contains("Purchase a copy of Modern Vocation",StringComparison.OrdinalIgnoreCase)),out var choice,out _))
         {lastChoice=choice;Status=choice;return;}
