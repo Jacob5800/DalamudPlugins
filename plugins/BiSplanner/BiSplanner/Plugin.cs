@@ -89,6 +89,7 @@ public sealed partial class Plugin : IDalamudPlugin
                 builder.RegisterInstance(dtrBar).As<IDtrBar>().SingleInstance();
 
                 // wrap item finder module into service
+                builder.RegisterType<ItemLocationService>().AsSelf().As<IHostedService>().SingleInstance();
                 builder.RegisterType<ItemFinderService>().As<IItemFinderService>().SingleInstance();
 
                 // more rich logging information

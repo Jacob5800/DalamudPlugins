@@ -11,6 +11,7 @@ using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Lumina.Extensions;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -27,7 +28,8 @@ public class PrerequisiteNodeComponentRenderer(
     ITextureProvider textureProvider,
     IAttributeService attributeService,
     IItemDataService itemDataService,
-    IDebugService debugService
+    IDebugService debugService,
+    IClientState clientState
     ) : ComponentRendererBase<PrerequisiteNode>
 {
     private readonly ITypedLogger<PrerequisiteNodeComponentRenderer> logger = logger;
@@ -252,6 +254,10 @@ public class PrerequisiteNodeComponentRenderer(
 
         if (!node.IsCollected)
         {
+            var sources = itemDataService.GetInstanceSources(node.ItemId);
+            if (sources.Count > 0)
+                using (ImRaii.PushIndent(25f, scaled: false))
+                    ImGui.TextWrapped("Instance: " + string.Join("; ", sources));
             var costs = itemDataService.GetPurchaseCurrencyCosts(node.ItemId);
             if (costs.Count > 0)
             {
@@ -262,9 +268,9 @@ public class PrerequisiteNodeComponentRenderer(
                         .DistinctBy(group => string.Join(";", group.Select(c => $"{c.CurrencyId}:{c.Amount}").Order()));
                     foreach (var group in groups)
                     {
-                        ImGui.TextWrapped("Buy with: " + string.Join(" + ", group.Select(c =>
-                            $"{(long)c.Amount * parentCount:N0}x {itemDataService.GetItemNameById(c.CurrencyId)}")));
-                        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Purchase cost from the game's exchange data. Each line is an alternative shop offer. Currency is informational and is not counted as a gear item.");
+                        ImGui.TextWrapped($"Purchase option for {parentCount}x {node.ItemName}:");
+                        foreach (var cost in group)
+                            drawCurrencyCost(cost.CurrencyId, (long)cost.Amount * parentCount);
                     }
                 }
                 var end = ImGui.GetCursorScreenPos() + new Vector2(10, -ImGui.GetStyle().ItemSpacing.Y - ImGui.GetTextLineHeight() / 2);
@@ -299,6 +305,29 @@ public class PrerequisiteNodeComponentRenderer(
             drawList.AddLine(lineStartLoc, lineStartLoc + new Vector2(0, lineHeight), col, 2);
             drawList.AddLine(lineStartLoc + new Vector2(0, lineHeight), lineStartLoc + new Vector2(lineWidth, lineHeight), col, 2);
         }
+    }
+
+    private unsafe void drawCurrencyCost(uint currencyId, long required)
+    {
+        var inventory = clientState.IsLoggedIn ? InventoryManager.Instance() : null;
+        var owned = inventory == null ? (long?)null : inventory->GetInventoryItemCount(currencyId);
+        var color = owned == null ? new Vector4(0.7f, 0.7f, 0.7f, 1)
+            : owned >= required ? new Vector4(0.2f, 1, 0.3f, 1) : new Vector4(1, 0.25f, 0.25f, 1);
+        using var indent = ImRaii.PushIndent(10f);
+        using var row = ImRaii.Group();
+        var iconSize = new Vector2(ImGui.GetTextLineHeight());
+        var iconId = itemDataService.GetItemIconId(currencyId);
+        if (textureProvider.GetFromGameIcon((uint)iconId).TryGetWrap(out var texture, out _))
+            ImGui.Image(texture.Handle, iconSize);
+        else
+            ImGui.Dummy(iconSize);
+        ImGui.SameLine();
+        using (ImRaii.PushColor(ImGuiCol.Text, color))
+            ImGui.TextWrapped($"{required:N0}x {itemDataService.GetItemNameById(currencyId)}");
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(owned is { } amount
+                ? $"Owned: {amount:N0} / Required: {required:N0}. Each Buy with group is an alternative shop offer; currency is not reserved across purchases."
+                : "Currency balance is unavailable. Log in to check whether you have enough.");
     }
 
     private bool drawPrerequisiteButton(PrerequisiteNode node, int count)

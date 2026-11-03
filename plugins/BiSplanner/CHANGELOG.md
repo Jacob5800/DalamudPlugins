@@ -1,3 +1,10 @@
+## 0.3.0.5
+
+- Show currency icons and green/red purchase costs according to your available balance, with owned and required amounts on hover.
+- Label currency purchase options with the item they buy to distinguish base gear costs from upgrade materials.
+- Show known source instances beneath unowned gear and prerequisites.
+- Show owned item locations in inventory, armoury chest and equipped gear, plus last-seen saddlebag and retainer snapshots refreshed when their inventories are opened. Remote snapshots are saved separately for each character.
+
 ## 0.3.0.4
 
 - Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.

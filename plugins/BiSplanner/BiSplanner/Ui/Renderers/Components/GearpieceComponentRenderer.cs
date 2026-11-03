@@ -27,7 +27,8 @@ namespace BiSplanner.Ui.Renderers.Components
         IItemDataService itemDataService,
         IAttributeService attributeService,
         UiComponents uiComponents,
-        IDebugService debugService
+        IDebugService debugService,
+        ItemLocationService itemLocationService
         ) : ComponentRendererBase<Gearpiece>
     {
         private static readonly Vector4 ExpandedBackgroundColorMult = new(0.6f, 0.6f, 0.6f, 1.0f);
@@ -101,6 +102,20 @@ namespace BiSplanner.Ui.Renderers.Components
             using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0, 0, 0, 0)))
             {
                 drawGearpieceButton();
+                using (ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.8f, 0.8f, 0.8f, 1)))
+                using (ImRaii.PushIndent(25f, scaled: false))
+                {
+                    var locations = itemLocationService.GetLocations(gearpiece.ItemId);
+                    if (locations.Count > 0)
+                        ImGui.TextWrapped("Location: " + string.Join("; ", locations));
+                    else if (gearpieceCollected)
+                        ImGui.TextWrapped("Location unavailable. Open the relevant retainer or saddlebag to refresh its snapshot.");
+                    if (!gearpieceCollected)
+                    {
+                        var sources = itemDataService.GetInstanceSources(gearpiece.ItemId);
+                        if (sources.Count > 0) ImGui.TextWrapped("Instance: " + string.Join("; ", sources));
+                    }
+                }
                 if (isExpanded)
                 {
                     if (hasSubItems)

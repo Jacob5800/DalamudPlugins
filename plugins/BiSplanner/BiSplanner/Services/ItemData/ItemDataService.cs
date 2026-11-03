@@ -114,6 +114,7 @@ namespace BiSplanner.Items
         /// </summary>
         public ILookup<uint, (List<uint> ItemIds, uint SourceShopId)> ItemsPrerequisites { get; }
 
+        public IReadOnlyList<string> GetInstanceSources(uint itemId);
         public uint ConvertItemIdToHq(uint id);
         public string SeStringToString(ReadOnlySeString input);
         public string GetItemNameById(uint id);
