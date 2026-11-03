@@ -97,6 +97,7 @@ internal sealed class PricingController : IDisposable
     private ulong autoLastSelectedRetainerId;
     private int autoRetainerDialogueClicks;
     private bool buybackRecallSubmitted;
+    private readonly Dictionary<ulong, MarketSession> vendorSalesAwaitingDeparture = [];
     private DateTimeOffset autoRetainerNextDialogueClick;
     private readonly List<uint> marketboardLookupQueue = [];
     private int marketboardLookupIndex;
@@ -632,6 +633,7 @@ internal sealed class PricingController : IDisposable
 
     private void CompleteReviewedVendor(SellItem sold, DateTimeOffset now)
     {
+        vendorSalesAwaitingDeparture[sold.Session.RetainerId] = sold.Session;
         bridge.MarkApprovedVendorSale(sold.Session);
         // Keep the parent traversal alive, but never continue with slots captured before withdrawal.
         if (work is Work.Scan or Work.AutoUpdateAllRetainers)
@@ -1253,6 +1255,10 @@ internal sealed class PricingController : IDisposable
                     { Cancel($"{TraversalOperation} stopped because the retainer menu did not belong to the retainer just processed."); return; }
                     if (!bridge.TrySelectRetainerMenuEntry(text => text.Trim().TrimEnd('.', '…').Equals("Quit", StringComparison.OrdinalIgnoreCase), out _, out error))
                     { Cancel($"{TraversalOperation} stopped at the retainer menu: {error}"); return; }
+                    // Item processing may have finished long after the NPC sale. Restore
+                    // departure ownership from the retainer visit, not the last item action.
+                    if (vendorSalesAwaitingDeparture.TryGetValue(autoRetainers[autoRetainerIndex].RetainerId, out var vendorSession))
+                        bridge.MarkApprovedVendorSale(vendorSession);
                     session = null;
                     autoRetainerDialogueClicks = 0;
                     autoRetainerNextDialogueClick = now;
@@ -1296,6 +1302,7 @@ internal sealed class PricingController : IDisposable
                 }
                 if (bridge.IsRetainerPickerVisible && !bridge.IsRetainerMenuVisible)
                 {
+                    vendorSalesAwaitingDeparture.Remove(autoRetainers[autoRetainerIndex].RetainerId);
                     bridge.ClearApprovedVendorDeparture();
                     autoRetainerIndex++;
                     if (autoRetainerIndex >= autoRetainers.Count) { FinishRetainerTraversal(); return; }
@@ -2196,6 +2203,7 @@ internal sealed class PricingController : IDisposable
     private void Finish(string message)
     {
         bridge.ClearApprovedVendorDeparture();
+        vendorSalesAwaitingDeparture.Clear();
         work = Work.Idle;
         workingItem = null;
         priceDropDecisionsThisRun.Clear();
@@ -2206,6 +2214,7 @@ internal sealed class PricingController : IDisposable
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
         bridge.ClearApprovedVendorDeparture();
+        vendorSalesAwaitingDeparture.Clear();
         LargeStackReviewItem = null; largeStackPlans.Clear();
         if (disposed) return;
         vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];

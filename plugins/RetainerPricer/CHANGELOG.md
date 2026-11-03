@@ -1,3 +1,7 @@
+## 0.5.1.51
+
+- Keep approved NPC-sale departure state for the whole retainer visit, including remaining listings, and restore it when choosing Quit.
+
 ## 0.5.1.50
 
 - Handle the exact retainer buyback prompt across modal instances after an approved NPC sale, with departure diagnostics.
