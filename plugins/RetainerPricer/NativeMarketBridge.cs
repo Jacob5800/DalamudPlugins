@@ -651,6 +651,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return result;
     }
 
+    internal void LogAutomationDiagnostic(string message) => log.Information("[Automation diagnostic] {Detail}", message);
+
     private string? buybackRecallPrompt;
     private MarketSession? approvedVendorDeparture;
     internal string BuybackRecallStatus { get; private set; } = "No approved vendor sale recorded.";

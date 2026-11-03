@@ -640,12 +640,33 @@ internal sealed class PricingController : IDisposable
         {
             var fresh = bridge.ReadExistingListings(out var error).ToList();
             if (error.Length != 0) { Cancel($"NPC sale completed, but listings could not be refreshed: {error}"); return; }
-            var pending = Rows.Skip(index + 1).ToArray();
-            if (!ListingRefresh.TryRemap(pending.Select(row => row.Item).ToArray(), fresh, x => (x.Session, x.ItemId, x.IsHq, x.Quantity, x.CurrentPrice), out var replacements))
-            { Cancel("NPC sale completed, but remaining listings changed unexpectedly. No further prices submitted."); return; }
+            var soldRow = Rows[index];
+            // Review approvals can revisit any earlier row. Refresh every unsold row,
+            // including held reviews before the current cursor, after slots compact.
+            var pending = Rows.Where(row => !ReferenceEquals(row, soldRow) && row.Status != "Sold to NPC").ToArray();
+            static (ulong, ulong, uint, uint, bool, uint, uint) Key(SellItem x) =>
+                (x.Session.ContentId, x.Session.RetainerId, x.Session.WorldId, x.ItemId, x.IsHq, x.Quantity, x.CurrentPrice);
+            if (!ListingRefresh.TryRemap(pending.Select(row => row.Item).ToArray(), fresh, Key, out var replacements))
+            {
+                var available = fresh.ToList();
+                var missing = new List<string>();
+                foreach (var row in pending)
+                {
+                    var found = available.FindIndex(item => Key(item) == Key(row.Item));
+                    if (found >= 0) { available.RemoveAt(found); continue; }
+                    var related = fresh.Where(item => item.ItemId == row.Item.ItemId && item.IsHq == row.Item.IsHq)
+                        .Select(item => $"slot={item.Slot},qty={item.Quantity},price={item.CurrentPrice}");
+                    missing.Add($"{row.Item.Name} id={row.Item.ItemId} HQ={row.Item.IsHq} oldSlot={row.Item.Slot} qty={row.Item.Quantity} expectedPrice={row.Item.CurrentPrice} status={row.Status}; observed=[{string.Join("; ", related)}]");
+                }
+                bridge.LogAutomationDiagnostic($"Vendor refresh mismatch: retainer={sold.Session.RetainerId}, soldItem={sold.ItemId}, cursor={index}, expectedRows={pending.Length}, liveRows={fresh.Count}; {string.Join(" | ", missing)}");
+                Cancel("NPC sale completed, but remaining listings changed unexpectedly. No further prices submitted. Mismatches: " + string.Join(" | ", missing));
+                return;
+            }
             for (var i = 0; i < pending.Length; i++) pending[i].Item = replacements[i];
-            Rows[index].Status = "Sold to NPC";
-            index++;
+            bridge.LogAutomationDiagnostic($"Vendor refresh matched {pending.Length} unsold rows after selling item={sold.ItemId}; retainer={sold.Session.RetainerId}, cursor={index}, reviewRecheck={soldRow.PriceDropReviewRecheck}.");
+            soldRow.Status = "Sold to NPC";
+            soldRow.AwaitingPriceDropDecision = false;
+            AdvanceScanIndex(soldRow);
         }
         else if (work == Work.BatchListing)
         {
@@ -1704,6 +1725,7 @@ internal sealed class PricingController : IDisposable
             if (!sellWindowOpen && current is not null && SameListingIdentity(row.Item, current)
                 && current.CurrentPrice == submittedPrice)
             {
+                row.Item = current; // Retain the verified live price for later withdrawal/remapping.
                 row.Status = "Updated";
                 AdvanceScanIndex(row);
                 step = Step.Start;
