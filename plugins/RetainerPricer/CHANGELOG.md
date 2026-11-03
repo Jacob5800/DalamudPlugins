@@ -1,3 +1,7 @@
+## 0.5.1.49
+
+- Recognise the exact 40-Venture Modern Vocation confirmation when its item name wraps onto another line.
+
 ## 0.5.1.48
 
 - Confirm the retainer buyback warning after an approved vendor sale so automation can return to the retainer picker.

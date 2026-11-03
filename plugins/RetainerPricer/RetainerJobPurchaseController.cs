@@ -86,10 +86,14 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
         var yes=gui.GetAddonByName<AddonSelectYesno>("SelectYesno");
         if(yes!=null && yes->IsReady && yes->IsVisible)
         {
-            string text=yes->PromptText==null?"":yes->PromptText->NodeText.ExtractText();
-            if(!text.Contains("Modern Vocation",StringComparison.OrdinalIgnoreCase) || !text.Contains("40")){Stop("Unexpected confirmation; no purchase confirmed.");return;}
+            // Rendered prompt nodes can insert line breaks between Modern and Vocation.
+            // Compare the complete transaction after whitespace normalization, not a substring.
+            static string Plain(string value) => string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            string text=Plain(yes->PromptText==null?"":yes->PromptText->NodeText.ExtractText());
+            if(!text.Equals("Exchange 40 ventures for a copy of Modern Vocation?",StringComparison.OrdinalIgnoreCase))
+            {Stop("Unexpected confirmation; no purchase confirmed. Observed: "+text);return;}
             if(inv->GetInventoryItemCount(ventureId)<40){Stop("Insufficient Ventures.");return;}
-            if(!lastChoice.Contains("Purchase a copy of Modern Vocation",StringComparison.OrdinalIgnoreCase))
+            if(!Plain(lastChoice).Contains("Purchase a copy of Modern Vocation",StringComparison.OrdinalIgnoreCase))
             {Stop("Purchase confirmation appeared outside the requested purchase step.");return;}
             if(!NativeUiButton.Click((AtkUnitBase*)yes,yes->YesButton))
             {Status="Waiting for the Modern Vocation Yes button to become available...";return;}
