@@ -653,32 +653,62 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     private string? buybackRecallPrompt;
     private MarketSession? approvedVendorDeparture;
-    internal void MarkApprovedVendorSale(MarketSession soldSession) => approvedVendorDeparture = soldSession;
+    internal string BuybackRecallStatus { get; private set; } = "No approved vendor sale recorded.";
+    private void RecallStatus(string text)
+    {
+        if (BuybackRecallStatus == text) return;
+        BuybackRecallStatus = text;
+        log.Information("[Retainer departure] {Detail}", text);
+    }
+    internal void MarkApprovedVendorSale(MarketSession soldSession)
+    {
+        approvedVendorDeparture = soldSession;
+        RecallStatus("Approved vendor sale verified; departure confirmation armed.");
+    }
     internal void ClearApprovedVendorDeparture() => approvedVendorDeparture = null;
     public bool HandleBuybackRecallPrompt(ulong expectedRetainerId, ref bool submitted)
     {
         var approved = approvedVendorDeparture;
-        if (approved is null || approved.RetainerId != expectedRetainerId ||
-            IsCharacterOrWorldChanged(approved.ContentId, approved.WorldId)) return false;
-        var addon = gameGui.GetAddonByName<AddonSelectYesno>("SelectYesno");
-        if (disposed || addon == null || !addon->IsVisible || !addon->IsReady || addon->PromptText == null) return false;
-        // Quit may clear the native selected-retainer field before the confirmation appears.
-        // The verified sale owns this departure; a different nonzero selection still aborts.
-        if (TryGetSelectedRetainerId(out var selected) && selected != 0 && selected != expectedRetainerId) return false;
+        if (approved is null || approved.RetainerId != expectedRetainerId)
+        { RecallStatus("No matching approved vendor sale for this retainer departure."); return false; }
+        if (IsCharacterOrWorldChanged(approved.ContentId, approved.WorldId))
+        { RecallStatus("Character or world changed before vendor departure."); return false; }
+        if (TryGetSelectedRetainerId(out var selected) && selected != 0 && selected != expectedRetainerId)
+        { RecallStatus("A different retainer is selected; departure was not confirmed."); return false; }
         static string Plain(string text) => string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        const string englishPrompt = "Your retainer will be unable to process item buyback requests once recalled. Are you sure you wish to proceed?";
         if (buybackRecallPrompt is null)
         {
             var row = data.GetExcelSheet<Addon>(Dalamud.Game.ClientLanguage.English).FirstOrDefault(x =>
-                x.Text.ExtractText().Contains("buyback requests once recalled", StringComparison.Ordinal));
-            buybackRecallPrompt = row.RowId == 0 ? string.Empty : Plain(data.GetExcelSheet<Addon>().GetRow(row.RowId).Text.ExtractText());
+                Plain(x.Text.ExtractText()).Equals(englishPrompt, StringComparison.OrdinalIgnoreCase));
+            buybackRecallPrompt = row.RowId != 0 ? Plain(data.GetExcelSheet<Addon>().GetRow(row.RowId).Text.ExtractText()) :
+                clientState.ClientLanguage == Dalamud.Game.ClientLanguage.English ? englishPrompt : string.Empty;
         }
-        if (buybackRecallPrompt.Length == 0 || Plain(addon->PromptText->NodeText.ExtractText()) != buybackRecallPrompt) return false;
-        if (!submitted)
+        // Modal SelectYesno instances can coexist. Read the actual callback prompt instead
+        // of relying on one instance or a text node's inserted layout breaks.
+        for (var instance = 1; instance <= 10; instance++)
         {
-            if (!NativeUiButton.Click((AtkUnitBase*)addon, addon->YesButton)) return true;
+            var addon = (AddonSelectYesno*)gameGui.GetAddonByName("SelectYesno", instance).Address;
+            if (disposed || addon == null || !addon->IsVisible || !addon->IsReady) continue;
+            string actual = "";
+            if (addon->AtkValues != null && addon->AtkValuesCount > 0 &&
+                addon->AtkValues[0].Type is AtkValueType.String or AtkValueType.ManagedString && addon->AtkValues[0].String.Value != null)
+                actual = Plain(Dalamud.Game.Text.SeStringHandling.SeString.Parse(addon->AtkValues[0].String.Value).TextValue);
+            if (actual.Length == 0 && addon->PromptText != null) actual = Plain(addon->PromptText->NodeText.ExtractText());
+            if (buybackRecallPrompt.Length == 0 || !actual.Equals(buybackRecallPrompt, StringComparison.OrdinalIgnoreCase))
+            { RecallStatus("Unmatched departure confirmation: " + actual); continue; }
+            if (submitted) { RecallStatus("Departure Yes submitted; waiting for the retainer picker."); return true; }
+            if (addon->YesButton == null || !addon->YesButton->IsEnabled)
+            { RecallStatus("Matched buyback warning; waiting for its Yes button."); return true; }
+            // SelectYesno callback 0 is Yes. Close the owned modal as part of submission.
+            var choice = new AtkValue { Type = AtkValueType.Int, Int = 0 };
+            if (!addon->AtkUnitBase.FireCallback(1, &choice, true))
+            { RecallStatus("Matched buyback warning; Yes callback was not accepted."); return true; }
             submitted = true;
+            RecallStatus("Matched buyback warning; Yes callback accepted.");
+            return true;
         }
-        return true;
+        return false;
     }
 
     public IReadOnlyList<SavedGearsetMatch> ReadSavedGearsets(uint rawItemId)

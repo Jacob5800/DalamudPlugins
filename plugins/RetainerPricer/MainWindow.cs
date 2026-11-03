@@ -39,6 +39,8 @@ internal sealed class MainWindow : Window
     private readonly Func<bool> undercutsPaused;
     private readonly Dictionary<ulong, string> ventureSearches = [];
     private string sniperItemSearch = "";
+    private CarriedItemCandidate? largeStackPopupItem;
+    private int largeStackPerListing = 50, largeStackTotal;
     private int sniperDealsPage;
     private bool openBuyListTab;
     private SniperDeal? pendingBuyListRemoval;
@@ -162,6 +164,37 @@ internal sealed class MainWindow : Window
     public override void Draw()
     {
         if (startListingFromShortcut) { startListingFromShortcut = false; RequestListingStart(controller.StartListingItems); }
+        if (controller.LargeStackReviewItem is { } large)
+        {
+            if (!ReferenceEquals(largeStackPopupItem, large))
+            { largeStackPopupItem = large; largeStackPerListing = 50; largeStackTotal = (int)large.Quantity; }
+            ImGui.OpenPopup("Large inventory stack");
+        }
+        if (ImGui.BeginPopupModal("Large inventory stack", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (controller.LargeStackReviewItem is not { } stack) ImGui.CloseCurrentPopup();
+            else
+            {
+                ImGui.TextUnformatted($"{stack.Name} ({(stack.IsHq ? "HQ" : "NQ")}) x {stack.Quantity}");
+                ImGui.TextWrapped("This stack contains more than 50 items. Choose a listing size and total to sell, or keep it whole.");
+                ImGui.SetNextItemWidth(160);
+                ImGui.InputInt("Items per listing", ref largeStackPerListing);
+                largeStackPerListing = Math.Clamp(largeStackPerListing, 1, (int)stack.Quantity);
+                ImGui.SetNextItemWidth(160);
+                ImGui.InputInt("Total items to sell", ref largeStackTotal);
+                largeStackTotal = Math.Clamp(largeStackTotal, 1, (int)stack.Quantity);
+                ImGui.TextUnformatted($"Up to {(largeStackTotal + largeStackPerListing - 1) / largeStackPerListing} listing(s); leave {stack.Quantity - largeStackTotal} carried.");
+                ImGui.TextWrapped("The approved total applies to this item and quality for this listing run, across retainers. Stops when selling slots run out. Existing price and item-protection checks still apply.");
+                if (ImGui.Button("Split / sell chosen amount"))
+                { controller.ResolveLargeStack(true, largeStackPerListing, largeStackTotal); ImGui.CloseCurrentPopup(); }
+                if (ImGui.Button("No, keep the full stack"))
+                { controller.ResolveLargeStack(false); ImGui.CloseCurrentPopup(); }
+                if (ImGui.Button("No, don't split and don't ask again"))
+                { controller.ResolveLargeStack(false, dontAskAgain: true); ImGui.CloseCurrentPopup(); }
+                if (ImGui.Button("Stop listing")) { controller.Cancel("Listing stopped at large-stack review."); ImGui.CloseCurrentPopup(); }
+            }
+            ImGui.EndPopup();
+        }
         if (controller.BelowVendorItem is { } cheap)
         {
             ImGui.OpenPopup("Below NPC sale value");
@@ -858,6 +891,8 @@ internal sealed class MainWindow : Window
         { if (ImGui.Checkbox(name, ref value)) { update(value); save(); } }
         Feature("Debug automatic listing selector", config.DebugListingSelector, v => config.DebugListingSelector = v);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Log each initial attempt, retry and opened selling form to the Dalamud log. No listing behavior changes. Disable after reproducing the issue.");
+        Feature("Ask before splitting Auto list stacks over 50", config.AskBeforeSplittingLargeStacks, v => config.AskBeforeSplittingLargeStacks = v);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Restore the large-stack prompt after choosing Do not ask again. When disabled, Auto list keeps full carried stacks; Batch selling retains its own rules.");
         Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
@@ -1323,6 +1358,7 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextWrapped("Auto list stacks over 50 ask for a listing size and total to sell. The chosen total applies across retainers for the current run and leaves excess inventory carried. No, don’t split and don’t ask again keeps full stacks; restore the prompt in Settings. Batch selling uses its own rules.");
         ImGui.TextWrapped("New-item listing remembers 1-gil undercut and below-minimum price rejections for the current run across all retainers, with HQ/NQ tracked separately. Start a new run to check those items again.");
         ImGui.TextWrapped("Profiles: create, rename and switch named settings presets in the Profiles tab. Changes save automatically to the active profile, including item lists and toggles. Stop active operations and watchers before switching. Import/export shares the active profile without including market caches.");
         ImGui.TextWrapped("Automation can run selected collection, reassignment, listing and repricing steps in order; full sequence enables all four. Venture visits skip live timers still running. Desynthesis extracts 100%-spiritbond materia before destroying the item.");

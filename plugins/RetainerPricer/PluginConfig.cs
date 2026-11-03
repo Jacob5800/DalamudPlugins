@@ -25,6 +25,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool UseBaconBroth { get; set; }
     public List<uint> DesynthesisItemIds { get; set; } = [];
     public int Version { get; set; } = 16;
+    public bool AskBeforeSplittingLargeStacks { get; set; } = true;
     public bool AutoPriceNewListings { get; set; } = true;
     public bool OpenWithRetainer { get; set; } = true;
     public bool ShowServerInfoBarButton { get; set; } = true;

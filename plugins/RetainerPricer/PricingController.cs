@@ -57,6 +57,25 @@ internal sealed class PricingController : IDisposable
     private CarriedItemCandidate? listingCandidate;
     private uint listingSubmittedPrice;
     private uint requestedListingQuantity;
+    public CarriedItemCandidate? LargeStackReviewItem { get; private set; }
+    private readonly Dictionary<(uint ItemId, bool Hq), LargeStackListingPlan> largeStackPlans = [];
+    public void ResolveLargeStack(bool split, int perListing = 50, int total = 0, bool dontAskAgain = false)
+    {
+        if (LargeStackReviewItem is not { } item) return;
+        largeStackPlans[(item.ItemId, item.IsHq)] = split
+            ? new LargeStackListingPlan((uint)Math.Clamp(perListing, 1, 999), (uint)Math.Clamp(total, 1, (int)item.Quantity))
+            : new LargeStackListingPlan(999, uint.MaxValue);
+        if (dontAskAgain) { config.AskBeforeSplittingLargeStacks = false; saveConfiguration(); }
+        LargeStackReviewItem = null;
+        nextTick = DateTimeOffset.UtcNow;
+        Status = split ? $"Approved {item.Name}: up to {perListing} per listing, {total} total this run." : "Continuing without splitting this item.";
+    }
+    private void RecordListedQuantity(CarriedItemCandidate item, uint quantity)
+    {
+        if (largeStackPlans.TryGetValue((item.ItemId, item.IsHq), out var plan)) plan.Confirm(quantity);
+        if (batchSellingOnly && config.BatchSaleMaxQuantities.GetValueOrDefault(item.ItemId) > 0)
+            batchSoldQuantitiesByItemId[item.ItemId] = batchSoldQuantitiesByItemId.GetValueOrDefault(item.ItemId) + quantity;
+    }
     private int listingSucceeded;
     private int listingSkipped;
     private readonly ListingRunRejections listingPriceRejections = new();
@@ -208,7 +227,7 @@ internal sealed class PricingController : IDisposable
             if (now >= nextTick) { nextTick = now.AddMilliseconds(250); TickReviewedVendor(now); }
             return;
         }
-        if (MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null) return;
+        if (MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -367,6 +386,7 @@ internal sealed class PricingController : IDisposable
         if (!listingTraversal)
         {
             listingPriceRejections.Clear();
+            largeStackPlans.Clear();
             skipMateriaWarningsThisRun = false;
             DontAskMateriaAgainThisRun = false;
         }
@@ -799,6 +819,7 @@ internal sealed class PricingController : IDisposable
         LastTraversalSucceeded = false;
         listingTraversal = false;
         listingPriceRejections.Clear();
+        largeStackPlans.Clear();
         skipMateriaWarningsThisRun = false;
         DontAskMateriaAgainThisRun = false;
         approvedMateriaItem = null;
@@ -1255,7 +1276,7 @@ internal sealed class PricingController : IDisposable
             case Step.AutoWaitPicker:
                 if (now <= deadline && bridge.HandleBuybackRecallPrompt(autoRetainers[autoRetainerIndex].RetainerId, ref buybackRecallSubmitted))
                 {
-                    Status = $"{TraversalOperation} · confirming departure after NPC sales...";
+                    Status = $"{TraversalOperation} · confirming departure after NPC sales: {bridge.BuybackRecallStatus}";
                     return;
                 }
                 if (bridge.IsRetainerDialogueVisible && !bridge.IsRetainerPickerVisible)
@@ -1281,7 +1302,7 @@ internal sealed class PricingController : IDisposable
                     step = Step.AutoSelectRetainer;
                     return;
                 }
-                if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer picker did not appear after choosing Quit.");
+                if (now > deadline) Cancel($"{TraversalOperation} stopped because the retainer picker did not appear after choosing Quit. {bridge.BuybackRecallStatus}");
                 return;
             case Step.AutoSelectRetainer:
             {
@@ -1750,12 +1771,23 @@ internal sealed class PricingController : IDisposable
                 return;
             }
 
+            if (!batchSellingOnly && !largeStackPlans.ContainsKey((candidate.ItemId, candidate.IsHq)) &&
+                config.AskBeforeSplittingLargeStacks && candidate.Quantity > 50)
+            {
+                LargeStackReviewItem = candidate;
+                Status = $"Review {candidate.Name} x {candidate.Quantity}: split into smaller listings or keep the stack.";
+                return;
+            }
+            if (!batchSellingOnly && largeStackPlans.TryGetValue((candidate.ItemId, candidate.IsHq), out var approvedPlan) && approvedPlan.Remaining == 0)
+            { index++; Status = $"Approved quantity reached for {candidate.Name}; remaining inventory is unchanged."; return; }
             listingCandidate = candidate;
             var perListing = config.BatchSaleQuantities.TryGetValue(candidate.ItemId, out var batchSize)
                 ? Math.Min(batchSize, candidate.Quantity)
                 : candidate.Quantity;
             var remainingTotal = maxTotal > 0 ? maxTotal - alreadySold : candidate.Quantity;
-            requestedListingQuantity = Math.Min(Math.Min(perListing, remainingTotal), 99);
+            requestedListingQuantity = !batchSellingOnly && largeStackPlans.TryGetValue((candidate.ItemId, candidate.IsHq), out var stackPlan)
+                ? stackPlan.Next(candidate.Quantity) : !batchSellingOnly && !config.AskBeforeSplittingLargeStacks
+                    ? candidate.Quantity : Math.Min(Math.Min(perListing, remainingTotal), 99);
             preListingSlots = listedBefore.Select(row => row.Slot).ToHashSet();
             if (!bridge.TryOpenInventoryItem(candidate, out var openError, config.DebugListingSelector))
             { Cancel($"Automatic listing stopped before opening {candidate.Name}: {openError}"); return; }
@@ -1946,8 +1978,6 @@ internal sealed class PricingController : IDisposable
                     var owner = ownRetainers.FirstOrDefault(retainer => retainer.RetainerId == submitted.Session.RetainerId);
                     if (owner is not null) RefreshRetainerListingCache(owner, submitted.Session, listed);
                 }
-                if (batchSellingOnly && config.BatchSaleMaxQuantities.TryGetValue(expected.ItemId, out var itemMaximum) && itemMaximum > 0)
-                    batchSoldQuantitiesByItemId[expected.ItemId] = batchSoldQuantitiesByItemId.GetValueOrDefault(expected.ItemId) + submitted.Quantity;
                 var remaining = expected.Quantity - submitted.Quantity;
                 if (remaining > 0)
                 {
@@ -1965,6 +1995,7 @@ internal sealed class PricingController : IDisposable
                         Status = $"{submitted.Name} was listed. Waiting for its remaining inventory stack to update before splitting it again...";
                         return;
                     }
+                    RecordListedQuantity(expected, submitted.Quantity);
                     batchCandidates[index] = remainingStack;
                     listingSucceeded++;
                     listingCandidate = null;
@@ -1976,6 +2007,7 @@ internal sealed class PricingController : IDisposable
                     return;
                 }
 
+                RecordListedQuantity(expected, submitted.Quantity);
                 listingSucceeded++;
                 index++;
                 listingCandidate = null;
@@ -2174,6 +2206,7 @@ internal sealed class PricingController : IDisposable
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
         bridge.ClearApprovedVendorDeparture();
+        LargeStackReviewItem = null; largeStackPlans.Clear();
         if (disposed) return;
         vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
         BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null; approvedBelowVendor = null;
