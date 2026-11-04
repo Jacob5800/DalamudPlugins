@@ -3,6 +3,7 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Item = Lumina.Excel.Sheets.Item;
 
@@ -75,6 +76,8 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
+    private bool desynthesisConfirmed;
+    private string desynthesisDiagnostic = "";
     private (InventoryType Bag, int Slot, uint Id, bool Hq)? extractionItem;
     private bool extractionConfirmed, extractionMenuSelected;
     private DateTimeOffset extractionDeadline;
@@ -253,6 +256,13 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         Status = $"Retrieving materia from {MateriaItemName}...";
     }
 
+    private void DesynthesisDiagnostic(string message)
+    {
+        if (message == desynthesisDiagnostic) return;
+        desynthesisDiagnostic = message;
+        bridge.LogAutomationDiagnostic(message);
+    }
+
     public void Update()
     {
         if (!IsRunning) return;
@@ -275,6 +285,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 && after->GetQuantity() == moving.Quantity && Melds(after) == moving.Materia)
             {
                 transfer = null;
+                next = now.AddSeconds(1);
                 Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
             }
             else if (now >= transferDeadline) Stop("Armoury transfer was not confirmed; check inventory and game errors before retrying.");
@@ -289,7 +300,38 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             var slot = bag->GetInventorySlot(wait.Slot);
             if (slot != null && (slot->GetBaseItemId() != wait.Id || slot->GetQuantity() < wait.Quantity))
             { completed++; pending = null; next = now.AddSeconds(1); Status = $"Desynthesized {completed} item(s)."; }
-            else if (now >= deadline) Stop("Desynthesis stopped: item was not consumed. Check game errors or inventory space.");
+            else if (now >= deadline)
+                Stop($"Desynthesis stopped: item {wait.Id} in {wait.Bag}, slot {wait.Slot} was not consumed. {desynthesisDiagnostic} Check game errors or inventory space.");
+            else if (!desynthesisConfirmed)
+            {
+                if (!TryGetProtections(out var protectedNow, out var error)) { Stop(error); return; }
+                if (protectedNow.Contains(wait.Id) || !config.DesynthesisItemIds.Contains(wait.Id))
+                { Stop("Desynthesis stopped: selected item is now protected or removed from the list."); return; }
+                var agent = AgentSalvage.Instance();
+                var dialog = gui.GetAddonByName<AddonSalvageDialog>("SalvageDialog");
+                if (agent == null || dialog == null || !dialog->IsVisible || !dialog->IsReady)
+                { DesynthesisDiagnostic($"Waiting for desynthesis confirmation dialog: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}."); return; }
+                if (agent->DesynthItemSlot.GetBaseItemId() != wait.Id
+                    || agent->DesynthItemSlot.Container != wait.Bag || agent->DesynthItemSlot.Slot != wait.Slot
+                    || slot == null || agent->DesynthItemSlot.ItemId != slot->ItemId
+                    || Melds(&agent->DesynthItemSlot) != Melds(slot))
+                { Stop($"Desynthesis confirmation does not match requested item {wait.Id} in {wait.Bag}, slot {wait.Slot}; no confirmation sent."); return; }
+                // Acknowledge only the item warning on this verified desynthesis dialog.
+                foreach (var entry in dialog->Checkboxes)
+                {
+                    if (entry.Type != SalvageDialogCheckboxType.Warning || entry.Checkbox == null || entry.Checkbox->IsChecked) continue;
+                    if (NativeUiButton.Click((AtkUnitBase*)dialog, (AtkComponentButton*)entry.Checkbox))
+                    { DesynthesisDiagnostic($"Acknowledging desynthesis item warning for item={wait.Id}."); return; }
+                }
+                if (NativeUiButton.Click((AtkUnitBase*)dialog, dialog->DesynthesizeButton))
+                {
+                    desynthesisConfirmed = true;
+                    deadline = now.AddSeconds(15);
+                    DesynthesisDiagnostic($"Desynthesis confirmation sent: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}.");
+                    Status = $"Desynthesizing {data.GetExcelSheet<Item>().GetRow(wait.Id).Name} Â· {completed} completed.";
+                }
+                else DesynthesisDiagnostic($"Desynthesis dialog waiting: item={wait.Id}, buttonEnabled={dialog->DesynthesizeButton != null && dialog->DesynthesizeButton->IsEnabled}.");
+            }
             return;
         }
         if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
@@ -338,13 +380,11 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 var agent = AgentSalvage.Instance();
                 if (agent == null) { Stop("Desynthesis agent unavailable."); return; }
                 pending = (type, i, id, slot->GetQuantity()); deadline = now.AddSeconds(15);
+                desynthesisConfirmed = false;
+                desynthesisDiagnostic = "";
                 agent->SalvageItem(slot);
-                AtkValue result = new();
-                AtkValue* args = stackalloc AtkValue[2];
-                args[0] = new AtkValue { Type = AtkValueType.Int, Int = 0 };
-                args[1] = new AtkValue { Type = AtkValueType.Bool, Byte = 1 };
-                agent->AgentInterface.ReceiveEvent(&result, args, 2, 1);
-                Status = $"Desynthesizing {item.Name} · {completed} completed.";
+                DesynthesisDiagnostic($"Opening desynthesis dialog: item={id}, bag={type}, slot={i}, quantity={slot->GetQuantity()}.");
+                Status = $"Preparing desynthesis for {item.Name} Â· {completed} completed.";
                 return;
             }
         }

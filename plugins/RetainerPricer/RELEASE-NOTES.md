@@ -1,3 +1,4 @@
-## Retainer Pricer 0.5.1.53
+## Retainer Pricer 0.5.1.54
 
-- Include listed armoury-chest items in desynthesis: move each eligible item into inventory first, skipping Exceptions and saved gearsets, including HQ gear.
+- Wait for the desynthesis confirmation dialog, verify the carried item, and acknowledge its item warning before confirming.
+- Add detailed desynthesis preparation and confirmation diagnostics instead of reporting a cast before confirmation.
