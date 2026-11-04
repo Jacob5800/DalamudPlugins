@@ -30,7 +30,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IPluginLog log;
     private readonly Config config;
     private readonly Match match = new();
-    private bool open = true;
+    private bool open;
     private string manualName = "";
     private int manualRoll = 1;
     private string announcement = "";

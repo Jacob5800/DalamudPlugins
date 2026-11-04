@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Roll Knockout",
   "InternalName": "RollKnockout",
-  "AssemblyVersion": "0.1.0.1",
+  "AssemblyVersion": "0.1.0.2",
   "Description": "Count unique player rolls, track highest and lowest, and announce elimination rounds.",
   "ApplicableVersion": "any",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
@@ -20,5 +20,5 @@
   "LoadPriority": 0,
   "Punchline": "Track highest and lowest rolls and elimination rounds.",
   "AcceptsFeedback": true,
-  "Changelog": "- Rename to Roll Knockout with a separate plugin identity so it appears alongside the official DeathRoll plugin. Open with /rollknockout."
+  "Changelog": "- Keep the window closed on startup; open it with `/rollknockout` or the plugin menu."
 }

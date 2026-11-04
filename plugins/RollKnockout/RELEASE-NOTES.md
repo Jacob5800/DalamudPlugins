@@ -1,3 +1,3 @@
-# Roll Knockout 0.1.0.1
+# Roll Knockout 0.1.0.2
 
-- Rename to Roll Knockout with a separate plugin identity so it appears alongside the official DeathRoll plugin. Open with `/rollknockout`.
+- Keep the window closed on startup; open it with `/rollknockout` or the plugin menu.
