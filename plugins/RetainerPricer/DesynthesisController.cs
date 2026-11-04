@@ -12,6 +12,64 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     IDataManager data, ICondition condition, IObjectTable objects, IGameGui gui, Func<bool> otherBusy)
 {
     private static readonly InventoryType[] Bags = [InventoryType.Inventory1, InventoryType.Inventory2, InventoryType.Inventory3, InventoryType.Inventory4];
+    private static readonly InventoryType[] Armoury = [InventoryType.ArmoryMainHand, InventoryType.ArmoryOffHand,
+        InventoryType.ArmoryHead, InventoryType.ArmoryBody, InventoryType.ArmoryHands, InventoryType.ArmoryLegs,
+        InventoryType.ArmoryFeets, InventoryType.ArmoryEar, InventoryType.ArmoryNeck, InventoryType.ArmoryWrist,
+        InventoryType.ArmoryRings];
+    private (InventoryType Source, int SourceSlot, InventoryType Bag, int Slot, uint RawId, uint Quantity, string Materia)? transfer;
+    private DateTimeOffset transferDeadline;
+
+    private bool TryGetProtections(out HashSet<uint> ids, out string error)
+    {
+        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out ids, out var saved, out error)) return false;
+        // Gearsets store HQ IDs; inventory candidates use base IDs. Protect both qualities conservatively.
+        ids.UnionWith(saved.Select(id => id >= 1000000 ? id - 1000000 : id));
+        return true;
+    }
+
+    private bool CanDesynthesize(uint id)
+    {
+        if (data.GetExcelSheet<Item>().GetRowOrDefault(id) is not { } item || item.Desynth <= 0 || !item.ClassJobRepair.IsValid) return false;
+        var index = item.ClassJobRepair.Value.ExpArrayIndex;
+        var player = PlayerState.Instance();
+        return player != null && index >= 0 && index < player->ClassJobLevels.Length && player->ClassJobLevels[index] >= 30;
+    }
+
+    // Move just one eligible copy, then wait for the server inventory update before processing it.
+    private bool PullArmouryItem(InventoryManager* inventory, HashSet<uint> protectedIds, DateTimeOffset now)
+    {
+        foreach (var type in Armoury)
+        {
+            var source = inventory->GetInventoryContainer(type);
+            if (source == null || !source->IsLoaded) { Stop("Armoury chest is loading; retry when ready."); return true; }
+            for (int i = 0; i < source->Size; i++)
+            {
+                var item = source->GetInventorySlot(i);
+                if (item == null || item->IsEmpty() || item->IsCollectable()) continue;
+                uint id = item->GetBaseItemId();
+                if (!config.DesynthesisItemIds.Contains(id) || protectedIds.Contains(id) || !CanDesynthesize(id)) continue;
+                foreach (var bagType in Bags)
+                {
+                    var bag = inventory->GetInventoryContainer(bagType);
+                    if (bag == null || !bag->IsLoaded) { Stop("Carried inventory is loading."); return true; }
+                    for (int j = 0; j < bag->Size; j++)
+                    {
+                        var destination = bag->GetInventorySlot(j);
+                        if (destination == null || !destination->IsEmpty()) continue;
+                        transfer = (type, i, bagType, j, item->ItemId, item->GetQuantity(), Melds(item));
+                        transferDeadline = now.AddSeconds(15);
+                        inventory->MoveItemSlot(type, (ushort)i, bagType, (ushort)j);
+                        Status = $"Moving {data.GetExcelSheet<Item>().GetRow(id).Name} from armoury chest to inventory...";
+                        return true;
+                    }
+                }
+                Stop("Free a carried inventory slot to move listed armoury items for desynthesis.");
+                return true;
+            }
+        }
+        return false;
+    }
+
     public bool IsRunning { get; private set; }
     public string Status { get; private set; } = "Ready.";
     private DateTimeOffset next, deadline;
@@ -27,7 +85,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         var slot = bag == null || !bag->IsLoaded ? null : bag->GetInventorySlot(item.Slot);
         if (slot == null || slot->IsEmpty() || slot->GetBaseItemId() != item.Id || slot->IsHighQuality() != item.Hq)
         { Stop("Materia extraction stopped: selected item changed."); return; }
-        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out var error)) { Stop(error); return; }
+        if (!TryGetProtections(out var protectedIds, out var error)) { Stop(error); return; }
         if (protectedIds.Contains(item.Id) || !config.DesynthesisItemIds.Contains(item.Id))
         { Stop("Materia extraction stopped: item is now protected or removed from the list."); return; }
         if (slot->GetSpiritbondOrCollectability() < 10000)
@@ -132,16 +190,17 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = false; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; transfer = null; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
         if (bridge.IsClientStateUnavailable || !QuestManager.IsQuestComplete(65688))
         { Status = "Log in and unlock desynthesis first."; return; }
         if (config.DesynthesisItemIds.Count == 0) { Status = "Add items to the desynthesis list first."; return; }
-        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out _, out _, out var error)) { Status = error; return; }
+        if (!TryGetProtections(out _, out var error)) { Status = error; return; }
         skippedMateria.Clear(); materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = WaitingForMateria = false;
         extractionItem = null;
+        transfer = null;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
         brothHandled = brothRequested = WaitingForBroth = false;
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
@@ -153,7 +212,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         var slot = bag == null || !bag->IsLoaded ? null : bag->GetInventorySlot(item.Slot);
         if (slot == null || slot->IsEmpty() || slot->GetBaseItemId() != item.Id || slot->IsHighQuality() != item.Hq)
         { Stop("Materia retrieval stopped: the selected inventory item changed."); return; }
-        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out var error))
+        if (!TryGetProtections(out var protectedIds, out var error))
         { Stop(error); return; }
         if (protectedIds.Contains(item.Id) || !config.DesynthesisItemIds.Contains(item.Id))
         { Stop("Materia retrieval stopped: this item is now protected or removed from the list."); return; }
@@ -204,6 +263,23 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         next = now.AddMilliseconds(250);
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
+        if (transfer is { } moving)
+        {
+            var source = inventory->GetInventoryContainer(moving.Source);
+            var destination = inventory->GetInventoryContainer(moving.Bag);
+            if (source == null || destination == null || !source->IsLoaded || !destination->IsLoaded)
+            { Stop("Inventory became unavailable during armoury transfer; no desynthesis requested."); return; }
+            var before = source->GetInventorySlot(moving.SourceSlot);
+            var after = destination->GetInventorySlot(moving.Slot);
+            if (before != null && before->IsEmpty() && after != null && after->ItemId == moving.RawId
+                && after->GetQuantity() == moving.Quantity && Melds(after) == moving.Materia)
+            {
+                transfer = null;
+                Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
+            }
+            else if (now >= transferDeadline) Stop("Armoury transfer was not confirmed; check inventory and game errors before retrying.");
+            return;
+        }
         if (extractionItem != null) { UpdateExtraction(inventory, now); return; }
         if (materiaItem != null) { UpdateMateria(inventory, now); return; }
         if (pending is { } wait)
@@ -219,7 +295,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
             || condition[ConditionFlag.OccupiedInQuestEvent] || condition[ConditionFlag.OccupiedSummoningBell]
             || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return;
-        if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var protectedIds, out _, out var protectionError))
+        if (!TryGetProtections(out var protectedIds, out var protectionError))
         { Stop(protectionError); return; }
         foreach (var type in Bags)
         {
@@ -272,6 +348,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 return;
             }
         }
+        if (PullArmouryItem(inventory, protectedIds, now)) return;
         Stop($"Desynthesis complete: {completed} item(s). Protected, declined and ineligible items skipped.");
     }
 }

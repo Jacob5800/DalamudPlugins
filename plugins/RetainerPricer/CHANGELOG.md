@@ -1,3 +1,7 @@
+## 0.5.1.53
+
+- Include listed armoury-chest items in desynthesis: move each eligible item into inventory first, skipping Exceptions and saved gearsets, including HQ gear.
+
 ## 0.5.1.52
 
 - Keep verified repriced values and refresh all unsold rows after an NPC sale, including earlier price-drop reviews.
