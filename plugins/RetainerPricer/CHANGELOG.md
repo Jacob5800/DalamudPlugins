@@ -1,3 +1,7 @@
+## 0.5.1.55
+
+- Finish the new-item listing pass at the retainer picker once no eligible carried items remain, so automation can advance without visiting empty retainers.
+
 ## 0.5.1.54
 
 - Wait for the desynthesis confirmation dialog, verify the carried item, and acknowledge its item warning before confirming.

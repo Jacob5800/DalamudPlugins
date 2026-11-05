@@ -1334,6 +1334,23 @@ internal sealed class PricingController : IDisposable
                 return;
             case Step.AutoSelectRetainer:
             {
+                if (listingTraversal)
+                {
+                    // Carried inventory is shared by every retainer. Recheck it at the picker,
+                    // before opening another retainer, rather than completing an empty traversal.
+                    SnapshotInventory();
+                    if (InventorySnapshotError is { } snapshotError)
+                    { Cancel($"Listing traversal stopped while checking remaining inventory: {snapshotError}"); return; }
+                    var remaining = InventoryCandidates.Count(item =>
+                        !listingPriceRejections.Contains(item.ItemId, item.IsHq) &&
+                        (!largeStackPlans.TryGetValue((item.ItemId, item.IsHq), out var plan) || plan.Remaining > 0));
+                    if (remaining == 0)
+                    {
+                        bridge.LogAutomationDiagnostic($"Listing pass finished at retainer picker: no eligible carried items remain; visited={autoRetainersCompleted}, nextRetainerIndex={autoRetainerIndex}, queuedRetainers={autoRetainers.Count}.");
+                        FinishRetainerTraversal();
+                        return;
+                    }
+                }
                 var target = autoRetainers[autoRetainerIndex];
                 if (!bridge.TrySelectRetainerById(target, out var unavailable, out error))
                 {
