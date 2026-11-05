@@ -1,3 +1,3 @@
-## Retainer Pricer 0.5.1.55
+## Retainer Pricer 0.5.1.56
 
-- Finish the new-item listing pass at the retainer picker once no eligible carried items remain, so automation can advance without visiting empty retainers.
+- Check the unique/untradeable desynthesis warning using the native checkbox state change before confirming the verified item.

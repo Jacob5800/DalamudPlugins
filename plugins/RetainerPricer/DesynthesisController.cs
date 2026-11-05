@@ -320,8 +320,13 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 foreach (var entry in dialog->Checkboxes)
                 {
                     if (entry.Type != SalvageDialogCheckboxType.Warning || entry.Checkbox == null || entry.Checkbox->IsChecked) continue;
-                    if (NativeUiButton.Click((AtkUnitBase*)dialog, (AtkComponentButton*)entry.Checkbox))
-                    { DesynthesisDiagnostic($"Acknowledging desynthesis item warning for item={wait.Id}."); return; }
+                    if (!entry.Checkbox->IsEnabled || entry.Checkbox->OwnerNode == null || !entry.Checkbox->OwnerNode->IsVisible())
+                    { DesynthesisDiagnostic($"Waiting for enabled desynthesis item warning: item={wait.Id}."); return; }
+                    // SetChecked performs the component state change and its native notification.
+                    // Sending ButtonClick directly to the addon leaves the checkbox unchecked.
+                    entry.Checkbox->SetChecked(true);
+                    DesynthesisDiagnostic($"Desynthesis item warning requested: item={wait.Id}, checked={entry.Checkbox->IsChecked}.");
+                    return;
                 }
                 if (NativeUiButton.Click((AtkUnitBase*)dialog, dialog->DesynthesizeButton))
                 {

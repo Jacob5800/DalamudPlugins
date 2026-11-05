@@ -1,3 +1,7 @@
+## 0.5.1.56
+
+- Check the unique/untradeable desynthesis warning using the native checkbox state change before confirming the verified item.
+
 ## 0.5.1.55
 
 - Finish the new-item listing pass at the retainer picker once no eligible carried items remain, so automation can advance without visiting empty retainers.
