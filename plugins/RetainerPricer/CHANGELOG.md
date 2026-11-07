@@ -1,3 +1,8 @@
+## 0.5.1.62
+
+- Require armoury transfers to remain stable for two seconds, with no matching pending inventory operation, before desynthesis.
+- Reset the wait if the item returns to the armoury chest; items already in inventory keep their existing timing.
+
 ## 0.5.1.61
 
 - Wait three seconds after a verified armoury-to-inventory transfer before selecting the item for desynthesis.

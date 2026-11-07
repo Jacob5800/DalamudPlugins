@@ -19,6 +19,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         InventoryType.ArmoryRings];
     private (InventoryType Source, int SourceSlot, InventoryType Bag, int Slot, uint RawId, uint Quantity, string Materia)? transfer;
     private DateTimeOffset transferDeadline;
+    private DateTimeOffset? transferStableSince;
 
     private bool TryGetProtections(out HashSet<uint> ids, out string error)
     {
@@ -58,8 +59,10 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                         var destination = bag->GetInventorySlot(j);
                         if (destination == null || !destination->IsEmpty()) continue;
                         transfer = (type, i, bagType, j, item->ItemId, item->GetQuantity(), Melds(item));
+                        transferStableSince = null;
                         transferDeadline = now.AddSeconds(15);
-                        inventory->MoveItemSlot(type, (ushort)i, bagType, (ushort)j);
+                        var result = inventory->MoveItemSlot(type, (ushort)i, bagType, (ushort)j);
+                        DesynthesisDiagnostic($"Armoury move requested: item={id}, source={type}, sourceSlot={i}, bag={bagType}, slot={j}, nativeResult={result}.");
                         Status = $"Moving {data.GetExcelSheet<Item>().GetRow(id).Name} from armoury chest to inventory...";
                         return true;
                     }
@@ -284,17 +287,35 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             { Stop("Inventory became unavailable during armoury transfer; no desynthesis requested."); return; }
             var before = source->GetInventorySlot(moving.SourceSlot);
             var after = destination->GetInventorySlot(moving.Slot);
-            if (before != null && before->IsEmpty() && after != null && after->ItemId == moving.RawId
+            bool operationPending = false;
+            foreach (var operation in inventory->PendingOperations)
+                if (!operation.IsEmpty && operation.SourceInventoryType == moving.Source
+                    && operation.SourceInventorySlot == moving.SourceSlot
+                    && operation.DestinationInventoryType == moving.Bag
+                    && operation.DestinationInventorySlot == moving.Slot)
+                { operationPending = true; break; }
+            if (!operationPending && before != null && before->IsEmpty() && after != null && after->ItemId == moving.RawId
                 && after->GetQuantity() == moving.Quantity && Melds(after) == moving.Materia)
             {
+                transferStableSince ??= now;
+                if (now < transferStableSince.Value.AddSeconds(2))
+                {
+                    Status = "Waiting for armoury transfer to remain stable before desynthesis.";
+                    return;
+                }
                 transfer = null;
-                // Inventory memory can reflect the move before the game accepts actions on
-                // the destination. Let the transfer settle before selecting a fresh bag slot.
-                next = now.AddSeconds(3);
-                DesynthesisDiagnostic($"Armoury transfer confirmed: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}; waiting before fresh inventory selection.");
+                transferStableSince = null;
+                DesynthesisDiagnostic($"Armoury transfer stable for two seconds with no matching pending operation: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}.");
                 Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
             }
-            else if (now >= transferDeadline) Stop("Armoury transfer was not confirmed; check inventory and game errors before retrying.");
+            else
+            {
+                if (transferStableSince != null)
+                    DesynthesisDiagnostic($"Armoury transfer changed during settling: source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, operationPending={operationPending}; no desynthesis requested.");
+                transferStableSince = null;
+                if (now >= transferDeadline)
+                    Stop($"Armoury transfer did not settle: item={moving.RawId}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, sourceItem={(before == null ? 0 : before->ItemId)}, destinationItem={(after == null ? 0 : after->ItemId)}, operationPending={operationPending}. No desynthesis requested.");
+            }
             return;
         }
         if (extractionItem != null) { UpdateExtraction(inventory, now); return; }
