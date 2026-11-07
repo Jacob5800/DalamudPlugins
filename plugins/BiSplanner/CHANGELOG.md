@@ -1,3 +1,7 @@
+## 0.3.0.6
+
+- Automatically recognize owned alternatives for supported item-level-synced XivGear gear when importing a set. Reimport existing sets to pick up alternatives.
+
 ## 0.3.0.5
 
 - Show currency icons and green/red purchase costs according to your available balance, with owned and required amounts on hover.

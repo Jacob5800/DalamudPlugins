@@ -72,7 +72,7 @@ namespace BiSplanner.ItemAssignment
 
         public bool NeedsItemId(uint candidateItemId)
         {
-            return ItemId == candidateItemId;
+            return ItemId == candidateItemId || (!isDummy && Gearpieces[0].AlternativeItemIds.Contains(candidateItemId));
         }
 
         public bool AddMatchingGearpiece(Gearpiece gearpiece, Gearset gearset)
@@ -80,7 +80,7 @@ namespace BiSplanner.ItemAssignment
             // tries to add gearpiece and return true. Returns false if gearpiece doesn't match this group
 
             // item ids don't match
-            if (gearpiece.ItemId != ItemId)
+            if (gearpiece.ItemId != ItemId || !gearpiece.AlternativeItemIds.SequenceEqual(Gearpieces[0].AlternativeItemIds))
                 return false;
 
             // item materia don't match
@@ -111,8 +111,10 @@ namespace BiSplanner.ItemAssignment
                 return ItemAssigmentSolver.DummyEdgeWeightValue;
 
             // candidate item id must match this group's item id, else no edge
-            if (candidateId != ItemId)
+            if (!NeedsItemId(candidateId))
                 return ItemAssigmentSolver.NoEdgeWeightValue;
+            if (candidateId != ItemId)
+                return GroupSizeScoreScalar + minGearpieceIdx * GearpieceIndexScoreScalar - 1;
 
             var groupMateriaCounts = MateriaList
                 .GroupBy(m => m.ItemId)

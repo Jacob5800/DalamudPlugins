@@ -194,7 +194,9 @@ namespace BiSplanner.Ui.Renderers.Components
 
                 var buttonPos = ImGui.GetCursorPos();
                 var buttonScreenPos = ImGui.GetCursorScreenPos();
-                var buttonText = $"{gearpiece.ItemName}";
+                var buttonText = gearpiece.ObservedAlternativeItemId is uint alternative
+                    ? $"{gearpiece.ItemName} (using {itemDataService.GetItemNameById(alternative)})"
+                    : gearpiece.ItemName;
                 var collectionStatusButtonSize = new Vector2(buttonSize.Y, buttonSize.Y);
                 var collectionStatusTheme = uiTheme.GetCollectionStatusTheme(gearpiece.CollectionStatus);
                 var materiaSize = 16 * ImGuiHelpers.GlobalScale;

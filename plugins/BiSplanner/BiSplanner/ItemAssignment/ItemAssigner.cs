@@ -37,16 +37,18 @@ namespace BiSplanner.ItemAssignment
                             updatedGearpieces.Add(gearpiece);
 
                         gearpiece.ObservedMateriaIds = null;
+                        gearpiece.ObservedAlternativeItemId = null;
                         gearpiece.IsCollected = false;
                         continue;
                     }
 
                     // gearpiece assigned
-                    if (assignment.ItemId == gearpiece.ItemId)
+                    if (assignment.ItemId == gearpiece.ItemId || gearpiece.AlternativeItemIds.Contains(assignment.ItemId.Value))
                     {
                         if (!gearpiece.IsCollected)
                             updatedGearpieces.Add(gearpiece);
 
+                        gearpiece.ObservedAlternativeItemId = assignment.ItemId == gearpiece.ItemId ? null : assignment.ItemId;
                         gearpiece.ObservedMateriaIds = assignment.ItemMateria.ToArray();
                         gearpiece.ItemMateria.MeldMultipleMateria(assignment.ItemMateria);
                         gearpiece.IsCollected = true;

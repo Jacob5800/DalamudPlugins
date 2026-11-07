@@ -22,6 +22,7 @@ namespace BiSplanner.Converters
                 throw new JsonException("Expected StartObject for Gearpiece");
 
             uint? itemId = null;
+            uint[] alternatives = [];
             PrerequisiteNode? prerequisiteTree = null;
             List<Materia>? itemMateria = null;
             bool? isCollected = null;
@@ -40,6 +41,9 @@ namespace BiSplanner.Converters
                 {
                     case nameof(Gearpiece.ItemId):
                         itemId = reader.GetUInt32();
+                        break;
+                    case nameof(Gearpiece.AlternativeItemIds):
+                        alternatives = JsonSerializer.Deserialize<uint[]>(ref reader, options) ?? [];
                         break;
                     case nameof(Gearpiece.PrerequisiteTree):
                         prerequisiteTree = JsonSerializer.Deserialize<PrerequisiteNode>(ref reader, options);
@@ -65,7 +69,7 @@ namespace BiSplanner.Converters
             if (itemId == null)
                 throw new JsonException("No itemId found for Gearpiece");
 
-            return gearpieceFactory.Create(
+            var piece = gearpieceFactory.Create(
                 itemId!.Value,
                 itemMateria,
                 prerequisiteTree,
@@ -73,6 +77,8 @@ namespace BiSplanner.Converters
                 collectionStatusLocked ?? isManuallyCollected ?? false,
                 extendTree: true
                 );
+            piece.AlternativeItemIds = alternatives;
+            return piece;
         }
 
         public override void Write(Utf8JsonWriter writer, Gearpiece value, JsonSerializerOptions options)
@@ -80,6 +86,11 @@ namespace BiSplanner.Converters
             writer.WriteStartObject();
 
             writer.WriteNumber(nameof(Gearpiece.ItemId), value.ItemId);
+            if (value.AlternativeItemIds.Length > 0)
+            {
+                writer.WritePropertyName(nameof(Gearpiece.AlternativeItemIds));
+                JsonSerializer.Serialize(writer, value.AlternativeItemIds, options);
+            }
             writer.WriteBoolean(nameof(Gearpiece.IsCollected), value.IsCollected);
             writer.WriteBoolean(nameof(Gearpiece.CollectLock), value.CollectLock);
 

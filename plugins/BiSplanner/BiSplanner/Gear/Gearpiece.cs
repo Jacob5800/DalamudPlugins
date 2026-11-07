@@ -15,6 +15,8 @@ namespace BiSplanner.Gear
         private bool collectLock;
         private readonly ITypedLogger<Gearpiece> logger;
         public uint ItemId { get; set; }
+        public uint[] AlternativeItemIds { get; set; } = [];
+        public uint? ObservedAlternativeItemId { get; set; }
         public string ItemName { get; set; }
         public GearpieceType GearpieceType { get; set; }
         public PrerequisiteNode? PrerequisiteTree { get; set; }

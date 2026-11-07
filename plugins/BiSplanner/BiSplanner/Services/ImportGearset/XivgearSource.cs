@@ -6,7 +6,7 @@ using BiSplanner.Items;
 using Dalamud.Utility;
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -79,16 +79,26 @@ namespace BiSplanner.Services.ImportGearset
                 using var jsonDoc = JsonDocument.Parse(jsonString);
                 var jsonRootElement = jsonDoc.RootElement;
                 var gearsets = new List<Gearset>();
+                XivgearSyncedAlternatives? alternatives = null;
+                var level = jsonRootElement.TryGetProperty("level", out var levelElement) && levelElement.ValueKind == JsonValueKind.Number && levelElement.TryGetInt32(out var sheetLevel) ? sheetLevel : 0;
+                if (level > 0 && jsonRootElement.TryGetProperty("ilvlSync", out var syncElement)
+                    && syncElement.ValueKind == JsonValueKind.Number && syncElement.TryGetInt32(out var sync) && sync > 0
+                    && jsonRootElement.TryGetProperty("job", out var jobElement) && jobElement.ValueKind == JsonValueKind.String && jobElement.GetString() is string job)
+                {
+                    try { alternatives = await XivgearSyncedAlternatives.Load(httpClient, job, sync); }
+                    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException or ArgumentException)
+                    { logger.Warning($"XivGear alternatives unavailable: {ex.Message}"); }
+                }
 
                 // page has multiple gearsets on it, handle appropriately
                 if (jsonRootElement.TryGetProperty("sets", out var setsElement))
                 {
-                    gearsets = parseMultipleGearsets(setsElement, jsonRootElement, importSiteUri);
+                    gearsets = parseMultipleGearsets(setsElement, jsonRootElement, importSiteUri, alternatives, level);
                 }
                 // one gearset page
                 else if (jsonRootElement.TryGetProperty("items", out var items))
                 {
-                    var gearset = parseGearset(importSiteUri, jsonRootElement, null);
+                    var gearset = parseGearset(importSiteUri, jsonRootElement, null, alternatives, level);
                     if (gearset != null)
                         gearsets.Add(gearset);
                 }
@@ -112,7 +122,7 @@ namespace BiSplanner.Services.ImportGearset
         private List<Gearset> parseMultipleGearsets(
             JsonElement setsElement,
             JsonElement rootElement,
-            Uri importSiteUri
+            Uri importSiteUri, XivgearSyncedAlternatives? alternatives, int level
             )
         {
             var gearsets = new List<Gearset>();
@@ -147,7 +157,7 @@ namespace BiSplanner.Services.ImportGearset
                         }.Uri;
                     }
 
-                    var gearset = parseGearset(setSourceUri, setElement, classJobId);
+                    var gearset = parseGearset(setSourceUri, setElement, classJobId, setElement.TryGetProperty("jobOverride", out _) ? null : alternatives, level);
                     if (gearset != null)
                         gearsets.Add(gearset);
                 }
@@ -160,7 +170,7 @@ namespace BiSplanner.Services.ImportGearset
             return gearsets;
         }
 
-        private Gearset? parseGearset(Uri importSiteUri, JsonElement setElement, uint? gearsetJobOverride)
+        private Gearset? parseGearset(Uri importSiteUri, JsonElement setElement, uint? gearsetJobOverride, XivgearSyncedAlternatives? alternatives, int level)
         {
             // set gearset name
             string? gearsetName = null;
@@ -188,6 +198,10 @@ namespace BiSplanner.Services.ImportGearset
                 throw new JsonException($"No items found in {gearsetName}");
 
             var gearpieces = new List<Gearpiece>();
+            var plannedRings = slots.EnumerateObject()
+                .Where(slot => slot.Name is "RingLeft" or "RingRight")
+                .Where(slot => slot.Value.TryGetProperty("id", out var ring) && ring.ValueKind == JsonValueKind.Number)
+                .Select(slot => slot.Value.GetProperty("id").GetUInt32()).ToHashSet();
 
             foreach (var slot in slots.EnumerateObject())
             {
@@ -224,6 +238,9 @@ namespace BiSplanner.Services.ImportGearset
                     itemId: gearpieceId,
                     itemMateria: gearpieceMateria
                     );
+
+                if (alternatives != null && gearpieceMateria.Count == 0 && !slot.Value.TryGetProperty("relicStats", out _))
+                    gearpiece.AlternativeItemIds = alternatives.Find(id.GetUInt32(), slot.Name, level, plannedRings);
 
                 // add gearpiece to gearset
                 gearpieces.Add(gearpiece);

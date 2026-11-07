@@ -500,7 +500,9 @@ namespace BiSplanner.ItemAssignment
                 var unassignedGroup = gearpieceGroups[unassignedGroupIndexes[i]];
                 var validAssignedGroups = gearpieceAssignments
                     .Select(assignIdx => gearpieceGroups[assignIdx])
-                    .Where(g => g.ItemId == unassignedGroup.ItemId)
+                    .Where(g => g.ItemId == unassignedGroup.ItemId
+                        && g.Gearpieces.Count > 0
+                        && g.Gearpieces[0].AlternativeItemIds.SequenceEqual(unassignedGroup.Gearpieces[0].AlternativeItemIds))
                     .OrderByDescending(g => unassignedGroup.CandidateEdgeWeight(
                         g.ItemId,
                         g.MateriaList.Select(m => m.ItemId).ToList()
