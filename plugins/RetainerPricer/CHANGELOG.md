@@ -1,3 +1,7 @@
+## 0.5.1.60
+
+- Added selected inventory slot and desynthesis result details to diagnostics when confirmation closes without consuming the item.
+
 ## 0.5.1.59
 
 - Wait for action readiness before desynthesis confirmation and retry unaccepted confirmations only while the same verified dialog remains open.

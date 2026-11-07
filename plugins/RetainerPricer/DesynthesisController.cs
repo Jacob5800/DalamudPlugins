@@ -325,7 +325,14 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                         desynthesisConfirmed = false;
                         DesynthesisDiagnostic($"Desynthesis did not start after confirmation attempt {confirmationAttempts}: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}; rechecking the open dialog before retry.");
                     }
-                    else DesynthesisDiagnostic($"Waiting for desynthesis consumption: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}, attempts={confirmationAttempts}, dialogVisible={dialog != null && dialog->IsVisible}, casting={condition[ConditionFlag.Casting]}.");
+                    else
+                    {
+                        var agent = AgentSalvage.Instance();
+                        var current = slot == null ? "carried slot unavailable" : $"carriedItem={slot->ItemId}, carriedQuantity={slot->GetQuantity()}";
+                        var selected = agent == null ? "agent unavailable" :
+                            $"agentItem={agent->DesynthItemSlot.ItemId}, agentBag={agent->DesynthItemSlot.Container}, agentSlot={agent->DesynthItemSlot.Slot}, resultOpen={agent->IsSalvageResultAddonOpen}, resultItem={agent->DesynthItemId}";
+                        DesynthesisDiagnostic($"Waiting for desynthesis consumption: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}, attempts={confirmationAttempts}, dialogVisible={dialog != null && dialog->IsVisible}, casting={condition[ConditionFlag.Casting]}, castObserved={desynthesisCastObserved}, {current}, {selected}.");
+                    }
                 }
             }
             else if (!desynthesisConfirmed)

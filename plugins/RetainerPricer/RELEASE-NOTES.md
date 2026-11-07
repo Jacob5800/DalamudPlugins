@@ -1,4 +1,3 @@
-## Retainer Pricer 0.5.1.59
+## Retainer Pricer 0.5.1.60
 
-- Wait for action readiness before desynthesis confirmation and retry unaccepted confirmations only while the same verified dialog remains open.
-- Added clearer armoury transfer and desynthesis-start diagnostics.
+- Added selected inventory slot and desynthesis result details to diagnostics when confirmation closes without consuming the item.
