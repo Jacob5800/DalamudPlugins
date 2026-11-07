@@ -133,7 +133,7 @@ The Status tab keeps the latest 300 messages for the current plugin session, inc
 The **Automation** tab has two independent settings, both **off by default**, including for existing users:
 
 - **Auto ventures:** run the normal venture cycle once at an idle retainer picker, using the collection/repeat/assignment settings in Ventures. No repricing or new-item listing.
-- **Automatically run the full sequence:** collect rewards and reassign each retainer in the same visit, list eligible carried items across available retainers, then update existing listings. If both toggles are enabled, only the full sequence starts.
+- **Automatically run the full sequence:** collect rewards and reassign each retainer in the same visit, list eligible carried items across available retainers, then update existing listings. The same saved checkbox is available at the bottom right of the game retainer picker. If both toggles are enabled, only the full sequence starts.
 
 **Run ventures** in Ventures must be enabled. The manual **Auto update** button starts the full sequence once without enabling either automatic trigger. Review Exceptions, gear protections and listing quantities before using the full sequence. If Exceptions is empty, manual Auto update uses the existing listing confirmation; unattended full runs require the saved acknowledgement first.
 

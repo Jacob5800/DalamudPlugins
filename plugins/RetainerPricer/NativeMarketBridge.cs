@@ -110,6 +110,17 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return true;
     }
 
+    public bool TryGetRetainerAutomationTogglePosition(out System.Numerics.Vector2 position)
+    {
+        position = default;
+        var addon = (AtkUnitBase*)gameGui.GetAddonByName("RetainerList").Address;
+        if (addon == null || !addon->IsReady || !addon->IsVisible) return false;
+        position = new System.Numerics.Vector2(
+            addon->X + addon->GetScaledWidth(true) - 12 * addon->Scale,
+            addon->Y + addon->GetScaledHeight(true) - 12 * addon->Scale);
+        return true;
+    }
+
     public bool IsComparisonVisible => IsAddonVisible("ItemSearchResult");
     public bool IsSellWindowVisible => GetSellAddon() != null;
     public bool IsClientStateUnavailable => !clientState.IsLoggedIn || !player.IsLoaded || player.ContentId == 0 ||

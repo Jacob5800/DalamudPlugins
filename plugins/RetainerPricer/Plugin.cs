@@ -133,6 +133,7 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
         pluginInterface.UiBuilder.Draw += DrawRetainerVentureButton;
         pluginInterface.UiBuilder.Draw += DrawRetainerListingButton;
+        pluginInterface.UiBuilder.Draw += DrawRetainerAutomationToggle;
         pluginInterface.UiBuilder.Draw += itemPriceTooltip.Draw;
         pluginInterface.UiBuilder.Draw += marketboardRoi.Draw;
         pluginInterface.UiBuilder.Draw += armouryMarkers.Draw;
@@ -431,6 +432,36 @@ public sealed class Plugin : IDalamudPlugin
         Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
     }
 
+    private void DrawRetainerAutomationToggle()
+    {
+        if (disposed || !bridge.TryGetRetainerAutomationTogglePosition(out var position)) return;
+        Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position, Dalamud.Bindings.ImGui.ImGuiCond.Always,
+            new System.Numerics.Vector2(1, 1));
+        var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
+            Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoBackground | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoFocusOnAppearing;
+        Dalamud.Bindings.ImGui.ImGui.PushStyleVar(Dalamud.Bindings.ImGui.ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
+        if (Dalamud.Bindings.ImGui.ImGui.Begin("Retainer automation toggle##RetainerPricer", flags))
+        {
+            var busy = controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning ||
+                desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
+            Dalamud.Bindings.ImGui.ImGui.BeginDisabled(busy);
+            var enabled = config.AutoRunFullSequence;
+            if (Dalamud.Bindings.ImGui.ImGui.Checkbox("Automatically run the full sequence", ref enabled))
+            {
+                config.AutoRunFullSequence = enabled;
+                Save();
+            }
+            Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+            if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                Dalamud.Bindings.ImGui.ImGui.SetTooltip(busy
+                    ? "Finish the current operation before changing automatic runs."
+                    : "Same setting as Automation: collect rewards, reassign ventures, list new items, then update listings at an idle retainer picker. Run ventures must be enabled for the venture steps.");
+        }
+        Dalamud.Bindings.ImGui.ImGui.End();
+        Dalamud.Bindings.ImGui.ImGui.PopStyleVar();
+    }
+
     private void Toggle() { if (!disposed) window.Toggle(); }
     private bool UndercutsPaused() => !config.ShowUndercutNotifier || config.HideUndercutInDuties &&
         (condition[ConditionFlag.BoundByDuty] || condition[ConditionFlag.BoundByDuty56] || condition[ConditionFlag.BoundByDuty95]);
@@ -449,6 +480,7 @@ public sealed class Plugin : IDalamudPlugin
             ("Clipboard drawing", () => pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard),
             ("Venture button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton),
             ("Listing button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerListingButton),
+            ("Automation toggle", () => pluginInterface.UiBuilder.Draw -= DrawRetainerAutomationToggle),
             ("Tooltip drawing", () => pluginInterface.UiBuilder.Draw -= itemPriceTooltip.Draw),
             ("ROI drawing", () => pluginInterface.UiBuilder.Draw -= marketboardRoi.Draw),
             ("Armoury markers", () => pluginInterface.UiBuilder.Draw -= armouryMarkers.Draw),
