@@ -1,3 +1,3 @@
-## Retainer Pricer 0.5.1.57
+## Retainer Pricer 0.5.1.58
 
-- Added an Automatically run the full sequence checkbox at the bottom right of the game retainer picker, linked to the Automation setting.
+- Fixed the unique/untradeable desynthesis checkbox appearing checked while the Desynthesize button remained disabled.

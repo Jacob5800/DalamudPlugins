@@ -319,13 +319,16 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 // Acknowledge only the item warning on this verified desynthesis dialog.
                 foreach (var entry in dialog->Checkboxes)
                 {
-                    if (entry.Type != SalvageDialogCheckboxType.Warning || entry.Checkbox == null || entry.Checkbox->IsChecked) continue;
+                    if (entry.Type != SalvageDialogCheckboxType.Warning || entry.Checkbox == null) continue;
+                    if (entry.Checkbox->IsChecked && entry.IsCheckedCached) continue;
                     if (!entry.Checkbox->IsEnabled || entry.Checkbox->OwnerNode == null || !entry.Checkbox->OwnerNode->IsVisible())
                     { DesynthesisDiagnostic($"Waiting for enabled desynthesis item warning: item={wait.Id}."); return; }
-                    // SetChecked performs the component state change and its native notification.
-                    // Sending ButtonClick directly to the addon leaves the checkbox unchecked.
+                    // The component's checked state and the dialog's cached acknowledgement are
+                    // separate. Change the component first, then notify the registered addon
+                    // listener just as a checkbox interaction does; never force-enable the button.
                     entry.Checkbox->SetChecked(true);
-                    DesynthesisDiagnostic($"Desynthesis item warning requested: item={wait.Id}, checked={entry.Checkbox->IsChecked}.");
+                    var notified = NativeUiButton.Click((AtkUnitBase*)dialog, (AtkComponentButton*)entry.Checkbox);
+                    DesynthesisDiagnostic($"Desynthesis item warning requested: item={wait.Id}, checked={entry.Checkbox->IsChecked}, cached={entry.IsCheckedCached}, notified={notified}.");
                     return;
                 }
                 if (NativeUiButton.Click((AtkUnitBase*)dialog, dialog->DesynthesizeButton))
