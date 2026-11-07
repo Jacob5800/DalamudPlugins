@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.60",
+  "AssemblyVersion": "0.5.1.61",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.60\n\n- Added selected inventory slot and desynthesis result details to diagnostics when confirmation closes without consuming the item.",
+  "Changelog": "## 0.5.1.61\n\n- Wait three seconds after a verified armoury-to-inventory transfer before selecting the item for desynthesis.\n- Retained detailed inventory and desynthesis result diagnostics for failed attempts.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

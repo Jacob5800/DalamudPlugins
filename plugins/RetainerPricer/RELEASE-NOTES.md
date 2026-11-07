@@ -1,3 +1,4 @@
-## Retainer Pricer 0.5.1.60
+## Retainer Pricer 0.5.1.61
 
-- Added selected inventory slot and desynthesis result details to diagnostics when confirmation closes without consuming the item.
+- Wait three seconds after a verified armoury-to-inventory transfer before selecting the item for desynthesis.
+- Retained detailed inventory and desynthesis result diagnostics for failed attempts.

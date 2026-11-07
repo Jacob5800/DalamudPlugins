@@ -288,7 +288,9 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 && after->GetQuantity() == moving.Quantity && Melds(after) == moving.Materia)
             {
                 transfer = null;
-                next = now.AddSeconds(1);
+                // Inventory memory can reflect the move before the game accepts actions on
+                // the destination. Let the transfer settle before selecting a fresh bag slot.
+                next = now.AddSeconds(3);
                 DesynthesisDiagnostic($"Armoury transfer confirmed: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}; waiting before fresh inventory selection.");
                 Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
             }
