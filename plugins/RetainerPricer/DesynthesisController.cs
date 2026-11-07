@@ -20,6 +20,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private (InventoryType Source, int SourceSlot, InventoryType Bag, int Slot, uint RawId, uint Quantity, string Materia)? transfer;
     private DateTimeOffset transferDeadline;
     private DateTimeOffset? transferStableSince;
+    private bool transferActionSent;
 
     private bool TryGetProtections(out HashSet<uint> ids, out string error)
     {
@@ -60,9 +61,12 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                         if (destination == null || !destination->IsEmpty()) continue;
                         transfer = (type, i, bagType, j, item->ItemId, item->GetQuantity(), Melds(item));
                         transferStableSince = null;
+                        transferActionSent = false;
                         transferDeadline = now.AddSeconds(15);
-                        var result = inventory->MoveItemSlot(type, (ushort)i, bagType, (ushort)j);
-                        DesynthesisDiagnostic($"Armoury move requested: item={id}, source={type}, sourceSlot={i}, bag={bagType}, slot={j}, nativeResult={result}.");
+                        var context = AgentInventoryContext.Instance();
+                        if (context == null) { Stop("Armoury transfer stopped: inventory context agent unavailable."); return true; }
+                        context->OpenForItemSlot(type, i, 0, 0);
+                        DesynthesisDiagnostic($"Opening native Return to Inventory action: item={id}, source={type}, sourceSlot={i}.");
                         Status = $"Moving {data.GetExcelSheet<Item>().GetRow(id).Name} from armoury chest to inventory...";
                         return true;
                     }
@@ -287,6 +291,24 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             { Stop("Inventory became unavailable during armoury transfer; no desynthesis requested."); return; }
             var before = source->GetInventorySlot(moving.SourceSlot);
             var after = destination->GetInventorySlot(moving.Slot);
+            if (!transferActionSent)
+            {
+                if (now >= transferDeadline) { Stop("Armoury Return to Inventory menu timed out; no desynthesis requested."); return; }
+                if (before == null || before->ItemId != moving.RawId || before->GetQuantity() != moving.Quantity || Melds(before) != moving.Materia)
+                { Stop("Armoury item changed before Return to Inventory; no transfer requested."); return; }
+                if (!TryGetProtections(out var protectedNow, out var transferProtectionError)) { Stop(transferProtectionError); return; }
+                if (protectedNow.Contains(before->GetBaseItemId()) || !config.DesynthesisItemIds.Contains(before->GetBaseItemId()))
+                { Stop("Armoury item became protected or was removed from the desynthesis list."); return; }
+                if (MateriaRetrieval.TrySelect(gui, data, moving.Source, moving.SourceSlot, before,
+                    out var menuPending, out var menuError, actionOverride: "Return to Inventory"))
+                {
+                    transferActionSent = true;
+                    transferDeadline = now.AddSeconds(15);
+                    DesynthesisDiagnostic($"Native Return to Inventory requested: item={moving.RawId}, source={moving.Source}, sourceSlot={moving.SourceSlot}; waiting for verified transfer.");
+                }
+                else if (!menuPending) Stop("Armoury transfer stopped: " + menuError);
+                return;
+            }
             bool operationPending = false;
             foreach (var operation in inventory->PendingOperations)
                 if (!operation.IsEmpty && operation.SourceInventoryType == moving.Source

@@ -23,20 +23,20 @@ internal static unsafe class MateriaRetrieval
     }
 
     public static bool TrySelect(IGameGui gui, IDataManager data, InventoryType bag, int index, InventoryItem* slot,
-        out bool pending, out string error, bool extraction = false)
+        out bool pending, out string error, bool extraction = false, string? actionOverride = null)
     {
         pending = false;
-        string action = extraction ? "Extract Materia" : "Retrieve Materia";
+        string action = actionOverride ?? (extraction ? "Extract Materia" : "Retrieve Materia");
         uint label = data.GetExcelSheet<Addon>(ClientLanguage.English)
-            .FirstOrDefault(row => row.Text.ToString().Equals(extraction ? "Extract Materia" : "Retrieve Materia", StringComparison.OrdinalIgnoreCase)).RowId;
+            .FirstOrDefault(row => row.Text.ToString().Equals(action, StringComparison.OrdinalIgnoreCase)).RowId;
         var agent = AgentInventoryContext.Instance();
         error = action + " menu label or inventory agent is unavailable.";
         if (label == 0 || agent == null) return false;
         string expected = data.GetExcelSheet<Addon>().GetRow(label).Text.ToString();
-        error = "Inventory context target changed before materia retrieval.";
+        error = "Inventory context target changed before " + action + ".";
         if (agent->TargetInventoryId != bag || agent->TargetInventorySlotId != index || agent->TargetInventorySlot != slot) return false;
         var menu = gui.GetAddonByName<AtkUnitBase>("ContextMenu");
-        error = "Inventory context menu did not open for materia retrieval.";
+        error = "Inventory context menu did not open for " + action + ".";
         if (menu == null || !menu->IsVisible || !menu->IsReady || menu->AtkValues == null || menu->AtkValuesCount < 9)
         { pending = true; error = ""; return false; }
         int count = (int)menu->AtkValues[0].UInt;

@@ -1,4 +1,4 @@
-## Retainer Pricer 0.5.1.62
+## Retainer Pricer 0.5.1.63
 
-- Require armoury transfers to remain stable for two seconds, with no matching pending inventory operation, before desynthesis.
-- Reset the wait if the item returns to the armoury chest; items already in inventory keep their existing timing.
+- Use the game's Return to Inventory action for listed armoury items before desynthesis.
+- Preserve item protections and the two-second stable-transfer check.
