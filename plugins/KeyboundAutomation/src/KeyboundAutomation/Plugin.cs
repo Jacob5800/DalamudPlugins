@@ -54,7 +54,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private readonly MapEntrySwitch mapEntry = new MapEntrySwitch(1359u);
 
-	private readonly MapEntrySwitch lobbyEntry = new MapEntrySwitch(1360u);
 
 	private readonly RoundLoop loop = new RoundLoop();
 
@@ -122,11 +121,8 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private bool uiCaptures;
 
-	private bool autoQueuePaused;
 
-	private bool autoQueueLoop;
 
-	private bool autoQueueVisitArmed = true;
 
 	public Plugin(IDalamudPluginInterface pi, ICommandManager commands, IFramework framework, IClientState client, IDataManager data, IGameGui gui, IPluginLog log, IGameLifecycle lifecycle, ICondition condition, IObjectTable objects, IDtrBar dtrBar, IChatGui chat, IPartyList party, IPlayerState playerState)
 	{
@@ -228,10 +224,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		lock (executionGate)
 		{
 			mapEntry.Observe(loggedIn: false, 0u);
-			lobbyEntry.Observe(loggedIn: false, 0u);
-			autoQueueVisitArmed = true;
-			autoQueuePaused = false;
-			autoQueueLoop = false;
 			loop.Stop();
 			typing.Stop();
 			backgroundKeys.Release(force: true);
@@ -366,22 +358,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			automation.Reset();
 			StartTyping(Environment.TickCount64, "duty_entry");
             controlGate = "MapEntry";
-		}
-		bool flag = !client.IsLoggedIn;
-		if (!flag)
-		{
-			uint territoryType = client.TerritoryType;
-			bool flag2 = territoryType - 1359 <= 1;
-			flag = !flag2;
-		}
-		if (flag)
-		{
-			autoQueueVisitArmed = true;
-		}
-		if (lobbyEntry.Observe(client.IsLoggedIn, client.TerritoryType) && autoQueueVisitArmed && config.AutoQueueOnLobbyEntry && loopUi.Supported && !loop.Active)
-		{
-			autoQueueVisitArmed = false;
-			StartLoop(automatic: true);
 		}
 		try
 		{
@@ -678,11 +654,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 
 	private void StartLoop()
 	{
-		StartLoop(automatic: false);
-	}
-
-	private void StartLoop(bool automatic)
-	{
 		bool flag = !loopUi.Supported || !client.IsLoggedIn;
 		if (!flag)
 		{
@@ -693,8 +664,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 		if (!flag)
 		{
 			long tickCount = Environment.TickCount64;
-			autoQueueLoop = automatic;
-			autoQueuePaused = false;
 			typing.Stop();
 			backgroundKeys.Release(force: true);
             Keyboard.Release(force: true);
@@ -702,7 +671,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			activity.Reset();
 			automation.Suppress();
 			SetPlayEnabled(enabled: true);
-			loop.Start(tickCount, config.LoopCount, IsContent(), automatic);
+			loop.Start(tickCount, config.LoopCount, IsContent());
 			loopSample = 0L;
 			if (IsContent())
 			{
@@ -737,18 +706,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
             // Capture results before the loop can close a short-lived result UI.
             if (state.Result) rewards.Tick(now, client.IsLoggedIn, client.TerritoryType, loading, force: true);
 			bool flag = (!foregroundGame && !config.BackgroundInput) || (foregroundGame && (Keyboard.Modifier || uiCaptures));
-			LoopPhase phase;
-			if (!flag)
-			{
-				bool flag2 = autoQueueLoop && autoQueuePaused;
-				if (flag2)
-				{
-					phase = loop.Phase;
-					bool flag3 = (uint)(phase - 1) <= 1u;
-					flag2 = flag3;
-				}
-				flag = flag2;
-			}
 			LoopAction loopAction = roundLoop.Tick(now, state, flag);
 			switch (loopAction)
 			{
@@ -767,7 +724,7 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 			case LoopAction.None:
 				break;
 			}
-			phase = loop.Phase;
+			var phase = loop.Phase;
 			if ((phase == LoopPhase.Complete || phase == LoopPhase.Error) ? true : false)
 			{
 				automation.Suppress();
@@ -775,19 +732,6 @@ public sealed class Plugin : IDalamudPlugin, IDisposable
 				backgroundKeys.Release(force: true);
             Keyboard.Release(force: true);
 			}
-		}
-	}
-
-	private void StopAutoQueue()
-	{
-		config.AutoQueueOnLobbyEntry = false;
-		settings.Update(config);
-		autoQueuePaused = false;
-		autoQueueVisitArmed = false;
-		if (autoQueueLoop)
-		{
-			loop.Stop();
-			autoQueueLoop = false;
 		}
 	}
 
@@ -1040,16 +984,24 @@ ImGui.BeginDisabled(loop.Active);
 								settings.Update(config);
 							}
 							ImGui.EndDisabled();
-							if (loop.Unlimited)
-							{
-								ImU8String text = new ImU8String(55, 2);
-								text.AppendLiteral("Auto queue: ");
-								text.AppendFormatted(loop.Completed);
-								text.AppendLiteral(" completed; repeats until Stop auto queue. ");
-								text.AppendFormatted(T(loop.Paused ? "UserPaused" : ("Loop" + loop.Phase)));
-								ImGui.TextWrapped(text);
-							}
-							else if (loop.Total > 0)
+                            var canQueue = loopUi.Supported && client.IsLoggedIn && client.TerritoryType is 1359 or 1360;
+                            ImGui.BeginDisabled(loop.Active || !canQueue);
+                            if (ImGui.Button("Start auto queue"))
+                                StartLoop();
+                            ImGui.EndDisabled();
+                            ImGui.SameLine();
+                            ImGui.BeginDisabled(!loop.Active || loop.StopRequested);
+                            if (ImGui.Button("Stop after current game"))
+                            {
+                                loop.RequestStop();
+                                loop.Resume();
+                            }
+                            ImGui.EndDisabled();
+                            if (!canQueue)
+                                ImGui.TextDisabled("Start from the Keybound lobby or duty.");
+                            if (loop.Active && loop.StopRequested)
+                                ImGui.TextDisabled("Finishing the current game before stopping.");
+                            if (loop.Total > 0)
 							{
 								ImGui.TextWrapped(string.Format(T("LoopProgress"), loop.Current, loop.Total, loop.Completed) + " / " + T(loop.Paused ? "UserPaused" : ("Loop" + loop.Phase)));
 							}
@@ -1067,36 +1019,6 @@ ImGui.BeginDisabled(loop.Active);
 								}
 							}
 
-
-							ImGui.Separator();
-							bool v = config.AutoQueueOnLobbyEntry;
-							if (Interface.AutomationShell.Toggle("Auto queue on lobby entry", ref v))
-							{
-								config.AutoQueueOnLobbyEntry = v;
-								settings.Update(config);
-								if (!v)
-								{
-									StopAutoQueue();
-								}
-								else if (client.IsLoggedIn && client.TerritoryType == 1360 && !loop.Active)
-								{
-									autoQueueVisitArmed = false;
-									StartLoop(automatic: true);
-								}
-							}
-							if (ImGui.IsItemHovered()) ImGui.SetTooltip("Waits near the registrar and repeats until stopped. Number of runs applies only to the manual loop.");
-							ImGui.BeginDisabled(!autoQueueLoop || !loop.Active);
-							if (ImGui.Button((autoQueuePaused ? "Resume auto queue" : "Pause auto queue") + "###AutoQueuePause"))
-							{
-								autoQueuePaused = !autoQueuePaused;
-							}
-							ImGui.EndDisabled();
-							ImGui.SameLine();
-							if (ImGui.Button("Stop auto queue###AutoQueueStop"))
-							{
-								StopAutoQueue();
-							}
-							if (ImGui.IsItemHovered()) ImGui.SetTooltip("Stops further automatic registrations. Does not cancel an existing queue or stop play.");
 
         });
     }

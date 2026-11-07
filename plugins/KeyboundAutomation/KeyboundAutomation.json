@@ -2,8 +2,8 @@
   "Author": "Tataru-business",
   "Name": "Keybound Automation",
   "InternalName": "TataruBrawler",
-  "AssemblyVersion": "1.0.8.30",
-  "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler for the Keybound Automation interface. Auto queue on lobby entry repeats until Stop auto queue; the circular arrows start a counted manual loop. Diagnostic recording, automatic play, and play on MapID 1359 are enabled at startup.",
+  "AssemblyVersion": "1.0.8.31",
+  "Description": "Reads Keybound Brawler prompts and answers with keyboard input. Open /tatarubrawler, set the number of runs, and press Start auto queue from the Keybound lobby or duty.",
   "ApplicableVersion": "any",
   "Tags": [
     "gold saucer",
@@ -19,7 +19,7 @@
   "AcceptsFeedback": true,
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/KeyboundAutomation/images/icon.png",
-  "Changelog": "- Add Open Keybound Coffers with a Start/Stop button in Quick Controls. Opens carried coffers one at a time, waits for each cast and inventory update, and stops when finished or inventory space is unavailable.",
+  "Changelog": "- Set a run count and press Start auto queue. Stop after current game finishes the active or queued game without starting another.",
   "IsHide": false,
   "IsTestingExclusive": false
 }

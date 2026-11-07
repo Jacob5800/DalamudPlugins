@@ -1,3 +1,7 @@
+## 1.0.8.31
+
+- Set a run count and press Start auto queue. Stop after current game finishes the active or queued game without starting another.
+
 ## 1.0.8.30
 
 - Add Open Keybound Coffers with a Start/Stop button in Quick Controls. Opens carried coffers one at a time, waits for each cast and inventory update, and stops when finished or inventory space is unavailable.

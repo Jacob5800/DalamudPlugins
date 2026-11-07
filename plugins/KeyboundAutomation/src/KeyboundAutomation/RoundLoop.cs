@@ -35,6 +35,10 @@ public sealed class RoundLoop
 
 	public int Total { get; private set; }
 
+	public bool StopRequested { get; private set; }
+
+	public void RequestStop() => StopRequested = true;
+
 	public int Completed { get; private set; }
 
 	public int Current
@@ -66,6 +70,7 @@ public sealed class RoundLoop
 		Unlimited = unlimited;
 		Total = ((!unlimited) ? Math.Clamp(count, 1, 9999) : 0);
 		Completed = 0;
+		StopRequested = false;
 		Paused = false;
 		blockedAt = -1L;
 		accepted = (left = (confirmed = false));
@@ -116,7 +121,13 @@ public sealed class RoundLoop
 			Stop(error: true);
 			return LoopAction.None;
 		}
-		if ((Paused | blocked) || state.Loading)
+		if (StopRequested && !state.Loading && state.Lobby && !state.InGame
+            && !state.Queued && !state.EntryReady)
+        {
+            Stop();
+            return LoopAction.None;
+        }
+        if ((Paused | blocked) || state.Loading)
 		{
 			if (blockedAt < 0)
 			{
@@ -221,7 +232,7 @@ public sealed class RoundLoop
 		case LoopPhase.Leaving:
 			if (!state.InGame && state.Lobby && !state.Queued)
 			{
-				Set((Unlimited || Completed < Total) ? LoopPhase.Requesting : LoopPhase.Complete, now);
+				Set((!StopRequested && (Unlimited || Completed < Total)) ? LoopPhase.Requesting : LoopPhase.Complete, now);
 				break;
 			}
 			if (state.ExitConfirm && left && !confirmed)
