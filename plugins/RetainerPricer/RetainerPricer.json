@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.63",
+  "AssemblyVersion": "0.5.1.64",
   "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.63\n\n- Use the game's Return to Inventory action for listed armoury items before desynthesis.\n- Preserve item protections and the two-second stable-transfer check.",
+  "Changelog": "## 0.5.1.64\n\n- Reduced the stable armoury-transfer wait to 1.5 seconds while preserving transfer verification.\n- Removed extra one-second pauses after successful desynthesis and materia handling, and made readiness checks more responsive.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

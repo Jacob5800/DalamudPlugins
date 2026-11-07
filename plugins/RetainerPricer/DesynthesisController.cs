@@ -102,7 +102,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (protectedIds.Contains(item.Id) || !config.DesynthesisItemIds.Contains(item.Id))
         { Stop("Materia extraction stopped: item is now protected or removed from the list."); return; }
         if (slot->GetSpiritbondOrCollectability() < 10000)
-        { extractionItem = null; next = now.AddSeconds(1); Status = "Materia extracted; continuing desynthesis."; return; }
+        { extractionItem = null; next = now; Status = "Materia extracted; continuing desynthesis."; return; }
         if (!extractionMenuSelected)
         {
             if (now >= extractionDeadline) { Stop("Extract Materia menu did not become ready; no desynthesis was attempted."); return; }
@@ -237,7 +237,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             {
                 retrievalSent = retrievalMenuOpened = false;
                 materiaItem = item with { Melds = current };
-                next = now.AddSeconds(1);
+                next = now;
             }
             else if (!retrievalConfirmed && MateriaRetrieval.TryConfirm(gui, item.Bag, item.Slot, slot)) retrievalConfirmed = true;
             else if (now >= retrievalDeadline) Stop("Materia retrieval did not complete. Check the game error and inventory space.");
@@ -280,7 +280,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         { Stop("Desynthesis stopped: character unavailable, in combat, or another operation started."); return; }
         var now = DateTimeOffset.UtcNow;
         if (now < next) return;
-        next = now.AddMilliseconds(250);
+        next = now.AddMilliseconds(100);
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
         if (transfer is { } moving)
@@ -320,14 +320,14 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 && after->GetQuantity() == moving.Quantity && Melds(after) == moving.Materia)
             {
                 transferStableSince ??= now;
-                if (now < transferStableSince.Value.AddSeconds(2))
+                if (now < transferStableSince.Value.AddMilliseconds(1500))
                 {
                     Status = "Waiting for armoury transfer to remain stable before desynthesis.";
                     return;
                 }
                 transfer = null;
                 transferStableSince = null;
-                DesynthesisDiagnostic($"Armoury transfer stable for two seconds with no matching pending operation: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}.");
+                DesynthesisDiagnostic($"Armoury transfer stable for 1500 ms with no matching pending operation: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}.");
                 Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
             }
             else
@@ -348,7 +348,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             if (bag == null || !bag->IsLoaded) { Stop("Inventory is loading."); return; }
             var slot = bag->GetInventorySlot(wait.Slot);
             if (slot != null && (slot->GetBaseItemId() != wait.Id || slot->GetQuantity() < wait.Quantity))
-            { completed++; pending = null; next = now.AddSeconds(1); Status = $"Desynthesized {completed} item(s)."; }
+            { completed++; pending = null; next = now; Status = $"Desynthesized {completed} item(s)."; }
             else if (now >= deadline)
                 Stop($"Desynthesis stopped: item {wait.Id} in {wait.Bag}, slot {wait.Slot} was not consumed. {desynthesisDiagnostic} Check game errors or inventory space.");
             else if (desynthesisConfirmed)
