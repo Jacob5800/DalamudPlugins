@@ -77,6 +77,9 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
     private int completed;
     private bool desynthesisConfirmed;
+    private int confirmationAttempts;
+    private DateTimeOffset confirmationSentAt;
+    private bool desynthesisCastObserved;
     private string desynthesisDiagnostic = "";
     private (InventoryType Bag, int Slot, uint Id, bool Hq)? extractionItem;
     private bool extractionConfirmed, extractionMenuSelected;
@@ -286,6 +289,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             {
                 transfer = null;
                 next = now.AddSeconds(1);
+                DesynthesisDiagnostic($"Armoury transfer confirmed: item={after->GetBaseItemId()}, source={moving.Source}, sourceSlot={moving.SourceSlot}, bag={moving.Bag}, slot={moving.Slot}, quantity={after->GetQuantity()}; waiting before fresh inventory selection.");
                 Status = "Armoury transfer confirmed; checking item protections before desynthesis.";
             }
             else if (now >= transferDeadline) Stop("Armoury transfer was not confirmed; check inventory and game errors before retrying.");
@@ -302,6 +306,28 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             { completed++; pending = null; next = now.AddSeconds(1); Status = $"Desynthesized {completed} item(s)."; }
             else if (now >= deadline)
                 Stop($"Desynthesis stopped: item {wait.Id} in {wait.Bag}, slot {wait.Slot} was not consumed. {desynthesisDiagnostic} Check game errors or inventory space.");
+            else if (desynthesisConfirmed)
+            {
+                if (condition[ConditionFlag.Casting])
+                {
+                    desynthesisCastObserved = true;
+                    DesynthesisDiagnostic($"Desynthesis cast observed: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}; waiting for consumption.");
+                }
+                else if (!desynthesisCastObserved && now >= confirmationSentAt.AddSeconds(3))
+                {
+                    var dialog = gui.GetAddonByName<AddonSalvageDialog>("SalvageDialog");
+                    // Retry only an unaccepted confirmation. Never reopen a closed dialog or
+                    // repeat after a cast; the next update revalidates identity and protections.
+                    if (dialog != null && dialog->IsReady && dialog->IsVisible
+                        && dialog->DesynthesizeButton != null && dialog->DesynthesizeButton->IsEnabled
+                        && confirmationAttempts < 3)
+                    {
+                        desynthesisConfirmed = false;
+                        DesynthesisDiagnostic($"Desynthesis did not start after confirmation attempt {confirmationAttempts}: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}; rechecking the open dialog before retry.");
+                    }
+                    else DesynthesisDiagnostic($"Waiting for desynthesis consumption: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}, attempts={confirmationAttempts}, dialogVisible={dialog != null && dialog->IsVisible}, casting={condition[ConditionFlag.Casting]}.");
+                }
+            }
             else if (!desynthesisConfirmed)
             {
                 if (!TryGetProtections(out var protectedNow, out var error)) { Stop(error); return; }
@@ -331,9 +357,13 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                     DesynthesisDiagnostic($"Desynthesis item warning requested: item={wait.Id}, checked={entry.Checkbox->IsChecked}, cached={entry.IsCheckedCached}, notified={notified}.");
                     return;
                 }
+                if (condition[ConditionFlag.Casting] || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0)
+                { DesynthesisDiagnostic($"Waiting for action readiness before desynthesis confirmation: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}."); return; }
                 if (NativeUiButton.Click((AtkUnitBase*)dialog, dialog->DesynthesizeButton))
                 {
                     desynthesisConfirmed = true;
+                    confirmationAttempts++;
+                    confirmationSentAt = now;
                     deadline = now.AddSeconds(15);
                     DesynthesisDiagnostic($"Desynthesis confirmation sent: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}.");
                     Status = $"Desynthesizing {data.GetExcelSheet<Item>().GetRow(wait.Id).Name} Â· {completed} completed.";
@@ -389,6 +419,8 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 if (agent == null) { Stop("Desynthesis agent unavailable."); return; }
                 pending = (type, i, id, slot->GetQuantity()); deadline = now.AddSeconds(15);
                 desynthesisConfirmed = false;
+                confirmationAttempts = 0;
+                desynthesisCastObserved = false;
                 desynthesisDiagnostic = "";
                 agent->SalvageItem(slot);
                 DesynthesisDiagnostic($"Opening desynthesis dialog: item={id}, bag={type}, slot={i}, quantity={slot->GetQuantity()}.");
