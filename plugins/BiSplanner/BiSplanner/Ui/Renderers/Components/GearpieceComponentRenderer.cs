@@ -105,7 +105,7 @@ namespace BiSplanner.Ui.Renderers.Components
                 using (ImRaii.PushColor(ImGuiCol.Text, new Vector4(0.8f, 0.8f, 0.8f, 1)))
                 using (ImRaii.PushIndent(25f, scaled: false))
                 {
-                    var locations = itemLocationService.GetLocations(gearpiece.ItemId);
+                    var locations = itemLocationService.GetLocations(gearpiece.ObservedAlternativeItemId ?? gearpiece.ItemId);
                     if (locations.Count > 0)
                         ImGui.TextWrapped("Location: " + string.Join("; ", locations));
                     else if (gearpieceCollected)
@@ -195,7 +195,7 @@ namespace BiSplanner.Ui.Renderers.Components
                 var buttonPos = ImGui.GetCursorPos();
                 var buttonScreenPos = ImGui.GetCursorScreenPos();
                 var buttonText = gearpiece.ObservedAlternativeItemId is uint alternative
-                    ? $"{gearpiece.ItemName} (using {itemDataService.GetItemNameById(alternative)})"
+                    ? itemDataService.GetItemNameById(alternative)
                     : gearpiece.ItemName;
                 var collectionStatusButtonSize = new Vector2(buttonSize.Y, buttonSize.Y);
                 var collectionStatusTheme = uiTheme.GetCollectionStatusTheme(gearpiece.CollectionStatus);
@@ -217,7 +217,9 @@ namespace BiSplanner.Ui.Renderers.Components
                 {
                     if (gearpiece.ItemMateria.Count > 0 || gearpiece.PrerequisiteTree is not null)
                         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
-                    else
+                    if (gearpiece.ObservedAlternativeItemId.HasValue)
+                        UiComponents.SetSolidTooltip($"Using {buttonText} as a synced alternative for {gearpiece.ItemName}.");
+                    else if (!hasSubItems)
                         UiComponents.SetSolidTooltip(
                             Resource.GearpieceNoSubItemsTooltip
                             );
@@ -242,7 +244,7 @@ namespace BiSplanner.Ui.Renderers.Components
                 ImGui.PushClipRect(buttonScreenPos, botRightClipRect, true);
                 try
                 {
-                    ImGui.Text(buttonText);
+                    ImGui.TextUnformatted(buttonText);
                 }
                 finally
                 {

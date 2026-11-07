@@ -1,3 +1,7 @@
+## 0.3.0.7
+
+- Show the owned synced alternative as the gear row name and in item locations. Hover the row to see the original planned item.
+
 ## 0.3.0.6
 
 - Automatically recognize owned alternatives for supported item-level-synced XivGear gear when importing a set. Reimport existing sets to pick up alternatives.

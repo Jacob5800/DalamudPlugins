@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
     <PropertyGroup>
         <TargetFramework>net10.0-windows</TargetFramework>
-        <Version>0.3.0.6</Version>
+        <Version>0.3.0.7</Version>
         <Description>Gearing, simplified.</Description>
         <PackageProjectUrl>https://github.com/Jacob5800/DalamudPlugins</PackageProjectUrl>
         <RepoUrl>https://github.com/Jacob5800/DalamudPlugins</RepoUrl>
@@ -38,9 +38,9 @@ Automatically syncs gearsets with player inventory</Description>
         <IconUrl>https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/BiSplanner/images/icon.png</IconUrl>
         <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
         <IsPackable>false</IsPackable>
-        <Changelog>## 0.3.0.6
+        <Changelog>## 0.3.0.7
 
-- Automatically recognize owned alternatives for supported item-level-synced XivGear gear when importing a set. Reimport existing sets to pick up alternatives.</Changelog>
+- Show the owned synced alternative as the gear row name and in item locations. Hover the row to see the original planned item.</Changelog>
         <NeutralLanguage>en</NeutralLanguage>
     </PropertyGroup>
 
