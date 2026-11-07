@@ -436,15 +436,15 @@ namespace BiSplanner.ItemAssignment
             if (gearpieceAssignments.Length != gearpieceCandidateItems.Count)
                 throw new ArgumentException("Assignment count must match candidate items count");
 
-            var unassignedGroupIndexes = Enumerable
-                .Range(0, gearpieceGroups.Count)
-                .Where(i => !gearpieceAssignments.Contains(i))
+            var assignedGroups = gearpieceAssignments
+                .Select((group, candidate) => (group, candidate))
+                .Where(match => match.group >= 0 && gearpieceEdges[match.group, match.candidate] != NoEdgeWeightValue)
+                .ToDictionary(match => match.group, match => match.candidate);
+            var unassignedGroupIndexes = Enumerable.Range(0, gearpieceGroups.Count)
+                .Where(index => !assignedGroups.ContainsKey(index))
                 .ToList();
 
-            if (!configuration.StrictMateriaMatching)
-            {
-                addUnassignedGearpieceGroups(unassignedGroupIndexes, gearpieceAssignments);
-            }
+            addUnassignedGearpieceGroups(unassignedGroupIndexes, assignedGroups);
 
             for (var i = 0; i < gearpieceAssignments.Length; i++)
             {
@@ -492,21 +492,31 @@ namespace BiSplanner.ItemAssignment
             }
         }
 
-        private void addUnassignedGearpieceGroups(List<int> unassignedGroupIndexes, int[] gearpieceAssignments)
+        private void addUnassignedGearpieceGroups(List<int> unassignedGroupIndexes, Dictionary<int, int> assignedGroups)
         {
             var unassignedGroupsCount = unassignedGroupIndexes.Count;
             for (var i = unassignedGroupsCount - 1; i >= 0; i--)
             {
                 var unassignedGroup = gearpieceGroups[unassignedGroupIndexes[i]];
-                var validAssignedGroups = gearpieceAssignments
-                    .Select(assignIdx => gearpieceGroups[assignIdx])
-                    .Where(g => g.ItemId == unassignedGroup.ItemId
-                        && g.Gearpieces.Count > 0
-                        && g.Gearpieces[0].AlternativeItemIds.SequenceEqual(unassignedGroup.Gearpieces[0].AlternativeItemIds))
-                    .OrderByDescending(g => unassignedGroup.CandidateEdgeWeight(
-                        g.ItemId,
-                        g.MateriaList.Select(m => m.ItemId).ToList()
-                    ));
+                if (unassignedGroup.Gearpieces.Count == 0)
+                    continue;
+
+                // An inventory copy can be reused across plans, but only once within a plan.
+                var validAssignedGroups = assignedGroups
+                    .Where(match =>
+                    {
+                        var candidate = gearpieceCandidateItems[match.Value];
+                        if (candidate.ItemId != unassignedGroup.ItemId)
+                            return unassignedGroup.NeedsItemId(candidate.ItemId);
+                        return !configuration.StrictMateriaMatching;
+                    })
+                    .OrderByDescending(match =>
+                    {
+                        var candidate = gearpieceCandidateItems[match.Value];
+                        return unassignedGroup.CandidateEdgeWeight(candidate.ItemId, candidate.MateriaIds.ToList());
+                    })
+                    .Select(match => gearpieceGroups[match.Key])
+                    .ToList();
 
                 // get gearset-gearpiece pairing
                 var unassignedGearpieceGearsets = unassignedGroup
