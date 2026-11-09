@@ -29,7 +29,7 @@ public class WarningUI : Window, IDisposable {
   /// </summary>
   internal readonly Pagination Pagination = new();
 
-  private const float INITIAL_WINDOW_HEIGHT = 130f;
+  private const float INITIAL_WINDOW_HEIGHT = 150f;
 
   private float WindowHeight = INITIAL_WINDOW_HEIGHT;
 
@@ -112,10 +112,10 @@ public class WarningUI : Window, IDisposable {
 
   private bool DisplayText(string text) {
     var height = ImGui.CalcTextSize("A").Y;
-    var padding = ImGui.GetStyle().WindowPadding.X;
     var wrappedHeight = ImGui.CalcTextSize(text, false, ImGui.GetContentRegionAvail().X).Y;
 
-    var desiredHeight = wrappedHeight + ImGui.GetFrameHeightWithSpacing() * 3 + ImGui.GetStyle().WindowPadding.Y * 2;
+    var desiredHeight = Math.Max(INITIAL_WINDOW_HEIGHT * ImGuiHelpers.GlobalScale,
+      wrappedHeight + ImGui.GetFrameHeightWithSpacing() * 4 + ImGui.GetStyle().WindowPadding.Y * 2);
     if (WindowHeight != desiredHeight) {
       WindowHeight = desiredHeight;
       this.Size = new Vector2(500f * ImGuiHelpers.GlobalScale, WindowHeight);

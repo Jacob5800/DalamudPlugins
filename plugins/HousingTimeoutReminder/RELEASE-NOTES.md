@@ -1,3 +1,3 @@
-## 1.0.5.15
+## 1.0.5.16
 
-- Improve disable/update cleanup: stop callbacks first, attempt remaining cleanup after an error, and ignore repeated shutdown calls.
+- Give the warning window more room so the Dismiss button stays fully visible.
