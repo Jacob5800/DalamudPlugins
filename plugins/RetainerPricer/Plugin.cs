@@ -356,9 +356,11 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawRetainerListingButton()
     {
         if (disposed) return;
-        if ((!config.ShowRetainerListingButton && !config.ShowRetainerVendorButton) || disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
+        if ((!config.ShowRetainerListingButton && !config.ShowRetainerUpdateButton && !config.ShowRetainerVendorButton) || disposed || !bridge.TryGetRetainerListingButtonPosition(out var position)) return;
         var vendorWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Retainer vendor items").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
+        var updateWidth = Dalamud.Bindings.ImGui.ImGui.CalcTextSize("Update existing listings").X + 2 * Dalamud.Bindings.ImGui.ImGui.GetStyle().FramePadding.X;
         position.X -= vendorWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
+        if (config.ShowRetainerUpdateButton) position.X -= updateWidth + Dalamud.Bindings.ImGui.ImGui.GetStyle().ItemSpacing.X;
         Dalamud.Bindings.ImGui.ImGui.SetNextWindowPos(position);
         var flags = Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoDecoration | Dalamud.Bindings.ImGui.ImGuiWindowFlags.AlwaysAutoResize |
             Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoSavedSettings | Dalamud.Bindings.ImGui.ImGuiWindowFlags.NoMove |
@@ -374,9 +376,19 @@ public sealed class Plugin : IDalamudPlugin
             if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
                 Dalamud.Bindings.ImGui.ImGui.SetTooltip("List eligible carried inventory using your current pricing rules and exclusions. Existing confirmation prompts still apply.");
             }
-            if (config.ShowRetainerVendorButton)
+            if (config.ShowRetainerUpdateButton)
             {
                 if (config.ShowRetainerListingButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
+                Dalamud.Bindings.ImGui.ImGui.BeginDisabled(!controller.CanApplyExisting || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning);
+                if (Dalamud.Bindings.ImGui.ImGui.Button("Update existing listings", new System.Numerics.Vector2(updateWidth, 0)))
+                    Dispatch(controller.UpdateExistingListings);
+                Dalamud.Bindings.ImGui.ImGui.EndDisabled();
+                if (Dalamud.Bindings.ImGui.ImGui.IsItemHovered(Dalamud.Bindings.ImGui.ImGuiHoveredFlags.AllowWhenDisabled))
+                    Dalamud.Bindings.ImGui.ImGui.SetTooltip("Update existing listings using your pricing scope, exclusions and price-drop checks. Same action as the main window.");
+            }
+            if (config.ShowRetainerVendorButton)
+            {
+                if (config.ShowRetainerListingButton || config.ShowRetainerUpdateButton) Dalamud.Bindings.ImGui.ImGui.SameLine();
             Dalamud.Bindings.ImGui.ImGui.BeginDisabled(controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || bridge.RetainerSaleAvailabilityError is not null);
             if (Dalamud.Bindings.ImGui.ImGui.Button("Retainer vendor items", new System.Numerics.Vector2(vendorWidth, 0)))
             {

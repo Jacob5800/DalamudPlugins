@@ -14,6 +14,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool ShowDebugStatus { get; set; } = true;
     public bool ShowDesynthesisList { get; set; }
     public bool ShowUndercutNotifier { get; set; }
+    public bool ShowDontMarket { get; set; } = true;
     public bool ShowDontReprice { get; set; }
     public bool ShowBatchSelling { get; set; }
     public bool ShowRetainerSell { get; set; }

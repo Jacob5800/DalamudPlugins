@@ -24,7 +24,7 @@ internal sealed class PricingController : IDisposable
     private enum Step
     {
         Start, Opening, WaitingToCompare, Quote, Closing,
-        ExistingWaitingToCompare, ExistingClosingCompare, ExistingClosingSell,
+        ExistingWaitingToCompare, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
         ClosingListingCompare, ClosingSkippedCompare,
         ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
@@ -52,6 +52,7 @@ internal sealed class PricingController : IDisposable
     private MarketSession? session;
     private bool autoApply;
     private bool localRequested;
+    private readonly MarketComparisonRetry localRetry = new();
     private PriceSource workSource;
     private uint submittedPrice;
     private List<CarriedItemCandidate> batchCandidates = [];
@@ -1192,7 +1193,7 @@ internal sealed class PricingController : IDisposable
         var error = string.Empty;
         if (work == Work.AutoUpdateAllRetainers &&
             (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
-                Step.ExistingWaitingToCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
+                Step.ExistingWaitingToCompare or Step.ExistingRetryClosingCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
                 Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming))
         {
             TickScan(now);
@@ -1677,6 +1678,7 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             ResetRequest();
+            localRetry.Reset();
             if (!bridge.TryOpenExisting(row.Item, out var openError)) { ScanFailed(row, openError); return; }
             deadline = now.AddSeconds(8);
             step = Step.Opening;
@@ -1703,14 +1705,36 @@ internal sealed class PricingController : IDisposable
                 Status = $"Waiting for the previous marketboard response before checking {waiting.Name}...";
                 return;
             }
+            if (!localRetry.IsReady(now)) return;
             if (!StartRequest(waiting, now, out var error)) { ScanFailed(row, error); return; }
             Status = $"Checking {waiting.Name} using {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")}.";
             step = Step.Quote;
         }
         if (step == Step.Quote && workingItem is not null && ReadRequest(workingItem, now, out var snapshot, out var failure))
         {
-            if (snapshot is null) ScanFailed(row, failure);
+            if (snapshot is null && workSource == PriceSource.Local &&
+                localRetry.TrySchedule(bridge.LastLocalRequestError, now))
+            {
+                if (!bridge.TryCloseCompare(workingItem, out var closeError))
+                { Cancel($"Could not close the rejected comparison for {row.Item.Name}: {closeError}"); return; }
+                row.Status = $"Market request rejected; retry {localRetry.Attempts}/2 after 0.5 seconds.";
+                Status = $"{row.Item.Name}: {row.Status}";
+                deadline = now.AddSeconds(10);
+                step = Step.ExistingRetryClosingCompare;
+            }
+            else if (snapshot is null) ScanFailed(row, failure);
             else ScanReceived(row, snapshot);
+        }
+        if (step == Step.ExistingRetryClosingCompare)
+        {
+            if (bridge.IsComparisonVisible || bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) Cancel("The rejected market comparison did not close; no further prices were submitted.");
+                return;
+            }
+            step = Step.ExistingWaitingToCompare;
+            deadline = now.AddSeconds(25);
+            return;
         }
         if (step == Step.ExistingClosingCompare)
         {

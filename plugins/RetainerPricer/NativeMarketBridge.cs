@@ -59,6 +59,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private bool resultReceived;
     private bool requestComplete;
     private int expectedListingCount;
+    public int LastLocalRequestError { get; private set; }
     private uint boardSearchItemId;
     private int boardSearchExpectedListingCount = -1;
     private bool boardSearchResultReceived;
@@ -1495,6 +1496,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         resultReceived = false;
         requestComplete = false;
         expectedListingCount = -1;
+        LastLocalRequestError = 0;
         localError = "Waiting for the complete local market response.";
         var clicked = ClickRegisteredButton(addon->ComparePrices, (AtkUnitBase*)addon, out error);
         log.Information("[Live repricing] Compare prices item={Item} retainer={Retainer} dialog={Dialog} nativeFlag={Flag} clickSent={Clicked} error={Error}",
@@ -1835,6 +1837,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             if (compareItem != null && proxy != null && proxy->SearchItemId == compareItem.ItemId)
             {
                 resultReceived = error == 0;
+                LastLocalRequestError = error;
                 requestComplete = error != 0;
                 expectedListingCount = count;
                 localSnapshot = null;

@@ -106,4 +106,12 @@ var restoredVisibility = new PluginConfig();
 SettingsBackup.Apply(restoredVisibility, SettingsBackup.Export(visibility)["Settings"]!.AsObject(), false);
 Check(restoredVisibility.ShowSniper && restoredVisibility.ShowDesynthesisList && !restoredVisibility.ShowDebugStatus,
     "visibility choices including false survive settings backup/restore");
+Check(new PluginConfig().ShowDontMarket, "Don't market visible by default");
+var retry = new MarketComparisonRetry();
+Check(!retry.TrySchedule(1, clock) && retry.Attempts == 0, "unknown market errors are not retried");
+Check(retry.TrySchedule(0x70000003, clock) && !retry.IsReady(clock.AddMilliseconds(499)), "market retry waits at least half a second");
+Check(retry.IsReady(clock.AddMilliseconds(500)), "market retry ready after half a second");
+Check(retry.TrySchedule(0x70000003, clock.AddSeconds(1)) && !retry.TrySchedule(0x70000003, clock.AddSeconds(2)), "market retries capped at two");
+retry.Reset();
+Check(retry.Attempts == 0 && retry.IsReady(clock), "next listing gets a fresh bounded retry allowance");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

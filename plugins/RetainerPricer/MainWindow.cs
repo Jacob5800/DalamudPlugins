@@ -320,12 +320,15 @@ internal sealed class MainWindow : Window
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(config.RunVentures ? "Start the configured venture cycle. Also available in Ventures." : "Enable Run ventures in the Ventures tab first.");
-        ImGui.SameLine();
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .35f, .70f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.12f, .48f, .85f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
-        if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
-        ImGui.PopStyleColor(3);
+        if (config.ShowDesynthesisList)
+        {
+            ImGui.SameLine();
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.08f, .35f, .70f, 1));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.12f, .48f, .85f, 1));
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.06f, .25f, .55f, 1));
+            if (ImGui.Button("Run Desynthesis")) dispatch(desynthesis.Start);
+            ImGui.PopStyleColor(3);
+        }
         if (config.ShowRetainerSell)
         {
             ImGui.SameLine();
@@ -448,7 +451,7 @@ internal sealed class MainWindow : Window
             if (config.ShowSniper && BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Don't market")) { DrawDontMarket(); ImGui.EndTabItem(); }
+            if (config.ShowDontMarket && ImGui.BeginTabItem("Don't market")) { DrawDontMarket(); ImGui.EndTabItem(); }
             if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
             if (config.ShowDesynthesisList && BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
@@ -901,6 +904,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextDisabled("VISIBLE TABS");
         Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
+        Feature("Show don't market", config.ShowDontMarket, v => config.ShowDontMarket = v);
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
         Feature("Show Retainer sell", config.ShowRetainerSell, v => config.ShowRetainerSell = v);
@@ -922,7 +926,7 @@ internal sealed class MainWindow : Window
         if (ImGui.CollapsingHeader("Retainer menu shortcut buttons"))
         {
             var showUpdate = config.ShowRetainerUpdateButton;
-            if (ImGui.Checkbox("Show Update existing listings on retainer menu", ref showUpdate)) { config.ShowRetainerUpdateButton = showUpdate; save(); }
+            if (ImGui.Checkbox("Show Update existing listings on retainer and Markets menus", ref showUpdate)) { config.ShowRetainerUpdateButton = showUpdate; save(); }
             var showVenture = config.ShowRetainerVentureButton;
             if (ImGui.Checkbox("Show Start venture cycle on retainer menu", ref showVenture)) { config.ShowRetainerVentureButton = showVenture; save(); }
             var showListing = config.ShowRetainerListingButton;
@@ -1418,6 +1422,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Ventures: opt in with Run ventures. Each retainer defaults to Quick Exploration; available item tasks are generated from its job and level, and gathering jobs are filtered by your Gathering Log. Open the retainer picker at a summoning bell to load your roster, then select a task in Which Venture? Refresh available ventures after unlocking new gathering items. You can choose whether to assign the selected venture to idle retainers and whether to repeat completed ventures. Jobs are auto-detected and can be overridden per retainer. The cycle does not use or require AutoRetainer.");
         ImGui.BulletText("Automation: the bottom-right checkbox on the game retainer picker mirrors Automatically run the full sequence and saves the same preference. Auto sell TT cards or Run now uses normal teleport plus vnavmesh to reach the Gold Saucer trader. Only registered duplicate cards in carried bags are sold; Exceptions stay protected. Stop cancels the trip.");
         ImGui.BulletText("Settings offers optional gearset tooltips with set numbers, names and class/job icons and separate switches for the Undercut notifier, Don't reprice, Batch selling and Retainer sell tabs. Hidden lists keep their rules; hidden notifier monitoring pauses.");
+        ImGui.BulletText("Visible tabs: Show sniper controls Sniper, Sniper results and Buy list together. Show Desynthesis list also hides the top Run Desynthesis button. Show don't market controls its tab while preserving its rules. Debug status is visible by default; visibility choices are saved.");
         ImGui.BulletText("Settings: choose whether prices match the lowest eligible listing or undercut by 1 gil, set the minimum price, optionally reject old price data, choose how long successful Universalis results are reused, and select a pricing scope: World (home world), Data Center, or Region (including Materia). Sniper's market scope is set separately on its tab. You can also show or hide the server info bar shortcut.");
 
         ImGui.Separator();

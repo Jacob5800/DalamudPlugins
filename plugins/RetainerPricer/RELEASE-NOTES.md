@@ -1,4 +1,5 @@
-## Retainer Pricer 0.5.1.66
+## Retainer Pricer 0.5.1.67
 
-- Fixed World repricing waiting for an old marketboard flag before clicking Compare prices. Live quotes wait for complete matching results.
-- Grouped tab visibility settings in a separate section. Show sniper controls Sniper, Sniper results and Buy list together; Sniper and Desynthesis are hidden by default, while Debug status is shown. Visibility choices are saved.
+- Retry rejected live market comparisons after half a second, up to two retries per listing. Failed lookups leave prices unchanged.
+- Added Update existing listings beside Start listing items in the Markets window.
+- Show Desynthesis list now also controls the top Run Desynthesis button. Added Show don't market, enabled by default, alongside the other visibility settings.

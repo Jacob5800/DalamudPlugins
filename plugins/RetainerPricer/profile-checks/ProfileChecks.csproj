@@ -8,6 +8,7 @@
     <Compile Include="../SettingsProfiles.cs" Link="SettingsProfiles.cs" />
     <Compile Include="../ShiftStopPolicy.cs" Link="ShiftStopPolicy.cs" />
     <Compile Include="../ListingRunRejections.cs" Link="ListingRunRejections.cs" />
+    <Compile Include="../MarketComparisonRetry.cs" Link="MarketComparisonRetry.cs" />
     <Compile Include="../PriceCalculator.cs" Link="PriceCalculator.cs" />
     <Compile Include="../BelowVendorPolicy.cs" Link="BelowVendorPolicy.cs" />
     <Compile Include="../ListingRefresh.cs" Link="ListingRefresh.cs" />
