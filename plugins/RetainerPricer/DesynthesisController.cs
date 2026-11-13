@@ -135,14 +135,25 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private static string Melds(InventoryItem* slot) => string.Join(",", Enumerable.Range(0,5).Select(i => $"{slot->Materia[i]}:{slot->MateriaGrades[i]}"));
 
     public bool WaitingForBroth { get; private set; }
+    public string BrothReviewReason { get; private set; } = "";
     private bool brothHandled, brothRequested;
     private DateTimeOffset brothDeadline;
     public void ContinueWithoutBroth() { WaitingForBroth = false; brothHandled = true; }
     private bool HasBrothBuff => objects.LocalPlayer?.StatusList.Any(status => status.StatusId == 48
         && status.Param % 10000 == 270 && status.RemainingTime > 5) == true;
+    private bool AskToContinueWithoutBroth(string reason)
+    {
+        brothRequested = false;
+        WaitingForBroth = true;
+        BrothReviewReason = reason;
+        Status = $"{reason} Choose Continue without Bacon Broth or Stop.";
+        return false;
+    }
+
     private bool EnsureBroth(InventoryManager* inventory, DateTimeOffset now)
     {
         if (!config.UseBaconBroth || brothHandled) return true;
+        if (WaitingForBroth) return false;
         if (HasBrothBuff)
         {
             brothHandled = true; brothRequested = false;
@@ -156,11 +167,14 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             {
                 var food = objects.LocalPlayer?.StatusList.FirstOrDefault(status => status.StatusId == 48);
                 bridge.LogAutomationDiagnostic($"Bacon Broth confirmation timed out: foodParam={food?.Param}, remaining={food?.RemainingTime}; no second food request sent.");
-                Stop("Bacon Broth buff was not confirmed. Check the game error before retrying.");
+                return AskToContinueWithoutBroth("Bacon Broth could not be confirmed. Check any in-game error before retrying.");
             }
             return false;
         }
-        if (WaitingForBroth) return false;
+        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == 48 &&
+            status.Param % 10000 != 270 && status.RemainingTime > 0) == true)
+            return AskToContinueWithoutBroth("Another food buff is active. Continuing will keep your current food buff.");
+
         bool nq = false, hq = false;
         foreach (var type in Bags)
         {
@@ -174,11 +188,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             }
         }
         if (!hq && !nq)
-        {
-            WaitingForBroth = true;
-            Status = "Bacon Broth not found. Choose Continue without Bacon Broth or Stop.";
-            return false;
-        }
+            return AskToContinueWithoutBroth("Neither HQ nor NQ Bacon Broth was found in carried inventory.");
         // The native return value can be false even when item use is queued/consumed.
         // Submit once, then verify the actual food status instead of stopping or eating twice.
         brothRequested = true; brothDeadline = now.AddSeconds(15);

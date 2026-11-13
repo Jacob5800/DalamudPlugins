@@ -1,3 +1,7 @@
+## 0.5.1.72
+
+- Desynthesis preserves an active food buff and asks whether to continue without Bacon Broth. If Bacon Broth use fails, the same prompt lets you continue or stop.
+
 ## 0.5.1.71
 
 - Extended pricing sale history to 45 days. Sale-history approval applies only when pricing falls back to history because no eligible same-quality competitor exists.

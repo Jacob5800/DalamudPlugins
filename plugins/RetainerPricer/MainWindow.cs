@@ -384,11 +384,11 @@ internal sealed class MainWindow : Window
             if (!desynthesis.WaitingForMateria) ImGui.CloseCurrentPopup();
             ImGui.EndPopup();
         }
-        const string missingBrothPopup = "Bacon Broth not found";
-        if (desynthesis.WaitingForBroth) ImGui.OpenPopup(missingBrothPopup);
-        if (ImGui.BeginPopupModal(missingBrothPopup, ImGuiWindowFlags.AlwaysAutoResize))
+        const string brothReviewPopup = "Bacon Broth unavailable";
+        if (desynthesis.WaitingForBroth) ImGui.OpenPopup(brothReviewPopup);
+        if (ImGui.BeginPopupModal(brothReviewPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
-            ImGui.TextWrapped("Use Bacon Broth is enabled, but neither HQ nor NQ Bacon Broth was found in carried inventory.");
+            ImGui.TextWrapped(desynthesis.BrothReviewReason);
             if (ImGui.Button("Continue without Bacon Broth")) { desynthesis.ContinueWithoutBroth(); ImGui.CloseCurrentPopup(); }
             ImGui.SameLine();
             if (ImGui.Button("Stop")) { desynthesis.Stop(); ImGui.CloseCurrentPopup(); }
@@ -2083,7 +2083,7 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(desynthesis.IsRunning);
         if (ImGui.Checkbox("Use Bacon Broth", ref useBroth)) { config.UseBaconBroth = useBroth; save(); }
         ImGui.EndDisabled();
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Bacon Broth before desynthesis. Prefer HQ over NQ; an existing Bacon Broth food buff is reused. If none is carried, choose Continue or Stop.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Bacon Broth before desynthesis. Prefer HQ over NQ; an existing Bacon Broth food buff is reused. If another food buff is active or Bacon Broth cannot be used, choose Continue or Stop.");
         ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
         if (ImGui.Button("Grab carried inventory"))
             dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(false, out desynthesisSnapshotStatus));
