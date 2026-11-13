@@ -24,7 +24,7 @@ internal sealed class PricingController : IDisposable
     private enum Step
     {
         Start, Opening, WaitingToCompare, Quote, Closing,
-        ExistingWaitingToCompare, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
+        ExistingWaitingToCompare, ExistingHistory, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
         ClosingListingCompare, ClosingSkippedCompare,
         ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
@@ -53,6 +53,7 @@ internal sealed class PricingController : IDisposable
     private bool autoApply;
     private bool localRequested;
     private readonly MarketComparisonRetry localRetry = new();
+    private PriceSnapshot? pendingHistoryListings;
     private PriceSource workSource;
     private uint submittedPrice;
     private List<CarriedItemCandidate> batchCandidates = [];
@@ -231,7 +232,7 @@ internal sealed class PricingController : IDisposable
             if (now >= nextTick) { nextTick = now.AddMilliseconds(250); TickReviewedVendor(now); }
             return;
         }
-        if (MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
+        if (HistoryReviewItem is not null || MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -722,6 +723,39 @@ internal sealed class PricingController : IDisposable
         action?.Invoke();
     }
 
+    public SellItem? HistoryReviewItem { get; private set; }
+    public PriceProposal? HistoryReviewProposal { get; private set; }
+    private Action? historyProceed, historySkip;
+    private (SellItem Item, uint Price)? approvedHistoryPrice;
+
+    private bool AwaitHistoryReview(SellItem item, PriceProposal proposal, Action proceed, Action skip)
+    {
+        if (proposal.Rejection is not (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice)) return false;
+        HistoryReviewItem = item;
+        HistoryReviewProposal = proposal;
+        historyProceed = proceed;
+        historySkip = skip;
+        Status = $"{item.Name}: {proposal.Error}";
+        return true;
+    }
+
+    public void ResolveHistoryReview(uint? price)
+    {
+        if (HistoryReviewItem is not { } item) return;
+        if (price is { } chosen && (chosen < Math.Max(1, config.MinimumPrice) || chosen > PriceCalculator.MaximumPrice)) return;
+        var continuation = price.HasValue ? historyProceed : historySkip;
+        HistoryReviewItem = null;
+        HistoryReviewProposal = null;
+        historyProceed = historySkip = null;
+        if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(item, current))
+        { Cancel("The item changed during history review. No price was submitted."); return; }
+        if (price is { } approved) approvedHistoryPrice = (item, approved);
+        bridge.LogAutomationDiagnostic($"History price review item={item.ItemId}, HQ={item.IsHq}, retainer={item.Session.RetainerId}, decision={(price.HasValue ? "price approved" : "skip")}, price={price}");
+        deadline = DateTimeOffset.UtcNow.AddSeconds(25);
+        nextTick = DateTimeOffset.UtcNow;
+        continuation?.Invoke();
+    }
+
     public SellItem? PriceIncreaseItem { get; private set; }
     public uint PriceIncreaseTarget { get; private set; }
     private Action? increaseProceed, increaseSkip;
@@ -1193,7 +1227,7 @@ internal sealed class PricingController : IDisposable
         var error = string.Empty;
         if (work == Work.AutoUpdateAllRetainers &&
             (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
-                Step.ExistingWaitingToCompare or Step.ExistingRetryClosingCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
+                Step.ExistingWaitingToCompare or Step.ExistingHistory or Step.ExistingRetryClosingCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
                 Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming))
         {
             TickScan(now);
@@ -1448,6 +1482,7 @@ internal sealed class PricingController : IDisposable
     private void FinishAutoUpdate()
     {
         var wasListingTraversal = listingTraversal;
+        HistoryReviewItem = null; HistoryReviewProposal = null; historyProceed = historySkip = null; approvedHistoryPrice = null;
         PriceIncreaseItem = null;
         increaseProceed = increaseSkip = null;
         approvedIncrease = null;
@@ -1572,6 +1607,8 @@ internal sealed class PricingController : IDisposable
         }
         CurrentSnapshot = snapshot;
         CurrentProposal = Calculate(snapshot, workingItem);
+        if (AwaitHistoryReview(workingItem, CurrentProposal,
+            () => quoteTask = Task.FromResult(snapshot), () => Cancel("Skipped item at sale-history price review."))) return;
         if (workSource == PriceSource.Local && !bridge.TryCloseCompare(workingItem, out var closeError))
         { Cancel(closeError); return; }
         if (!CurrentProposal.CanApply)
@@ -1679,6 +1716,7 @@ internal sealed class PricingController : IDisposable
             }
             ResetRequest();
             localRetry.Reset();
+            pendingHistoryListings = null;
             if (!bridge.TryOpenExisting(row.Item, out var openError)) { ScanFailed(row, openError); return; }
             deadline = now.AddSeconds(8);
             step = Step.Opening;
@@ -1723,7 +1761,32 @@ internal sealed class PricingController : IDisposable
                 step = Step.ExistingRetryClosingCompare;
             }
             else if (snapshot is null) ScanFailed(row, failure);
+            else if (snapshot.Source == PriceSource.Local && bridge.TryGetOwnRetainerIds(out var ownIds) &&
+                ownIds.Contains(workingItem.Session.RetainerId) &&
+                !snapshot.Listings.Any(listing => listing.IsHq == workingItem.IsHq && !listing.OnMannequin && !ownIds.Contains(listing.RetainerId)))
+            {
+                pendingHistoryListings = snapshot;
+                step = Step.ExistingHistory;
+                deadline = now.AddSeconds(10);
+                Status = $"{workingItem.Name}: no same-quality competitors. Checking live sale history...";
+            }
             else ScanReceived(row, snapshot);
+        }
+        if (step == Step.ExistingHistory)
+        {
+            if (workingItem is not { } historyItem || pendingHistoryListings is null)
+            { Cancel("History fallback lost its original comparison; no price applied."); return; }
+            if (bridge.TryGetLocalHistorySnapshot(historyItem, pendingHistoryListings, out var history, out var historyError))
+            {
+                pendingHistoryListings = null;
+                ScanReceived(row, history!);
+            }
+            else if (historyError.Length != 0 || now > deadline)
+            {
+                pendingHistoryListings = null;
+                ScanFailed(row, historyError.Length != 0 ? historyError : "Live sale history did not arrive. Price unchanged.");
+            }
+            else return;
         }
         if (step == Step.ExistingRetryClosingCompare)
         {
@@ -2026,6 +2089,8 @@ internal sealed class PricingController : IDisposable
             { SkipBatchItem($"Skipped {current.Name}: {requestError}"); return; }
 
             var proposal = Calculate(snapshot, current);
+            if (AwaitHistoryReview(current, proposal, () => quoteTask = Task.FromResult(snapshot),
+                () => SkipBatchItem($"Skipped {current.Name}: sale-history price declined."))) return;
             if (!proposal.CanApply)
             {
                 listingPriceRejections.Record(current.ItemId, current.IsHq, proposal);
@@ -2210,6 +2275,10 @@ internal sealed class PricingController : IDisposable
     {
         row.Snapshot = snapshot;
         row.Proposal = Calculate(snapshot, row.Item);
+        if (workingItem is { } active && AwaitHistoryReview(active, row.Proposal,
+            () => ScanReceived(row, snapshot), () => { row.Proposal = null; row.Status = "Skipped at sale-history price review."; step = Step.Closing; })) return;
+        if (snapshot.Source == PriceSource.Local && snapshot.Sales is not null)
+            bridge.LogAutomationDiagnostic($"History fallback item={row.Item.ItemId}, HQ={row.Item.IsHq}, retainer={row.Item.Session.RetainerId}, salesReceived={snapshot.Sales.Count}, matchingRecentSales={row.Proposal.MatchingSales}, median={row.Proposal.SaleHistoryMedian}, used={row.Proposal.UsedSalesFallback}, suggested={row.Proposal.SuggestedPrice}, error={row.Proposal.Error}");
         row.PriceDropReviewThresholdPercent = config.PriceDropReviewPercentFor(row.Item.CurrentPrice);
         if (!row.Proposal.CanApply) row.Status = row.Proposal.Error!;
         else if (row.Proposal.SuggestedPrice == row.Item.CurrentPrice) row.Status = "Already priced";
@@ -2306,9 +2375,14 @@ internal sealed class PricingController : IDisposable
     {
         if (!bridge.TryGetOwnRetainerIds(out var ownIds) || !ownIds.Contains(item.Session.RetainerId))
             return new PriceProposal(0, 0, 0, "Your retainer ownership list is not ready. No price was applied; reopen the retainer list and retry.");
-        return Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds,
+        var proposal = Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds,
             snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
-                ? item.Session.DataCenterName : null, allowSalesFallback: !item.IsExisting);
+                ? item.Session.DataCenterName : null,
+            allowSalesFallback: !item.IsExisting || (snapshot.Source == PriceSource.Local && snapshot.Sales is not null));
+        if (proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice) && approvedHistoryPrice is { } review &&
+            SameListing(item, review.Item) && workingItem is { } active && SameDialog(active, review.Item))
+            return proposal with { SuggestedPrice = review.Price, Error = null, Rejection = PriceRejection.None };
+        return proposal;
     }
 
     private PriceProposal Calculate(PriceSnapshot snapshot, uint itemId, uint worldId, bool isHq,
@@ -2326,6 +2400,7 @@ internal sealed class PricingController : IDisposable
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
         quoteTask = null;
+        approvedHistoryPrice = null;
         localRequested = false;
     }
 
@@ -2348,6 +2423,7 @@ internal sealed class PricingController : IDisposable
         if (disposed) return;
         vendorListing = null; vendorCarriedCandidate = null; vendorStage = 0; vendorBeforeInventory = [];
         BelowVendorItem = null; belowVendorProceed = belowVendorSkip = null; approvedBelowVendor = null;
+        HistoryReviewItem = null; HistoryReviewProposal = null; historyProceed = historySkip = null; approvedHistoryPrice = null;
         PriceIncreaseItem = null;
         increaseProceed = increaseSkip = null;
         approvedIncrease = null;

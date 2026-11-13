@@ -54,7 +54,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
-        ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
+        ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar, IMarketBoard marketBoard,
         IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets, IKeyState keyState)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
@@ -78,7 +78,7 @@ public sealed class Plugin : IDalamudPlugin
         serverInfoBarEntry.Tooltip = "Click to open Retainer Pricer";
         serverInfoBarEntry.OnClick = _ => Toggle();
         serverInfoBarEntry.Shown = config.ShowServerInfoBarButton;
-        bridge = new NativeMarketBridge(gameGui, data, player, clientState, condition, addons, interop, sigScanner, log);
+        bridge = new NativeMarketBridge(gameGui, data, player, clientState, condition, addons, interop, sigScanner, log, marketBoard);
         marketboardRoi = new MarketboardRoi(gameGui, bridge, universalis, config);
         var itemSheet = data.GetExcelSheet<Item>();
         var itemChoices = itemSheet
@@ -197,7 +197,7 @@ public sealed class Plugin : IDalamudPlugin
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
                 ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
             controller.Update();
-            if (controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null || controller.BelowVendorItem is not null || controller.LargeStackReviewItem is not null) window.IsOpen = true;
+            if (controller.HistoryReviewItem is not null || controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null || controller.BelowVendorItem is not null || controller.LargeStackReviewItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
             UpdateAutomaticVentures();

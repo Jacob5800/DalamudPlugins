@@ -41,6 +41,8 @@ internal sealed class MainWindow : Window
     private string sniperItemSearch = "";
     private CarriedItemCandidate? largeStackPopupItem;
     private int largeStackPerListing = 50, largeStackTotal;
+    private SellItem? historyPopupItem;
+    private int historyPrice;
     private int sniperDealsPage;
     private bool openBuyListTab;
     private SniperDeal? pendingBuyListRemoval;
@@ -216,6 +218,32 @@ internal sealed class MainWindow : Window
                     ? "Vendor withdraws this stack and sells it through the retainer, then refreshes remaining listing slots and continues the run. Don't vendor and item protections still apply."
                     : "Vendor sells this exact carried stack through the retainer, then continues the run after verifying the inventory change. Don't vendor and item protections still apply; partial or changed stacks are not sold.");
                 ImGui.TextWrapped(controller.Status);
+                ImGui.EndPopup();
+            }
+        }
+        if (controller.HistoryReviewItem is { } historyItem)
+        {
+            if (historyPopupItem != historyItem)
+            {
+                historyPopupItem = historyItem;
+                historyPrice = (int)(controller.HistoryReviewProposal is { SuggestedPrice: > 0 } proposed ? proposed.SuggestedPrice : controller.HistoryReviewProposal?.SaleHistoryMedian ?? historyItem.CurrentPrice);
+            }
+            ImGui.OpenPopup("Review sale-history price");
+            if (ImGui.BeginPopupModal("Review sale-history price", ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.TextUnformatted($"{historyItem.Name} ({(historyItem.IsHq ? "HQ" : "NQ")}) x {historyItem.Quantity}");
+                ImGui.TextUnformatted($"Recent matching-quality sales: {controller.HistoryReviewProposal?.MatchingSales ?? 0} (3 required for automatic pricing)");
+                ImGui.TextWrapped(controller.HistoryReviewProposal?.Error ?? "Review this price.");
+                ImGui.TextWrapped("Enter a price to approve for this stack, or skip it. No price is submitted without your choice.");
+                if (controller.HistoryReviewProposal?.SaleHistoryMedian is { } median)
+                    ImGui.TextUnformatted($"Recent history median: {median:N0} gil each (reference only)");
+                else ImGui.TextUnformatted("No usable recent sales. Any current asking price is reference only.");
+                ImGui.InputInt("Price per item (gil)", ref historyPrice);
+                ImGui.BeginDisabled(historyPrice < Math.Max(1, config.MinimumPrice) || historyPrice > PriceCalculator.MaximumPrice);
+                if (ImGui.Button("Use this price")) { controller.ResolveHistoryReview((uint)historyPrice); historyPopupItem = null; ImGui.CloseCurrentPopup(); }
+                ImGui.EndDisabled();
+                ImGui.SameLine();
+                if (ImGui.Button("Skip item")) { controller.ResolveHistoryReview(null); historyPopupItem = null; ImGui.CloseCurrentPopup(); }
                 ImGui.EndPopup();
             }
         }
@@ -456,7 +484,7 @@ internal sealed class MainWindow : Window
             if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
             if (config.ShowDesynthesisList && BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
             if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
+            if (config.ShowAutomationList && BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
             if (config.ShowDebugStatus && ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Profiles")) { DrawProfiles(); ImGui.EndTabItem(); }
@@ -599,7 +627,7 @@ internal sealed class MainWindow : Window
 
     private void DrawExisting()
     {
-        ImGui.TextWrapped("The Update existing listings button checks live home-world marketboard listings in World scope, or Universalis in Data Center/Region scope, applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
+        ImGui.TextWrapped("The Update existing listings button checks live home-world marketboard listings in World scope, or Universalis in Data Center/Region scope, uses recent matching-quality game history if a live World comparison has no competitors (at least 3 matching sales in 30 days; otherwise asks you to approve a price or skip), applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
         if (controller.ExistingUpdateError is { } updateError) ImGui.TextWrapped(updateError);
         if (controller.ExistingApplyError is { } applyError) ImGui.TextWrapped(applyError);
         ImGui.TextUnformatted("Large price-drop review bands");
@@ -904,6 +932,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextDisabled("VISIBLE TABS");
         Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
+        Feature("Show automation list", config.ShowAutomationList, v => config.ShowAutomationList = v);
         Feature("Show don't market", config.ShowDontMarket, v => config.ShowDontMarket = v);
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
@@ -1398,7 +1427,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Venture cycles can run while Sniper watches. Venture cycle: use the yellow top button or the existing Ventures-tab button. At a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. If a live World comparison has no same-quality competitors, it checks the game’s matching-quality sales from the last 30 days. Missing history leaves the price unchanged. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Auto update collects rewards, reassigns ventures, lists new items, then updates existing listings. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a failure prevents further steps; already reassigned ventures remain running. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");

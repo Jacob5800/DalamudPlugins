@@ -114,4 +114,45 @@ Check(retry.IsReady(clock.AddMilliseconds(500)), "market retry ready after half 
 Check(retry.TrySchedule(0x70000003, clock.AddSeconds(1)) && !retry.TrySchedule(0x70000003, clock.AddSeconds(2)), "market retries capped at two");
 retry.Reset();
 Check(retry.Attempts == 0 && retry.IsReady(clock), "next listing gets a fresh bounded retry allowance");
+Check(!new PluginConfig().ShowAutomationList, "Automation tab hidden by default");
+var historyOnly = Live() with { Sales = [
+    new MarketSale(false, 50, 74, "Home", clock.AddDays(-1)),
+    new MarketSale(false, 70, 74, "Home", clock.AddDays(-2)),
+    new MarketSale(false, 60, 74, "Home", clock.AddDays(-3)),
+    new MarketSale(true, 500, 74, "Home", clock.AddDays(-1)),
+    new MarketSale(false, 999, 74, "Home", clock.AddDays(-31))] };
+PriceProposal HistoryPrice(PriceSnapshot quote, bool allow = true) =>
+    PriceCalculator.Calculate(quote, 42, 74, false, ownIds, 1, clock, null, requireRecentSale: false, allowSalesFallback: allow);
+var historyPrice = HistoryPrice(historyOnly);
+Check(historyPrice.CanApply && historyPrice.UsedSalesFallback && historyPrice.SaleHistoryMedian == 60 && historyPrice.SuggestedPrice == 59,
+    "empty local market uses matching-quality recent sale median with selected undercut rule");
+foreach (var count in new[] { 0, 1, 2 })
+{
+    var limited = HistoryPrice(historyOnly with { Sales = historyOnly.Sales!.Take(count).ToArray() });
+    Check(!limited.CanApply && limited.Rejection == PriceRejection.InsufficientHistory && limited.MatchingSales == count,
+        $"{count} recent matching sales require user review");
+}
+Check(!HistoryPrice(historyOnly, false).CanApply, "history fallback requires caller permission");
+Check(!HistoryPrice(historyOnly with { IsComplete = false }).CanApply, "failed or partial market response cannot use history");
+Check(!HistoryPrice(historyOnly with { Sales = [] }).CanApply, "empty sale history leaves price unchanged");
+Check(!HistoryPrice(historyOnly with { Sales = [new MarketSale(false,50,74,"Home",clock.AddDays(-31))] }).CanApply,
+    "expired local sales cannot set price");
+Check(!HistoryPrice(historyOnly with { Sales = [new MarketSale(true,50,74,"Home",clock.AddDays(-1))] }).CanApply,
+    "HQ history cannot price NQ item");
+var liveCompetitor = HistoryPrice(historyOnly with { Listings = [Listing(100,99)] });
+Check(liveCompetitor.CanApply && !liveCompetitor.UsedSalesFallback && liveCompetitor.SuggestedPrice == 99,
+    "live competitor price takes priority over history");
+var suspiciousHistory = historyOnly with { Sales = new uint[] { 1, 95000, 100000, 105000, 1000000 }
+    .Select(price => new MarketSale(false, price, 74, "Home", clock.AddDays(-1))).ToArray() };
+Check(HistoryPrice(suspiciousHistory).Rejection == PriceRejection.UnusualHistoryPrice,
+    "outlying history requires approval instead of automatic fallback");
+foreach (var (price, review) in new[] { (24999u,true), (25000u,false), (500000u,false), (500001u,true) })
+{
+    var quote = suspiciousHistory with { Listings = [Listing(price,99)], Sales = new uint[] { 95000,100000,105000 }
+        .Select(value => new MarketSale(false,value,74,"Home",clock.AddDays(-1))).ToArray() };
+    var result = PriceCalculator.Calculate(quote,42,74,false,ownIds,1,clock,null,
+        strategy: PriceStrategy.MatchLowest, requireRecentSale:false, allowSalesFallback:true);
+    Check((result.Rejection == PriceRejection.UnusualHistoryPrice) == review,
+        $"price {price} respects strict 25 percent and five times boundaries");
+}
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

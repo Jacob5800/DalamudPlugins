@@ -69,17 +69,24 @@ public static class PriceCalculator
         }
 
         uint? salesMedian = null;
-        if (snapshot.Source == PriceSource.Universalis)
+        var matchingSales = 0;
+        var unusualHistory = false;
+        if (snapshot.Sales is not null)
         {
             var sales = (snapshot.Sales ?? []).Where(sale => sale.IsHq == isHq &&
                 sale.PricePerUnit is > 0 and <= MaximumPrice && sale.SoldAt <= now &&
                 now - sale.SoldAt <= RequiredSaleHistoryWindow).Select(sale => sale.PricePerUnit).Order().ToArray();
+            matchingSales = sales.Length;
             if (sales.Length > 0)
             {
                 salesMedian = sales.Length % 2 == 1 ? sales[sales.Length / 2]
                     : (uint)(((ulong)sales[sales.Length / 2 - 1] + sales[sales.Length / 2]) / 2);
+                unusualHistory = sales.Any(price => (ulong)price * 4 < salesMedian.Value || (ulong)price > (ulong)salesMedian.Value * 5);
             }
         }
+        if (matches == 0 && allowSalesFallback && matchingSales < 3)
+            return new(0, 0, 0, $"Only {matchingSales} matching-quality sales in the last 30 days. Choose a price or skip this item.",
+                salesMedian, Rejection: PriceRejection.InsufficientHistory, MatchingSales: matchingSales);
         var usedSalesFallback = matches == 0 && allowSalesFallback && salesMedian.HasValue;
         if (usedSalesFallback) lowest = salesMedian!.Value;
         if (matches == 0 && !usedSalesFallback)
@@ -107,6 +114,13 @@ public static class PriceCalculator
         if (suggested < floor)
             return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches, rejection: PriceRejection.BelowMinimum);
 
-        return new(lowest, suggested, matches, null, salesMedian, usedSalesFallback);
+        if (salesMedian is { } medianPrice && matchingSales >= 3 &&
+            ((usedSalesFallback && unusualHistory) || (ulong)suggested * 4 < medianPrice || (ulong)suggested > (ulong)medianPrice * 5))
+            return new(lowest, suggested, matches,
+                usedSalesFallback && unusualHistory
+                    ? "Recent sale history contains prices below 25% or above 5x its median. Approve a price or skip this item."
+                    : "The proposed price is below 25% or above 5x the recent sales median. Approve a price or skip this item.",
+                salesMedian, usedSalesFallback, PriceRejection.UnusualHistoryPrice, matchingSales);
+        return new(lowest, suggested, matches, null, salesMedian, usedSalesFallback, MatchingSales: matchingSales);
     }
 }
