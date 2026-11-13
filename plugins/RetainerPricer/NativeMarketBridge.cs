@@ -159,14 +159,10 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     }
     public bool IsMarketBoardOpen => !IsRetainerSellListVisible && !IsSellWindowVisible &&
         (IsAddonVisible("ItemSearch") || IsComparisonVisible);
-    public bool IsLocalSearchBusy
-    {
-        get
-        {
-            var proxy = InfoProxyItemSearch.Instance();
-            return proxy != null && proxy->WaitingForListings;
-        }
-    }
+    // The proxy's WaitingForListings flag can remain set while no request is active.
+    // Track only requests submitted by this bridge and their verified completion.
+    public bool IsLocalSearchBusy => (compareItem is not null && !requestComplete) ||
+        (boardSearchItemId != 0 && !boardSearchComplete);
 
     public MarketWorld? GetHomeWorld()
     {
@@ -1484,7 +1480,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             error = "The marketboard search is not available.";
             return false;
         }
-        if (proxy->WaitingForListings)
+        if (IsLocalSearchBusy)
         {
             error = "The previous marketboard search is still finishing.";
             return false;
@@ -1500,7 +1496,10 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         requestComplete = false;
         expectedListingCount = -1;
         localError = "Waiting for the complete local market response.";
-        if (!ClickRegisteredButton(addon->ComparePrices, (AtkUnitBase*)addon, out error))
+        var clicked = ClickRegisteredButton(addon->ComparePrices, (AtkUnitBase*)addon, out error);
+        log.Information("[Live repricing] Compare prices item={Item} retainer={Retainer} dialog={Dialog} nativeFlag={Flag} clickSent={Clicked} error={Error}",
+            expected.ItemId, expected.Session.RetainerId, expected.DialogGeneration, proxy->WaitingForListings, clicked, error);
+        if (!clicked)
         {
             compareItem = null;
             return false;
@@ -1653,7 +1652,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         // to the framework update before the hooked callback runs. Recover from that state rather than
         // leaving the caller waiting until its timeout.
         var proxy = InfoProxyItemSearch.Instance();
-        if (localSnapshot == null && resultReceived && proxy != null && !proxy->WaitingForListings)
+        if (localSnapshot == null && resultReceived && proxy != null)
             CaptureLocalSnapshot(proxy);
         if (localSnapshot == null)
         {
@@ -1886,13 +1885,17 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private void CaptureLocalSnapshot(InfoProxyItemSearch* proxy)
     {
         if (compareItem == null || proxy == null || proxy->SearchItemId != compareItem.ItemId) return;
-        if (!resultReceived || expectedListingCount is < 0 or > 100 ||
-            proxy->ListingCount != expectedListingCount || proxy->WaitingForListings ||
-            !MatchesCurrentDialog(compareItem, true, out _, out _))
+        if (!resultReceived || requestComplete) return;
+        if (expectedListingCount is < 0 or > 100)
         {
-            localSnapshot = null;
-            localError = "The complete local response could not be verified. Request prices again.";
+            localError = "The local response has an invalid listing count. No price was applied.";
             requestComplete = true;
+            return;
+        }
+        if (proxy->ListingCount != expectedListingCount || !MatchesCurrentDialog(compareItem, true, out _, out _))
+        {
+            // The response header may precede the actual listing rows. Keep waiting.
+            localError = "Waiting for the complete matching local response.";
             return;
         }
 
@@ -1904,8 +1907,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 row.Quantity == 0 || row.ListingId == 0)
             {
                 localSnapshot = null;
-                localError = "A local listing was incomplete or invalid. Request prices again.";
-                requestComplete = true;
+                localError = "Waiting for all matching local market listing rows.";
                 return;
             }
             rows.Add(new MarketListing(row.ItemId, row.IsHqItem, row.UnitPrice,
@@ -1916,6 +1918,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             PriceSource.Local, DateTimeOffset.UtcNow, rows, true);
         localError = string.Empty;
         requestComplete = true;
+        log.Information("[Live repricing] Complete response item={Item} retainer={Retainer} listings={Count}; nativeFlag={Flag}",
+            compareItem.ItemId, compareItem.Session.RetainerId, rows.Count, proxy->WaitingForListings);
     }
 
     private void CaptureBoardSearchSnapshot(InfoProxyItemSearch* proxy)

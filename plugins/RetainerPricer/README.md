@@ -218,3 +218,7 @@ The automated new-item listing pass rechecks carried inventory before opening ea
 ### Don't market and vendor-only items
 
 **Don't market** skips new market listings in Start listing items, Batch selling and Auto update, without blocking NPC sales or changing existing listing prices. Add items from the tab's inventory/saddlebag picker or the item's right-click menu. To vendor an item without listing it on the market, add it to both **Don't market** and the **Retainer sale whitelist**, and remove it from **Exceptions**. Exceptions, saved gearsets and Don't vendor still prevent NPC sales. Don't reprice remains the separate protection for existing market listings.
+
+### Visible tabs
+
+Settings groups the tab checkboxes under **Visible tabs**. **Show sniper** controls Sniper, Sniper results and Buy list together; it is off by default. **Show Desynthesis list** is also off by default. **Show debug status** controls the Status tab and is on by default. Choices are saved and included in settings profiles/backups. Hiding these tabs preserves their saved lists and does not stop already-running Sniper or Desynthesis operations; use Stop first if needed.

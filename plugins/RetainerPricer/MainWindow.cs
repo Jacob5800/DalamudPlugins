@@ -442,20 +442,20 @@ internal sealed class MainWindow : Window
             if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawSniper(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Sniper results", new Vector4(.46f,.26f,.68f,1), openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
+            if (config.ShowSniper && BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawSniper(); ImGui.EndTabItem(); }
+            if (config.ShowSniper && BeginColoredTab("Sniper results", new Vector4(.46f,.26f,.68f,1), openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
             { openSniperResultsTab = false; DrawSniperResults(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
+            if (config.ShowSniper && BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Don't market")) { DrawDontMarket(); ImGui.EndTabItem(); }
             if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
+            if (config.ShowDesynthesisList && BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
             if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
+            if (config.ShowDebugStatus && ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Profiles")) { DrawProfiles(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
@@ -898,11 +898,20 @@ internal sealed class MainWindow : Window
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Log each initial attempt, retry and opened selling form to the Dalamud log. No listing behavior changes. Disable after reproducing the issue.");
         Feature("Ask before splitting Auto list stacks over 50", config.AskBeforeSplittingLargeStacks, v => config.AskBeforeSplittingLargeStacks = v);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Restore the large-stack prompt after choosing Do not ask again. When disabled, Auto list keeps full carried stacks; Batch selling retains its own rules.");
+        ImGui.Separator();
+        ImGui.TextDisabled("VISIBLE TABS");
         Feature("Show Undercut notifier", config.ShowUndercutNotifier, v => config.ShowUndercutNotifier = v);
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
         Feature("Show Retainer sell", config.ShowRetainerSell, v => config.ShowRetainerSell = v);
-        ImGui.TextWrapped("Hidden lists retain their saved rules. Undercut monitoring pauses while hidden.");
+        Feature("Show debug status", config.ShowDebugStatus, v => config.ShowDebugStatus = v);
+        Feature("Show Desynthesis list", config.ShowDesynthesisList, v => config.ShowDesynthesisList = v);
+        Feature("Show sniper", config.ShowSniper, v => {
+            config.ShowSniper = v;
+            if (!v) openSniperResultsTab = openBuyListTab = false;
+        });
+        ImGui.TextWrapped("Show sniper controls Sniper, Sniper results and Buy list together. Hidden lists retain saved rules. Undercut monitoring pauses while hidden.");
+        ImGui.Separator();
         Feature("Show saved gearsets in item tooltips", config.ShowGearsetTooltip, v => config.ShowGearsetTooltip = v);
         Feature("Mark saved gearset items red in armoury chest", config.MarkArmouryGearsetItems, v => config.MarkArmouryGearsetItems = v);
         Feature("Blue fill on items in the desynthesis list", config.MarkDesynthesisItems, v => config.MarkDesynthesisItems = v);

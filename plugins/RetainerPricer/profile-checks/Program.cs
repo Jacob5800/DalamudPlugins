@@ -97,4 +97,13 @@ var vendorOnlyRestored = new PluginConfig();
 SettingsBackup.Apply(vendorOnlyRestored, SettingsBackup.Export(vendorOnly)["Settings"]!.AsObject(), false);
 Check(vendorOnlyRestored.DontMarketItemIds.Contains(42) && vendorOnlyRestored.RetainerSaleWhitelistItemIds.Contains(42),
     "Don't market and vendor whitelist survive settings restore");
+var visibility = new PluginConfig();
+Check(!visibility.ShowSniper && !visibility.ShowDesynthesisList && visibility.ShowDebugStatus,
+    "visibility defaults hide Sniper/Desynthesis and show Debug status");
+visibility.ShowSniper = visibility.ShowDesynthesisList = true;
+visibility.ShowDebugStatus = false;
+var restoredVisibility = new PluginConfig();
+SettingsBackup.Apply(restoredVisibility, SettingsBackup.Export(visibility)["Settings"]!.AsObject(), false);
+Check(restoredVisibility.ShowSniper && restoredVisibility.ShowDesynthesisList && !restoredVisibility.ShowDebugStatus,
+    "visibility choices including false survive settings backup/restore");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

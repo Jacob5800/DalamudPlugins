@@ -10,6 +10,9 @@ public sealed class PluginConfig : IPluginConfiguration
     // null asks before each increase; true allows; false skips increases.
     public bool DebugListingSelector { get; set; } = true;
     public bool? AllowListingPriceIncreases { get; set; }
+    public bool ShowSniper { get; set; }
+    public bool ShowDebugStatus { get; set; } = true;
+    public bool ShowDesynthesisList { get; set; }
     public bool ShowUndercutNotifier { get; set; }
     public bool ShowDontReprice { get; set; }
     public bool ShowBatchSelling { get; set; }
