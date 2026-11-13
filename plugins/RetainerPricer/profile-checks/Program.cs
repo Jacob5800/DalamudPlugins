@@ -118,9 +118,9 @@ Check(!new PluginConfig().ShowAutomationList, "Automation tab hidden by default"
 var historyOnly = Live() with { Sales = [
     new MarketSale(false, 50, 74, "Home", clock.AddDays(-1)),
     new MarketSale(false, 70, 74, "Home", clock.AddDays(-2)),
-    new MarketSale(false, 60, 74, "Home", clock.AddDays(-3)),
+    new MarketSale(false, 60, 74, "Home", clock.AddDays(-45)),
     new MarketSale(true, 500, 74, "Home", clock.AddDays(-1)),
-    new MarketSale(false, 999, 74, "Home", clock.AddDays(-31))] };
+    new MarketSale(false, 999, 74, "Home", clock.AddDays(-46))] };
 PriceProposal HistoryPrice(PriceSnapshot quote, bool allow = true) =>
     PriceCalculator.Calculate(quote, 42, 74, false, ownIds, 1, clock, null, requireRecentSale: false, allowSalesFallback: allow);
 var historyPrice = HistoryPrice(historyOnly);
@@ -135,7 +135,7 @@ foreach (var count in new[] { 0, 1, 2 })
 Check(!HistoryPrice(historyOnly, false).CanApply, "history fallback requires caller permission");
 Check(!HistoryPrice(historyOnly with { IsComplete = false }).CanApply, "failed or partial market response cannot use history");
 Check(!HistoryPrice(historyOnly with { Sales = [] }).CanApply, "empty sale history leaves price unchanged");
-Check(!HistoryPrice(historyOnly with { Sales = [new MarketSale(false,50,74,"Home",clock.AddDays(-31))] }).CanApply,
+Check(!HistoryPrice(historyOnly with { Sales = [new MarketSale(false,50,74,"Home",clock.AddDays(-46))] }).CanApply,
     "expired local sales cannot set price");
 Check(!HistoryPrice(historyOnly with { Sales = [new MarketSale(true,50,74,"Home",clock.AddDays(-1))] }).CanApply,
     "HQ history cannot price NQ item");
@@ -146,14 +146,11 @@ var suspiciousHistory = historyOnly with { Sales = new uint[] { 1, 95000, 100000
     .Select(price => new MarketSale(false, price, 74, "Home", clock.AddDays(-1))).ToArray() };
 Check(HistoryPrice(suspiciousHistory).Rejection == PriceRejection.UnusualHistoryPrice,
     "outlying history requires approval instead of automatic fallback");
-foreach (var (price, review) in new[] { (24999u,true), (25000u,false), (500000u,false), (500001u,true) })
+foreach (var price in new[] { 24999u, 500001u })
 {
-    var quote = suspiciousHistory with { Listings = [Listing(price,99)], Sales = new uint[] { 95000,100000,105000 }
-        .Select(value => new MarketSale(false,value,74,"Home",clock.AddDays(-1))).ToArray() };
-    var result = PriceCalculator.Calculate(quote,42,74,false,ownIds,1,clock,null,
-        strategy: PriceStrategy.MatchLowest, requireRecentSale:false, allowSalesFallback:true);
-    Check((result.Rejection == PriceRejection.UnusualHistoryPrice) == review,
-        $"price {price} respects strict 25 percent and five times boundaries");
+    var result = HistoryPrice(suspiciousHistory with { Listings = [Listing(price,99)] });
+    Check(result.CanApply && !result.UsedSalesFallback && result.SuggestedPrice == price - 1,
+        $"eligible competitor at {price} bypasses sale-history review");
 }
 Check(PriceHistoryFallback.ShouldFetch(Live(),42,74,false,ownIds,clock), "complete empty live market starts history fallback");
 Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99)] },42,74,false,ownIds,clock), "competitors prevent remote fallback");

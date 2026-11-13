@@ -6,7 +6,8 @@ namespace RetainerPricer;
 public static class PriceCalculator
 {
     public const uint MaximumPrice = 999_999_999;
-    public static readonly TimeSpan RequiredSaleHistoryWindow = TimeSpan.FromDays(30);
+    public const int SaleHistoryDays = 45;
+    public static readonly TimeSpan RequiredSaleHistoryWindow = TimeSpan.FromDays(SaleHistoryDays);
 
     public static PriceProposal Calculate(
         PriceSnapshot snapshot,
@@ -85,7 +86,7 @@ public static class PriceCalculator
             }
         }
         if (matches == 0 && allowSalesFallback && matchingSales < 3)
-            return new(0, 0, 0, $"Only {matchingSales} matching-quality sales in the last 30 days. Choose a price or skip this item.",
+            return new(0, 0, 0, $"Only {matchingSales} matching-quality sales in the last 45 days. Choose a price or skip this item.",
                 salesMedian, Rejection: PriceRejection.InsufficientHistory, MatchingSales: matchingSales);
         var usedSalesFallback = matches == 0 && allowSalesFallback && salesMedian.HasValue;
         if (usedSalesFallback) lowest = salesMedian!.Value;
@@ -93,12 +94,12 @@ public static class PriceCalculator
         {
             if (snapshot.Source == PriceSource.Universalis)
                 return Fail(salesMedian is { } median
-                    ? $"No competing listings of the same quality. Price unchanged; 30-day sales median {median:N0} gil is reference only."
-                    : "No competing listings of the same quality or matching sales in the last 30 days. No price will be applied.", salesMedian: salesMedian);
+                    ? $"No competing listings of the same quality. Price unchanged; 45-day sales median {median:N0} gil is reference only."
+                    : "No competing listings of the same quality or matching sales in the last 45 days. No price will be applied.", salesMedian: salesMedian);
             return Fail("No competing listings of the same quality were found. No automatic price was applied.");
         }
         if (requireRecentSale && snapshot.Source == PriceSource.Universalis && !hasRecentSale)
-            return Fail("Universalis has no sale history for this item in the last 30 days. No price will be applied.", lowest, matches);
+            return Fail("Universalis has no sale history for this item in the last 45 days. No price will be applied.", lowest, matches);
         if (strategy != PriceStrategy.MatchLowest && lowest == 1)
             return Fail("The lowest competing price is already 1 gil and cannot be undercut.", lowest, matches, rejection: PriceRejection.CannotUndercutOneGil);
 
@@ -114,10 +115,10 @@ public static class PriceCalculator
         if (suggested < floor)
             return Fail($"The selected pricing rule would go below your minimum of {floor:N0} gil. No price will be applied.", lowest, matches, rejection: PriceRejection.BelowMinimum);
 
-        if (salesMedian is { } medianPrice && matchingSales >= 3 &&
-            ((usedSalesFallback && unusualHistory) || (ulong)suggested * 4 < medianPrice || (ulong)suggested > (ulong)medianPrice * 5))
+        if (usedSalesFallback && salesMedian is { } medianPrice &&
+            (unusualHistory || (ulong)suggested * 4 < medianPrice || (ulong)suggested > (ulong)medianPrice * 5))
             return new(lowest, suggested, matches,
-                usedSalesFallback && unusualHistory
+                unusualHistory
                     ? "Recent sale history contains prices below 25% or above 5x its median. Approve a price or skip this item."
                     : "The proposed price is below 25% or above 5x the recent sales median. Approve a price or skip this item.",
                 salesMedian, usedSalesFallback, PriceRejection.UnusualHistoryPrice, matchingSales);

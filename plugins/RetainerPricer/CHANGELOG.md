@@ -1,3 +1,7 @@
+## 0.5.1.71
+
+- Extended pricing sale history to 45 days. Sale-history approval applies only when pricing falls back to history because no eligible same-quality competitor exists.
+
 ## 0.5.1.70
 
 - Skip retainers with no items for sale during repricing, and skip retainers with all 20 market slots filled during new listing runs.

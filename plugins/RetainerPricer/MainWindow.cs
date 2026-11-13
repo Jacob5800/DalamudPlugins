@@ -438,8 +438,8 @@ internal sealed class MainWindow : Window
         if (ImGui.Checkbox("Automatically price and confirm new listings", ref automatic)) { config.AutoPriceNewListings = automatic; save(); }
         ImGui.TextDisabled("This checkbox auto-prices only the currently opened sale item. Use Start listing items to process all eligible inventory and continue through the list automatically.");
         ImGui.TextWrapped(config.UseMaximumPriceAge
-            ? $"Check price again uses Universalis. Upload data older than {config.MaximumAgeMinutes} minutes is skipped. Automatic pricing uses current listings first; new listings can fall back to 30-day sales."
-            : "Check price again uses Universalis. Upload age is not filtered; automatic pricing uses current listings first; new listings can fall back to 30-day sales.");
+            ? $"Check price again uses Universalis. Upload data older than {config.MaximumAgeMinutes} minutes is skipped. Automatic pricing uses current listings first; new listings can fall back to 45-day sales."
+            : "Check price again uses Universalis. Upload age is not filtered; automatic pricing uses current listings first; new listings can fall back to 45-day sales.");
         ImGui.EndDisabled();
         ImGui.Separator();
 
@@ -627,7 +627,7 @@ internal sealed class MainWindow : Window
 
     private void DrawExisting()
     {
-        ImGui.TextWrapped("The Update existing listings button checks live home-world marketboard listings in World scope, or Universalis in Data Center/Region scope, uses recent matching-quality Universalis home-world history if a live World comparison has no competitors (at least 3 matching sales in 30 days; otherwise asks you to approve a price or skip), applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
+        ImGui.TextWrapped("The Update existing listings button checks live home-world marketboard listings in World scope, or Universalis in Data Center/Region scope, uses recent matching-quality Universalis home-world history if a live World comparison has no competitors (at least 3 matching sales in 45 days; otherwise asks you to approve a price or skip), applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
         if (controller.ExistingUpdateError is { } updateError) ImGui.TextWrapped(updateError);
         if (controller.ExistingApplyError is { } applyError) ImGui.TextWrapped(applyError);
         ImGui.TextUnformatted("Large price-drop review bands");
@@ -722,8 +722,8 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Proposal?.SaleHistoryMedian is { } median ? median.ToString("N0") : "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? sale.PricePerUnit.ToString("N0") : "—");
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip(row.LastRecordedSale is { } lastSale
-                    ? $"Most recent same-quality sale returned within 30 days: {lastSale.SoldAt.ToLocalTime():g}"
-                    : "No matching sale returned in the loaded 30-day market data.");
+                    ? $"Most recent same-quality sale returned within 45 days: {lastSale.SoldAt.ToLocalTime():g}"
+                    : "No matching sale returned in the loaded 45-day market data.");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Snapshot?.Source.ToString() ?? "—");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.Snapshot is { } data ? Age(data.ObservedAt) : "—");
                 ImGui.TableNextColumn(); ImGui.TextWrapped(row.Status);
@@ -1363,7 +1363,7 @@ internal sealed class MainWindow : Window
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.CompetitorServer);
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Server hosting the lowest matching competitor in the selected notifier scope.");
                 ImGui.TableNextColumn();
-                ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? $"{sale.PricePerUnit:N0}" : "No sale in 30 days");
+                ImGui.TextUnformatted(row.LastRecordedSale is { } sale ? $"{sale.PricePerUnit:N0}" : "No sale in 45 days");
                 if (ImGui.IsItemHovered() && row.LastRecordedSale is { } lastSale)
                     ImGui.SetTooltip($"Last matching-quality sale: {lastSale.SoldAt.ToLocalTime():g} · {lastSale.PricePerUnit:N0} gil each");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.SnapshotAt.ToLocalTime().ToString("g"));
@@ -1420,14 +1420,14 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage with up to two decimal places), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
-        ImGui.BulletText("Undercut notifier: Sniper watching in the same World, Data Center or Region scope also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check Universalis prices in the selected scope every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 30 days; hover for its date.");
+        ImGui.BulletText("Undercut notifier: Sniper watching in the same World, Data Center or Region scope also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check Universalis prices in the selected scope every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 45 days; hover for its date.");
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Venture cycles can run while Sniper watches. Venture cycle: use the yellow top button or the existing Ventures-tab button. At a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. If a live World comparison has no same-quality competitors, it checks Universalis home-world matching-quality sales from the last 30 days. Insufficient or unavailable history asks you to approve a price or skip. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. If a live World comparison has no same-quality competitors, it checks Universalis home-world matching-quality sales from the last 45 days. Insufficient or unavailable history asks you to approve a price or skip. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Auto update collects rewards, reassigns ventures, lists new items, then updates existing listings. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a failure prevents further steps; already reassigned ventures remain running. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
@@ -1457,7 +1457,7 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
         ImGui.BulletText("Automatic new listings and listing updates use live marketboard prices in World scope, falling back to Universalis home-world sales history when no same-quality competitors exist. Data Center/Region pricing and other lookups use Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
-        ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, existing prices stay unchanged; new listings use the same-quality 30-day sales median with your pricing rule and minimum, or skip when recent sales are unavailable. The optional upload-age filter still applies.");
+        ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, World pricing can use the same-quality 45-day sales median with your pricing rule and minimum, or skip when recent sales are unavailable. The optional upload-age filter still applies.");
         ImGui.BulletText("Prices shown are per item and before tax. If there is no safe price, the plugin leaves that item unchanged.");
         ImGui.BulletText("Use this on your home world with a retainer's selling list open. Switching character, world, or active retainer, disconnecting, or entering a loading state stops the active run.");
 
@@ -3241,7 +3241,7 @@ internal sealed class MainWindow : Window
     {
         var history = snapshot.Source != PriceSource.Universalis ? ""
             : snapshot.MostRecentSaleAt is { } saleAt ? $" · last sale {Age(saleAt)} ago"
-            : " · no sale in the last 30 days";
+            : " · no sale in the last 45 days";
         var cached = snapshot.WasCached && snapshot.RetrievedAt is { } retrievedAt
             ? $" · cached {Age(retrievedAt)} ago" : "";
         ImGui.TextUnformatted($"{snapshot.Source}: {Age(snapshot.ObservedAt)} old · {snapshot.ObservedAt.ToLocalTime():HH:mm:ss}{history}{cached}");

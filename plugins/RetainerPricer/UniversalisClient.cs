@@ -30,7 +30,7 @@ public sealed class UniversalisClient : IDisposable
         DiagnosticLog?.Invoke(message);
     }
     private const int HistoryEntryLimit = 100;
-    private const int HistoryWindowSeconds = 30 * 24 * 60 * 60;
+    private const int HistoryWindowSeconds = PriceCalculator.SaleHistoryDays * 24 * 60 * 60;
     public const int SniperHistoryEntryLimit = 750;
     private const int MaximumSniperHistoryAttempts = 2;
     private const int UniversalisRequestsPerSecond = 25;
@@ -586,7 +586,7 @@ public sealed class UniversalisClient : IDisposable
     private async Task<PriceSnapshot> FetchScopeAsync(uint worldId, uint itemId, ScopeKind kind,
         string scopeName, CancellationToken ct)
     {
-        // https://docs.universalis.app/ — current listings and sales in the previous 30 days.
+        // https://docs.universalis.app/ — current listings and sales in the configured history window.
         var escapedScope = Uri.EscapeDataString(scopeName);
         var json = await RequestJsonAsync($"{escapedScope}/{itemId}?entries={HistoryEntryLimit}&entriesWithin={HistoryWindowSeconds}",
             scopeName, ct).ConfigureAwait(false);

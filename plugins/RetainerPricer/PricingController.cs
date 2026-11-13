@@ -435,7 +435,7 @@ internal sealed class PricingController : IDisposable
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
         var scope = batchOnly ? "configured Batch selling item stack(s) only" : "eligible stack(s)";
-        Status = $"Automatically listing {batchCandidates.Count} {scope} using {(workSource == PriceSource.Local ? "live marketboard listings" : "Universalis")}. Current competing listings take priority; new listings can use matching-quality sales from the last 30 days when no competitors exist.";
+        Status = $"Automatically listing {batchCandidates.Count} {scope} using {(workSource == PriceSource.Local ? "live marketboard listings" : "Universalis")}. Current competing listings take priority; new listings can use matching-quality sales from the last 45 days when no competitors exist.";
     }
 
     public void SnapshotExceptionInventory()
