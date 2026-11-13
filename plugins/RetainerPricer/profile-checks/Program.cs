@@ -71,4 +71,30 @@ Check(ListingRefresh.TryRemap(pendingSlots, refreshedSlots, x => x.Item, out var
 Check(!ListingRefresh.TryRemap(pendingSlots, refreshedSlots.Take(2).ToArray(), x => x.Item, out mapped) && mapped.Count == 0,
     "changed inventory rejects entire remap");
 Check(ListingRefresh.TryRemap(Array.Empty<int>(), Array.Empty<int>(), x => x, out var empty) && empty.Count == 0, "last sold listing can finish traversal");
+// Live World repricing must exclude every owned retainer and separate HQ/NQ.
+var ownIds = new HashSet<ulong> { 21, 22 };
+PriceSnapshot Live(params MarketListing[] listings) => new(42, 74, PriceSource.Local, clock, listings);
+MarketListing Listing(uint price, ulong owner, bool hq = false) => new(42, hq, price, 1, owner, false);
+PriceProposal LivePrice(PriceSnapshot snapshot, bool hq = false) =>
+    PriceCalculator.Calculate(snapshot, 42, 74, hq, ownIds, 1, clock, null);
+var localQuote = Live(Listing(10, 21), Listing(20, 22), Listing(100, 99), Listing(5, 98, true));
+var localPrice = LivePrice(localQuote);
+Check(localPrice.CanApply && localPrice.SuggestedPrice == 99 && localPrice.MatchingListings == 1,
+    "live World pricing ignores both owned retainers and other-quality offers");
+Check(LivePrice(localQuote, true).SuggestedPrice == 4, "live HQ pricing uses HQ offers");
+Check(!LivePrice(Live(Listing(10, 21), Listing(20, 22))).CanApply, "own-only local market leaves price unchanged");
+Check(!LivePrice(Live()).CanApply, "empty local market leaves price unchanged");
+Check(!LivePrice(Live(Listing(100, 0))).CanApply, "unknown local owner blocks repricing");
+Check(!LivePrice(localQuote with { IsComplete = false }).CanApply, "partial local response blocks repricing");
+Check(!LivePrice(localQuote with { ItemId = 43 }).CanApply, "wrong-item local response blocks repricing");
+Check(!LivePrice(localQuote with { WorldId = 75 }).CanApply, "wrong-world local response blocks repricing");
+var vendorOnly = new PluginConfig { DontMarketItemIds = [0, 42, 42], RetainerSaleWhitelistItemIds = [42] };
+vendorOnly.Normalize();
+Check(vendorOnly.DontMarketItemIds.SequenceEqual(new uint[] {42}), "Don't market normalizes IDs");
+Check(!vendorOnly.ExcludedItemIds.Contains(42) && !vendorOnly.DontVendorItemIds.Contains(42) &&
+    vendorOnly.RetainerSaleWhitelistItemIds.Contains(42), "vendor-only configuration keeps market blocking separate from sale protections");
+var vendorOnlyRestored = new PluginConfig();
+SettingsBackup.Apply(vendorOnlyRestored, SettingsBackup.Export(vendorOnly)["Settings"]!.AsObject(), false);
+Check(vendorOnlyRestored.DontMarketItemIds.Contains(42) && vendorOnlyRestored.RetainerSaleWhitelistItemIds.Contains(42),
+    "Don't market and vendor whitelist survive settings restore");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

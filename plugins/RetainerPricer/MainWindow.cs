@@ -74,6 +74,10 @@ internal sealed class MainWindow : Window
     private string noRepriceSearchCache = "";
     private List<ItemChoice> noRepriceMatches = [];
     private ItemChoice? noRepriceSelection;
+    private string dontMarketSearch = "";
+    private string dontMarketSearchCache = "";
+    private List<ItemChoice> dontMarketMatches = [];
+    private ItemChoice? dontMarketSelection;
     private string batchSearch = "";
     private string batchSearchCache = "";
     private List<ItemChoice> batchMatches = [];
@@ -259,7 +263,7 @@ internal sealed class MainWindow : Window
             : config.UseDataCenterPrices
             ? world?.DataCenterName is { Length: > 0 } dcName ? $"the {dcName} data center" : "your home-world data center"
             : "your home world";
-        ImGui.TextWrapped($"Universalis prices use {priceScope}. HQ and NQ are compared separately; your own retainers are excluded.");
+        ImGui.TextWrapped($"Pricing scope: {priceScope}. Existing listing updates use live marketboard prices in World scope; other lookups use Universalis. HQ and NQ are compared separately; your own retainers are excluded.");
         if (retainerError() is { } nativeError) ImGui.TextWrapped(nativeError);
         var busy = UiBusy || vendor.IsRunning || ventures.IsRunning;
         ImGui.BeginDisabled(busy);
@@ -444,6 +448,7 @@ internal sealed class MainWindow : Window
             if (BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
             if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Don't market")) { DrawDontMarket(); ImGui.EndTabItem(); }
             if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
             if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
             if (BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
@@ -591,7 +596,7 @@ internal sealed class MainWindow : Window
 
     private void DrawExisting()
     {
-        ImGui.TextWrapped("The Update existing listings button checks eligible items against Universalis, applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
+        ImGui.TextWrapped("The Update existing listings button checks live home-world marketboard listings in World scope, or Universalis in Data Center/Region scope, applies your selected pricing rule, and verifies the retainer accepted each change. Excluded and Don't reprice items are skipped. Large price drops use the configurable review bands below for both Update existing listings and Auto update.");
         if (controller.ExistingUpdateError is { } updateError) ImGui.TextWrapped(updateError);
         if (controller.ExistingApplyError is { } applyError) ImGui.TextWrapped(applyError);
         ImGui.TextUnformatted("Large price-drop review bands");
@@ -1380,7 +1385,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Venture cycles can run while Sniper watches. Venture cycle: use the yellow top button or the existing Ventures-tab button. At a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers and does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Auto update collects rewards, reassigns ventures, lists new items, then updates existing listings. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a failure prevents further steps; already reassigned ventures remain running. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
@@ -1392,6 +1397,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Settings can enable home-world item-tooltip prices and marketboard ROI labels. Lookup results provide Retry after failures and Copy price. New listings with materia require Proceed or Skip; the batch-only checkbox suppresses further warnings for that run.");
         ImGui.BulletText("Price lookup: use Search or Captured items to retrieve a read-only Universalis price. The result appears below the search and on the Retrieved price tab, including when you use a Retrieve button in an inventory or retainer-list row. Marketboard Price shows the cheapest and home-world listings; Most Recent Purchase shows available sales for the selected HQ/NQ quality, with world names and data ages. The two Marketboard Price rows also estimate ROI against the cheapest matching home-world listing minus 1 gil, using Sniper purchase fee and resale tax assumptions.");
         ImGui.BulletText("Universalis lookup: refresh snapshots from the retainer picker or a selling list, then obtain Universalis info for queued item IDs. If no marketboard is open, dismiss the prompt and open one; searches start automatically. Results are opened one by one, and completed items leave the queue. XIVLauncher marketboard reporting must be enabled for contribution; Retainer Pricer does not upload the data itself.");
+        ImGui.BulletText("Don't market: skip new listings and batch selling without preventing NPC sales. For vendor-only items, combine Don't market with the Retainer sale whitelist and remove them from Exceptions. Exceptions, saved gearsets and Don't vendor still take priority.");
         ImGui.BulletText("Existing listings: filter by retainer or item name and click column headers to sort. Last sold price shows loaded sales data; hover for its date. Set the four configurable price-drop review percentages for listings from 1–9,999 gil, 10,000–999,999 gil, 1,000,000–9,999,999 gil, and 10,000,000 gil or more. Both Update existing listings and Auto update use the percentage band selected by the listing's current price. Review scan results below and use Exclude beside an item to add it to your exception list.");
         ImGui.BulletText("Exceptions: items here are skipped by automatic listing and repricing. Items assigned to saved gear sets are automatically protected too; they do not need to be added here. Refresh carried inventory or the chocobo saddlebag to find items, filter by name, add a selected item, or bulk-add either snapshot. Exceptions are item-based, so the same item is skipped if it is later in carried inventory or selected for Retainer sell.");
         ImGui.BulletText("Don't vendor: protects selected items from NPC sales in Retainer sell, even when whitelisted. Marketboard listing and repricing remain available.");
@@ -1407,7 +1413,7 @@ internal sealed class MainWindow : Window
 
         ImGui.Separator();
         ImGui.TextUnformatted("How prices work");
-        ImGui.BulletText("Prices come from Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
+        ImGui.BulletText("Existing listing updates use live marketboard prices in World scope; Data Center/Region updates and other lookups use Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
         ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, existing prices stay unchanged; new listings use the same-quality 30-day sales median with your pricing rule and minimum, or skip when recent sales are unavailable. The optional upload-age filter still applies.");
         ImGui.BulletText("Prices shown are per item and before tax. If there is no safe price, the plugin leaves that item unchanged.");
         ImGui.BulletText("Use this on your home world with a retainer's selling list open. Switching character, world, or active retainer, disconnecting, or entering a loading state stops the active run.");
@@ -2794,7 +2800,7 @@ internal sealed class MainWindow : Window
     private void DrawNoReprice()
     {
         ImGui.TextUnformatted("Never reprice these items");
-        ImGui.TextWrapped("Items on this list are still eligible for new listings. Their existing listings cannot be repriced by Update existing listings, Auto update, or the current-item price controls. Read-only price lookups still work. Use Exceptions if an item should also be skipped when creating new listings.");
+        ImGui.TextWrapped("Items on this list are still eligible for new listings. Their existing listings cannot be repriced by Update existing listings, Auto update, or the current-item price controls. Read-only price lookups still work. Use Don't market to skip new listings while allowing NPC sales; Exceptions blocks both.");
 
         ImGui.BeginDisabled(UiBusy || ventures.IsRunning || vendor.IsRunning);
         if (ImGui.Button(controller.ExceptionInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
@@ -2902,6 +2908,121 @@ internal sealed class MainWindow : Window
     private void AddNoReprice(uint itemId)
     {
         if (!config.NoRepriceItemIds.Contains(itemId)) config.NoRepriceItemIds.Add(itemId);
+        config.Normalize();
+        save();
+    }
+
+    private void DrawDontMarket()
+    {
+        ImGui.TextUnformatted("Never create market listings for these items");
+        ImGui.TextWrapped("Skip these items when creating new market listings, including Auto update and Batch selling. Existing listings can still be repriced. NPC vendoring stays available: add an item to the Retainer sale whitelist to always vendor it. Exceptions, saved gearsets and Don't vendor still take priority.");
+
+        ImGui.BeginDisabled(UiBusy || ventures.IsRunning || vendor.IsRunning);
+        if (ImGui.Button(controller.ExceptionInventorySnapshotAt is null ? "Grab carried inventory" : "Refresh carried inventory"))
+        {
+            dispatch(controller.SnapshotExceptionInventory);
+            dontMarketSelection = null;
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Refresh chocobo saddlebag"))
+        {
+            dispatch(controller.SnapshotExceptionSaddlebag);
+            dontMarketSelection = null;
+        }
+        ImGui.EndDisabled();
+        if (controller.ExceptionSaddlebagSnapshotError is { } saddlebagError)
+            ImGui.TextWrapped(saddlebagError);
+        else if (controller.ExceptionSaddlebagSnapshotAt is { } saddlebagAt)
+            ImGui.TextDisabled($"Saddlebag snapshot · {controller.ExceptionSaddlebagCandidates.Count} item stack(s) · {saddlebagAt:HH:mm:ss}");
+        if (controller.ExceptionInventorySnapshotError is { } dontMarketInventoryError)
+            ImGui.TextWrapped(dontMarketInventoryError);
+        else if (controller.ExceptionInventorySnapshotAt is { } dontMarketSnapshotAt)
+        {
+            ImGui.TextDisabled($"Inventory snapshot · {controller.ExceptionInventoryCandidates.Count} marketable stack(s) · {dontMarketSnapshotAt:HH:mm:ss}");
+            ImGui.TextDisabled($"{controller.ExceptionInventoryUnmarketableSkipped} bound, untradeable, or nonmarketable stack(s) omitted.");
+        }
+        else
+            ImGui.TextDisabled("Refresh carried inventory to populate the picker, or search the full item list.");
+
+        ImGui.SetNextItemWidth(360);
+        ImGui.InputText("Search item names", ref dontMarketSearch, 128);
+        if (!StringComparer.CurrentCultureIgnoreCase.Equals(dontMarketSearch, dontMarketSearchCache))
+            dontMarketSelection = null;
+        RefreshMatches(dontMarketSearch, ref dontMarketSearchCache, ref dontMarketMatches);
+
+        var dontMarketSearchTerm = dontMarketSearch.Trim();
+        var dontMarketInventoryItems = controller.ExceptionInventoryCandidates
+            .Concat(controller.ExceptionSaddlebagCandidates)
+            .Where(item => dontMarketSearchTerm.Length == 0 ||
+                item.Name.Contains(dontMarketSearchTerm, StringComparison.CurrentCultureIgnoreCase))
+            .GroupBy(item => item.ItemId)
+            .Select(group => new ItemChoice(group.Key, group.First().Name));
+        var pickerItems = dontMarketInventoryItems.Concat(dontMarketMatches)
+            .Where(item => !config.DontMarketItemIds.Contains(item.ItemId))
+            .GroupBy(item => item.ItemId)
+            .Select(group => group.First())
+            .ToArray();
+        var preview = dontMarketSelection is { } selected
+            ? $"{selected.Name}  ·  #{selected.ItemId}"
+            : "Select an inventory, saddlebag, or matching item to protect...";
+        ImGui.SetNextItemWidth(420);
+        if (ImGui.BeginCombo("Item to protect", preview))
+        {
+            if (pickerItems.Length == 0)
+                ImGui.TextDisabled(dontMarketSearch.Trim().Length < 2
+                    ? "Enter at least two characters to search the item list."
+                    : "No unprotected items match that search.");
+            foreach (var candidate in pickerItems)
+            {
+                var label = $"{candidate.Name}  ·  #{candidate.ItemId}";
+                if (ImGui.Selectable(label, dontMarketSelection?.ItemId == candidate.ItemId))
+                    dontMarketSelection = candidate;
+            }
+            ImGui.EndCombo();
+        }
+
+        var canAdd = dontMarketSelection is { } choice && !config.DontMarketItemIds.Contains(choice.ItemId);
+        ImGui.BeginDisabled(UiBusy || ventures.IsRunning || !canAdd);
+        if (ImGui.Button("Add to Don't market") && dontMarketSelection is { } addChoice)
+        {
+            AddDontMarket(addChoice.ItemId);
+            dontMarketSelection = null;
+        }
+        ImGui.EndDisabled();
+
+        ImGui.Separator();
+        ImGui.TextUnformatted($"Protected items · {config.DontMarketItemIds.Count}");
+        if (config.DontMarketItemIds.Count == 0)
+        {
+            ImGui.TextDisabled("No items are blocked from new market listings.");
+            return;
+        }
+
+        if (ImGui.BeginChild("##dontMarketList", new Vector2(0, 260), true))
+        {
+            foreach (var itemId in config.DontMarketItemIds.ToArray())
+            {
+                var name = itemChoices.FirstOrDefault(item => item.ItemId == itemId)?.Name ?? $"Item {itemId}";
+                ImGui.PushID((int)itemId);
+                ImGui.TextUnformatted($"{name}  ·  #{itemId}");
+                ImGui.SameLine();
+                ImGui.BeginDisabled(UiBusy || ventures.IsRunning);
+                if (ImGui.SmallButton("Remove"))
+                {
+                    config.DontMarketItemIds.Remove(itemId);
+                    config.Normalize();
+                    save();
+                }
+                ImGui.EndDisabled();
+                ImGui.PopID();
+            }
+        }
+        ImGui.EndChild();
+    }
+
+    private void AddDontMarket(uint itemId)
+    {
+        if (!config.DontMarketItemIds.Contains(itemId)) config.DontMarketItemIds.Add(itemId);
         config.Normalize();
         save();
     }

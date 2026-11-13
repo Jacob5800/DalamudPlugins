@@ -69,6 +69,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public int PriceDrop10MPlusPercent { get; set; } = 5;
     public List<uint> ExcludedItemIds { get; set; } = [];
     public List<uint> NoRepriceItemIds { get; set; } = [];
+    public List<uint> DontMarketItemIds { get; set; } = [];
     public Dictionary<uint, uint> BatchSaleQuantities { get; set; } = [];
     // Zero or missing means unlimited total quantity for that item during one listing run.
     public Dictionary<uint, uint> BatchSaleMaxQuantities { get; set; } = [];
@@ -121,6 +122,7 @@ public sealed class PluginConfig : IPluginConfiguration
         PriceDrop10MPlusPercent = Math.Clamp(PriceDrop10MPlusPercent, 1, 99);
         ExcludedItemIds = (ExcludedItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         NoRepriceItemIds = (NoRepriceItemIds ?? []).Where(id => id != 0).Distinct().ToList();
+        DontMarketItemIds = (DontMarketItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         BatchSaleQuantities = (BatchSaleQuantities ?? []).Where(pair => pair.Key != 0)
             .ToDictionary(pair => pair.Key, pair => (uint)Math.Clamp((long)pair.Value, 1, 9_999));
         BatchSaleMaxQuantities = (BatchSaleMaxQuantities ?? []).Where(pair => pair.Key != 0 && BatchSaleQuantities.ContainsKey(pair.Key))

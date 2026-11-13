@@ -143,10 +143,21 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private bool EnsureBroth(InventoryManager* inventory, DateTimeOffset now)
     {
         if (!config.UseBaconBroth || brothHandled) return true;
-        if (HasBrothBuff) { brothHandled = true; brothRequested = false; return true; }
+        if (HasBrothBuff)
+        {
+            brothHandled = true; brothRequested = false;
+            Status = "Bacon Broth confirmed; continuing desynthesis.";
+            bridge.LogAutomationDiagnostic("Bacon Broth status confirmed; continuing the same desynthesis run.");
+            return true;
+        }
         if (brothRequested)
         {
-            if (now >= brothDeadline) Stop("Bacon Broth buff was not confirmed. Check the game error before retrying.");
+            if (now >= brothDeadline)
+            {
+                var food = objects.LocalPlayer?.StatusList.FirstOrDefault(status => status.StatusId == 48);
+                bridge.LogAutomationDiagnostic($"Bacon Broth confirmation timed out: foodParam={food?.Param}, remaining={food?.RemainingTime}; no second food request sent.");
+                Stop("Bacon Broth buff was not confirmed. Check the game error before retrying.");
+            }
             return false;
         }
         if (WaitingForBroth) return false;
@@ -168,9 +179,11 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             Status = "Bacon Broth not found. Choose Continue without Bacon Broth or Stop.";
             return false;
         }
-        if (!ActionManager.Instance()->UseAction(ActionType.Item, hq ? 1009335u : 9335u, 0xE0000000, 65535))
-        { Stop("Bacon Broth could not be used. No items were desynthesized by this request."); return false; }
+        // The native return value can be false even when item use is queued/consumed.
+        // Submit once, then verify the actual food status instead of stopping or eating twice.
         brothRequested = true; brothDeadline = now.AddSeconds(15);
+        var accepted = ActionManager.Instance()->UseAction(ActionType.Item, hq ? 1009335u : 9335u, 0xE0000000, 65535);
+        bridge.LogAutomationDiagnostic($"Bacon Broth requested: HQ={hq}, nativeAccepted={accepted}; waiting for food status 48/270 before desynthesis.");
         Status = hq ? "Using HQ Bacon Broth..." : "Using NQ Bacon Broth...";
         return false;
     }
@@ -283,6 +296,8 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         next = now.AddMilliseconds(100);
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
+        // Resolve a pending food request even while its inventory slot/UI is changing.
+        if (brothRequested && !EnsureBroth(inventory, now)) return;
         if (transfer is { } moving)
         {
             var source = inventory->GetInventoryContainer(moving.Source);

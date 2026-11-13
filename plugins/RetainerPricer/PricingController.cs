@@ -23,7 +23,9 @@ internal sealed class PricingController : IDisposable
     private enum Work { Idle, Single, Manual, Scan, AutoUpdateAllRetainers, SnapshotAllRetainers, MarketboardLookup, BatchListing }
     private enum Step
     {
-        Start, Opening, WaitingToCompare, Quote, Closing, ClosingListingCompare, ClosingSkippedCompare,
+        Start, Opening, WaitingToCompare, Quote, Closing,
+        ExistingWaitingToCompare, ExistingClosingCompare, ExistingClosingSell,
+        ClosingListingCompare, ClosingSkippedCompare,
         ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
     }
@@ -336,6 +338,7 @@ internal sealed class PricingController : IDisposable
             Status = protectionError;
             return;
         }
+        excludedItemIds.UnionWith(config.DontMarketItemIds);
         var items = bridge.ReadCarriedInventory(marketableItemIds, excludedItemIds,
             out var exceptionSkipped, out var unmarketableSkipped, out var error);
         InventoryCandidates.AddRange(items);
@@ -524,6 +527,8 @@ internal sealed class PricingController : IDisposable
         { Status = protectionError; return; }
         if (excludedItemIds.Contains(target.ItemId))
         { Status = $"{target.Name}: {ItemProtection.Reason(target.ItemId, config, savedGearsetItemIds)}"; return; }
+        if (!target.IsExisting && config.DontMarketItemIds.Contains(target.ItemId))
+        { CurrentSnapshot = null; CurrentProposal = null; Status = $"{target.Name} is on Don't market; no new market listing will be created."; return; }
         if (target.IsExisting && IsNoReprice(target.ItemId))
         { CurrentSnapshot = null; CurrentProposal = null; Status = $"{target.Name} is protected by Don't reprice. The plugin will not change its existing price."; return; }
         if (fillAutomatically)
@@ -751,6 +756,8 @@ internal sealed class PricingController : IDisposable
     public void FillCurrent()
     {
         if (Busy || workingItem is null || CurrentSnapshot is null) return;
+        if (!workingItem.IsExisting && config.DontMarketItemIds.Contains(workingItem.ItemId))
+        { Status = $"{workingItem.Name} is on Don't market; no price was filled."; return; }
         if (workingItem.IsExisting && IsNoReprice(workingItem.ItemId))
         { Status = $"{workingItem.Name} is protected by Don't reprice. The plugin will not change its existing price."; return; }
         CurrentProposal = Calculate(CurrentSnapshot, workingItem);
@@ -781,7 +788,7 @@ internal sealed class PricingController : IDisposable
         if (total == 0) { Status = "This retainer has no listings."; return; }
         if (Rows.Count == 0) { Status = "All current listings are excluded, protected from repricing, or not marketable."; return; }
         work = Work.Scan;
-        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with Universalis ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). Items without a competing listing will be left unchanged; the 30-day sales median is reference only.";
+        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")} ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). Items without a competing listing will be left unchanged; the 30-day sales median is reference only.";
     }
 
     public void ApprovePriceDrop()
@@ -1173,7 +1180,9 @@ internal sealed class PricingController : IDisposable
                 ?? config.UniversalisRetainerListings.GetValueOrDefault(active.RetainerId)?.RetainerName ?? $"#{active.RetainerId}")));
         session = active;
         step = Step.Start;
-        workSource = PriceSource.Universalis;
+        workSource = config.UseDataCenterPrices || config.UseRegionPrices ? PriceSource.Universalis : PriceSource.Local;
+        if (workSource == PriceSource.Local && bridge.LocalAvailabilityError is { } localError)
+        { error = localError; return false; }
         error = string.Empty;
         return true;
     }
@@ -1183,6 +1192,7 @@ internal sealed class PricingController : IDisposable
         var error = string.Empty;
         if (work == Work.AutoUpdateAllRetainers &&
             (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
+                Step.ExistingWaitingToCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
                 Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming))
         {
             TickScan(now);
@@ -1581,6 +1591,8 @@ internal sealed class PricingController : IDisposable
             () => Cancel("Skipped below-vendor new listing; no market sale submitted."))) return;
 
         listingSubmittedPrice = CurrentProposal.SuggestedPrice;
+        if (config.DontMarketItemIds.Contains(workingItem.ItemId))
+        { Cancel("Item added to Don't market; no new listing confirmed."); return; }
         if (!bridge.TryConfirmNewListing(workingItem, listingSubmittedPrice, out var confirmError))
         { Cancel($"Automatic listing stopped before confirming {workingItem.Name}: {confirmError}"); return; }
         deadline = now.AddSeconds(12);
@@ -1676,7 +1688,23 @@ internal sealed class PricingController : IDisposable
             { if (now > deadline) Cancel("Stopped because the next sell window did not open in time. Check the retainer UI before resuming."); return; }
             if (!SameListing(row.Item, opened)) { Cancel("The opened item differs from the item being checked."); return; }
             workingItem = opened;
-            if (!StartRequest(opened, now, out var error)) { ScanFailed(row, error); return; }
+            // A previous request can finish after its UI closes. Keep the same item open
+            // and wait, rather than skipping it or issuing overlapping native searches.
+            deadline = now.AddSeconds(25);
+            step = Step.ExistingWaitingToCompare;
+        }
+        if (step == Step.ExistingWaitingToCompare)
+        {
+            if (workingItem is not { } waiting || !bridge.TryReadSellItem(out var current, out _) || !SameDialog(waiting, current))
+            { Cancel("The listing changed while waiting to compare prices; no price was submitted."); return; }
+            if (workSource == PriceSource.Local && bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) { ScanFailed(row, "The previous marketboard request did not finish in time."); return; }
+                Status = $"Waiting for the previous marketboard response before checking {waiting.Name}...";
+                return;
+            }
+            if (!StartRequest(waiting, now, out var error)) { ScanFailed(row, error); return; }
+            Status = $"Checking {waiting.Name} using {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")}.";
             step = Step.Quote;
         }
         if (step == Step.Quote && workingItem is not null && ReadRequest(workingItem, now, out var snapshot, out var failure))
@@ -1684,8 +1712,40 @@ internal sealed class PricingController : IDisposable
             if (snapshot is null) ScanFailed(row, failure);
             else ScanReceived(row, snapshot);
         }
+        if (step == Step.ExistingClosingCompare)
+        {
+            if (bridge.IsComparisonVisible || bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) Cancel("The market comparison did not finish closing; no further prices were submitted.");
+                return;
+            }
+            step = Step.Closing;
+        }
+        if (step == Step.ExistingClosingSell)
+        {
+            if (bridge.IsSellWindowVisible || bridge.IsComparisonVisible ||
+                (workSource == PriceSource.Local && bridge.IsLocalSearchBusy))
+            {
+                if (now > deadline) Cancel("The previous listing window did not close; no further prices were submitted.");
+                return;
+            }
+            AdvanceScanIndex(row);
+            step = Step.Start;
+            workingItem = null;
+            ResetRequest();
+            return;
+        }
         if (step == Step.Closing)
         {
+            if (workingItem is not null && workSource == PriceSource.Local &&
+                (bridge.IsComparisonVisible || bridge.IsLocalSearchBusy))
+            {
+                if (!bridge.TryCloseCompare(workingItem, out var compareError))
+                { Cancel($"Could not close the market comparison for {row.Item.Name}: {compareError}"); return; }
+                step = Step.ExistingClosingCompare;
+                deadline = now.AddSeconds(10);
+                return;
+            }
             if (workingItem is not null)
             {
                 if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var currentExcludedItemIds, out var currentSavedGearsetItemIds, out var protectionError))
@@ -1695,10 +1755,8 @@ internal sealed class PricingController : IDisposable
                     if (!bridge.TryClosePriceWindows(workingItem, out var excludedCloseError))
                     { Cancel($"Could not close the price window for {row.Item.Name}: {excludedCloseError}"); return; }
                     row.Status = ItemProtection.Reason(workingItem.ItemId, config, currentSavedGearsetItemIds);
-                    AdvanceScanIndex(row);
-                    step = Step.Start;
-                    workingItem = null;
-                    ResetRequest();
+                    step = Step.ExistingClosingSell;
+                    deadline = now.AddSeconds(10);
                     return;
                 }
             }
@@ -1728,10 +1786,9 @@ internal sealed class PricingController : IDisposable
             { Cancel($"Could not close the price window for {row.Item.Name}: {error}"); return; }
             if (row.Proposal is { CanApply: true } unchangedProposal && unchangedProposal.SuggestedPrice == row.Item.CurrentPrice)
                 row.Status = "Already priced";
-            AdvanceScanIndex(row);
-            step = Step.Start;
-            workingItem = null;
-            ResetRequest();
+            step = Step.ExistingClosingSell;
+            deadline = now.AddSeconds(10);
+            return;
         }
 
         if (step == Step.Confirming)
@@ -1784,9 +1841,11 @@ internal sealed class PricingController : IDisposable
 
             if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var currentExcludedItemIds, out var currentSavedGearsetItemIds, out var protectionError))
             { Cancel(protectionError); return; }
+            currentExcludedItemIds.UnionWith(config.DontMarketItemIds);
             if (!marketableItemIds.Contains(candidate.ItemId) || currentExcludedItemIds.Contains(candidate.ItemId))
             {
-                var reason = currentExcludedItemIds.Contains(candidate.ItemId)
+                var reason = config.DontMarketItemIds.Contains(candidate.ItemId) ? "Skipped because this item is on Don't market."
+                    : currentExcludedItemIds.Contains(candidate.ItemId)
                     ? ItemProtection.Reason(candidate.ItemId, config, currentSavedGearsetItemIds)
                     : "The item is not marketable.";
                 SkipBatchItem($"Skipped {candidate.Name}: {reason}");
@@ -1971,6 +2030,8 @@ internal sealed class PricingController : IDisposable
             }
             if (workingItem is not { } current || !bridge.TryReadSellItem(out var open, out _) || !SameDialog(current, open))
             { Cancel("Automatic listing stopped because the sale window changed before confirmation. No sale was submitted."); return; }
+            if (config.DontMarketItemIds.Contains(open.ItemId))
+            { SkipBatchItem($"Skipped {open.Name}: added to Don't market."); return; }
             if (!bridge.TryConfirmNewListing(open, listingSubmittedPrice, out var confirmError))
             { Cancel($"Automatic listing stopped before confirming {open.Name}: {confirmError}"); return; }
             Status = $"Submitted {open.Name} at {listingSubmittedPrice:N0} gil each. Waiting for the retainer list to confirm it.";
@@ -2029,6 +2090,7 @@ internal sealed class PricingController : IDisposable
                 {
                     if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var currentExcludedItemIds, out _, out var protectionError))
                     { Cancel($"The listing was confirmed, but {protectionError}"); return; }
+                    currentExcludedItemIds.UnionWith(config.DontMarketItemIds);
                     var currentInventory = bridge.ReadCarriedInventory(marketableItemIds, currentExcludedItemIds,
                         out _, out _, out var inventoryError);
                     var remainingStack = inventoryError.Length == 0
@@ -2217,9 +2279,13 @@ internal sealed class PricingController : IDisposable
     }
 
     private PriceProposal Calculate(PriceSnapshot snapshot, SellItem item)
-        => Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, bridge.OwnRetainerIds(),
+    {
+        if (!bridge.TryGetOwnRetainerIds(out var ownIds) || !ownIds.Contains(item.Session.RetainerId))
+            return new PriceProposal(0, 0, 0, "Your retainer ownership list is not ready. No price was applied; reopen the retainer list and retry.");
+        return Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds,
             snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
                 ? item.Session.DataCenterName : null, allowSalesFallback: !item.IsExisting);
+    }
 
     private PriceProposal Calculate(PriceSnapshot snapshot, uint itemId, uint worldId, bool isHq,
         IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null, bool allowSalesFallback = false)

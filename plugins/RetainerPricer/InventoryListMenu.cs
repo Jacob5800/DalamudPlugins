@@ -42,6 +42,7 @@ internal sealed class InventoryListMenu : IDisposable
         var eligibleForSale = protectionsAvailable && !protectedIds.Contains(id);
         AddList(args, id, "desynthesis list", config.DesynthesisItemIds, DesynthesizableItemIds.Contains(id) && !item.IsCollectable);
         AddList(args, id, "exceptions", config.ExcludedItemIds, marketable || vendorable);
+        AddList(args, id, "don't market", config.DontMarketItemIds, capabilities.Marketable);
         AddList(args, id, "don't reprice", config.NoRepriceItemIds, marketable && eligibleForSale);
         var removeBatch = config.BatchSaleQuantities.ContainsKey(id);
         if (removeBatch || (marketable && eligibleForSale)) args.AddMenuItem(new MenuItem

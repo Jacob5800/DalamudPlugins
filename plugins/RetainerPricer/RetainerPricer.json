@@ -2,8 +2,8 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.64",
-  "Description": "Price eligible retainer listings with Universalis and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
+  "AssemblyVersion": "0.5.1.65",
+  "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
   "Tags": [
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.64\n\n- Reduced the stable armoury-transfer wait to 1.5 seconds while preserving transfer verification.\n- Removed extra one-second pauses after successful desynthesis and materia handling, and made readiness checks more responsive.",
+  "Changelog": "## 0.5.1.65\n\n- World pricing now uses live home-world marketboard listings when updating existing listings, including Auto update. Your own retainers are excluded; Data Center and Region continue using Universalis.\n- Added a Don't market list and item right-click option to skip new listings and batch selling while allowing whitelisted NPC sales. Exceptions, saved gearsets and Don't vendor remain protected.\n- Desynthesis now waits for the Bacon Broth buff after requesting food, even if the game returns a negative item-use result, then continues the same run.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
