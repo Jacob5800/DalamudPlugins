@@ -155,4 +155,21 @@ foreach (var (price, review) in new[] { (24999u,true), (25000u,false), (500000u,
     Check((result.Rejection == PriceRejection.UnusualHistoryPrice) == review,
         $"price {price} respects strict 25 percent and five times boundaries");
 }
+Check(PriceHistoryFallback.ShouldFetch(Live(),42,74,false,ownIds,clock), "complete empty live market starts history fallback");
+Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99)] },42,74,false,ownIds,clock), "competitors prevent remote fallback");
+Check(!PriceHistoryFallback.ShouldFetch(Live() with { IsComplete = false },42,74,false,ownIds,clock), "incomplete live market cannot start history fallback");
+var homeHistory = historyOnly with { Source = PriceSource.Universalis, Listings = [Listing(999999,99)] };
+var combined = PriceHistoryFallback.Attach(Live(),homeHistory);
+Check(combined.Source == PriceSource.Local && combined.Listings.Count == 0 && HistoryPrice(combined).SuggestedPrice == 59,
+    "fallback uses remote history but never remote listings");
+try { PriceHistoryFallback.Attach(Live(),homeHistory with { WorldId = 75 }); throw new Exception("Wrong world accepted"); }
+catch (InvalidOperationException) { Check(true,"wrong-world history rejected"); }
+try { PriceHistoryFallback.Attach(Live(),homeHistory with { DataCenterName = "Light" }); throw new Exception("DC history accepted"); }
+catch (InvalidOperationException) { Check(true,"DC history cannot replace home-world history"); }
+Check(PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,21)] },42,74,false,ownIds,clock),
+    "own-retainer stock alone allows history fallback");
+Check(PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99) with { IsHq = true }] },42,74,false,ownIds,clock),
+    "other quality does not block history fallback");
+Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)] },42,74,false,ownIds,clock),
+    "missing ownership cannot become empty-market fallback");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

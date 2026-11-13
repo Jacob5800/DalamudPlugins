@@ -1,4 +1,3 @@
-using Dalamud.Game.Network.Structures;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
@@ -50,10 +49,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
     private readonly ICondition condition;
     private readonly IAddonLifecycle lifecycle;
     private readonly IPluginLog log;
-    private readonly IMarketBoard marketBoard;
-    private readonly object localHistoryLock = new();
-    private SellItem? localHistoryTarget;
-    private MarketSale[]? localHistorySales;
     private readonly OpenRetainerSellDelegate? openRetainerSell;
     private readonly RetainerItemCommandDelegate? retainerItemCommandAction;
     private readonly bool retainerFieldsSupported;
@@ -178,7 +173,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     public NativeMarketBridge(IGameGui gameGui, IDataManager data, IPlayerState player,
         IClientState clientState, ICondition condition,
-        IAddonLifecycle lifecycle, IGameInteropProvider interop, ISigScanner scanner, IPluginLog log, IMarketBoard marketBoard)
+        IAddonLifecycle lifecycle, IGameInteropProvider interop, ISigScanner scanner, IPluginLog log)
     {
         this.gameGui = gameGui;
         this.data = data;
@@ -240,8 +235,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             LocalAvailabilityError = "Local price reading is unavailable on this game build. Use Universalis.";
             log.Error(ex, "Could not initialize complete local market response tracking.");
         }
-        this.marketBoard = marketBoard;
-        marketBoard.HistoryReceived += OnLocalHistoryReceived;
     }
 
     public bool TryGetSession(out MarketSession session, out string error)
@@ -1498,11 +1491,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             error = "A market comparison is already open. Close it before continuing.";
             return false;
         }
-        lock (localHistoryLock)
-        {
-            localHistoryTarget = expected;
-            localHistorySales = null;
-        }
         compareItem = expected;
         localSnapshot = null;
         resultReceived = false;
@@ -1680,45 +1668,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
 
     // Dalamud supplies the same history rows used by the game's History window.
     // Copy only rows received for this fresh comparison; never reuse a previous item/session.
-    private void OnLocalHistoryReceived(IMarketBoardHistory history)
-    {
-        try
-        {
-            lock (localHistoryLock)
-            {
-                if (disposed || localHistoryTarget is not { } target || history.ItemId != target.ItemId) return;
-                localHistorySales = history.HistoryListings
-                    .Where(row => !row.OnMannequin && row.Quantity > 0 && row.SalePrice is > 0 and <= MaximumPrice)
-                    .Select(row => new MarketSale(row.IsHq, row.SalePrice, target.Session.WorldId,
-                        target.Session.WorldName, new DateTimeOffset(DateTime.SpecifyKind(row.PurchaseTime, DateTimeKind.Utc))))
-                    .ToArray();
-                log.Information("[Live repricing] History received item={Item} retainer={Retainer} dialog={Dialog} sales={Sales}",
-                    target.ItemId, target.Session.RetainerId, target.DialogGeneration, localHistorySales.Length);
-            }
-        }
-        catch (Exception ex) { log.Warning(ex, "Could not read local market sale history; no history price applied."); }
-    }
-
-    public bool TryGetLocalHistorySnapshot(SellItem expected, PriceSnapshot listings, out PriceSnapshot? snapshot, out string error)
-    {
-        snapshot = null;
-        if (!MatchesCurrentDialog(expected, true, out _, out error)) return false;
-        if (listings.Source != PriceSource.Local || listings.ItemId != expected.ItemId ||
-            listings.WorldId != expected.Session.WorldId || !listings.IsComplete)
-        { error = "History fallback requires a complete matching live comparison."; return false; }
-        lock (localHistoryLock)
-        {
-            if (localHistoryTarget is not { } target || !SameStock(target, expected) ||
-                target.DialogGeneration != expected.DialogGeneration)
-            { error = "The comparison changed before history could be checked."; return false; }
-            if (localHistorySales is null) { error = string.Empty; return false; }
-            snapshot = listings with { Sales = localHistorySales,
-                MostRecentSaleAt = localHistorySales.Length == 0 ? null : localHistorySales.Max(row => row.SoldAt) };
-        }
-        error = string.Empty;
-        return true;
-    }
-
     public bool TryCloseCompare(SellItem expected, out string error)
     {
         if (!MatchesCurrentDialog(expected, false, out _, out error)) return false;
@@ -2028,7 +1977,6 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         if (disposed) return;
         disposed = true;
         var failures = new ShutdownSequence().Run(
-            ("Market history listener", () => marketBoard.HistoryReceived -= OnLocalHistoryReceived),
             ("Retainer setup listener", () => lifecycle.UnregisterListener(AddonEvent.PostSetup, "RetainerSell", OnSellLifecycle)),
             ("Retainer finalize listener", () => lifecycle.UnregisterListener(AddonEvent.PreFinalize, "RetainerSell", OnSellLifecycle)),
             ("Search end hook", () => endHook?.Dispose()),

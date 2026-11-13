@@ -1,6 +1,4 @@
-## Retainer Pricer 0.5.1.68
+## Retainer Pricer 0.5.1.69
 
-- World repricing uses recent matching-quality sales history when no competing listings are available.
-- Require at least three matching-quality sales in the last 30 days for automatic history pricing. Otherwise, approve/edit a price or skip in a popup.
-- Ask before using history containing sales below 25% or above 5x its median, or submitting a price outside those bounds. Existing price protections still apply.
-- Added Show automation list in Visible tabs, disabled by default. Hiding the tab preserves automation settings.
+- Automatic World pricing checks live marketboard listings for both new and existing listings, falling back to Universalis home-world sales history only when no same-quality competitors exist.
+- Replaced the game-history fallback. Three recent matching-quality sales are still required; insufficient, unavailable or unusual history pauses for price approval or skip.

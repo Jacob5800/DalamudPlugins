@@ -24,7 +24,7 @@ internal sealed class PricingController : IDisposable
     private enum Step
     {
         Start, Opening, WaitingToCompare, Quote, Closing,
-        ExistingWaitingToCompare, ExistingHistory, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
+        ExistingWaitingToCompare, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
         ClosingListingCompare, ClosingSkippedCompare,
         ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
@@ -54,6 +54,7 @@ internal sealed class PricingController : IDisposable
     private bool localRequested;
     private readonly MarketComparisonRetry localRetry = new();
     private PriceSnapshot? pendingHistoryListings;
+    private Task<PriceSnapshot>? historyTask;
     private PriceSource workSource;
     private uint submittedPrice;
     private List<CarriedItemCandidate> batchCandidates = [];
@@ -429,12 +430,12 @@ internal sealed class PricingController : IDisposable
         batchSoldQuantitiesByItemId.Clear();
         batchMaximumReachedItemIds.Clear();
         step = Step.Start;
-        workSource = PriceSource.Universalis;
+        workSource = config.UseDataCenterPrices || config.UseRegionPrices ? PriceSource.Universalis : PriceSource.Local;
         approvedMateriaItem = null;
         work = Work.BatchListing;
         suppressAutoPriceUntilSellWindowCloses = false;
         var scope = batchOnly ? "configured Batch selling item stack(s) only" : "eligible stack(s)";
-        Status = $"Automatically listing {batchCandidates.Count} {scope} using Universalis. Current competing listings take priority; new listings can use matching-quality sales from the last 30 days when no competitors exist.";
+        Status = $"Automatically listing {batchCandidates.Count} {scope} using {(workSource == PriceSource.Local ? "live marketboard listings" : "Universalis")}. Current competing listings take priority; new listings can use matching-quality sales from the last 30 days when no competitors exist.";
     }
 
     public void SnapshotExceptionInventory()
@@ -548,7 +549,9 @@ internal sealed class PricingController : IDisposable
         CurrentSnapshot = null;
         CurrentProposal = null;
         autoApply = fillAutomatically;
-        workSource = fillAutomatically ? PriceSource.Universalis : config.Source;
+        workSource = fillAutomatically
+            ? (config.UseDataCenterPrices || config.UseRegionPrices ? PriceSource.Universalis : PriceSource.Local)
+            : config.Source;
         ResetRequest();
         work = Work.Single;
         step = Step.Start;
@@ -823,7 +826,7 @@ internal sealed class PricingController : IDisposable
         if (total == 0) { Status = "This retainer has no listings."; return; }
         if (Rows.Count == 0) { Status = "All current listings are excluded, protected from repricing, or not marketable."; return; }
         work = Work.Scan;
-        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")} ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). Items without a competing listing will be left unchanged; the 30-day sales median is reference only.";
+        Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")} ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). World comparisons without competitors use Universalis home-world sales history; insufficient or unusual history requires approval.";
     }
 
     public void ApprovePriceDrop()
@@ -1227,7 +1230,7 @@ internal sealed class PricingController : IDisposable
         var error = string.Empty;
         if (work == Work.AutoUpdateAllRetainers &&
             (step is Step.Start or Step.Opening or Step.WaitingToCompare or Step.Quote or Step.Closing or
-                Step.ExistingWaitingToCompare or Step.ExistingHistory or Step.ExistingRetryClosingCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
+                Step.ExistingWaitingToCompare or Step.ExistingRetryClosingCompare or Step.ExistingClosingCompare or Step.ExistingClosingSell or
                 Step.ClosingListingCompare or Step.ClosingSkippedCompare or Step.ClosingSkippedSell or Step.Confirming))
         {
             TickScan(now);
@@ -1761,32 +1764,7 @@ internal sealed class PricingController : IDisposable
                 step = Step.ExistingRetryClosingCompare;
             }
             else if (snapshot is null) ScanFailed(row, failure);
-            else if (snapshot.Source == PriceSource.Local && bridge.TryGetOwnRetainerIds(out var ownIds) &&
-                ownIds.Contains(workingItem.Session.RetainerId) &&
-                !snapshot.Listings.Any(listing => listing.IsHq == workingItem.IsHq && !listing.OnMannequin && !ownIds.Contains(listing.RetainerId)))
-            {
-                pendingHistoryListings = snapshot;
-                step = Step.ExistingHistory;
-                deadline = now.AddSeconds(10);
-                Status = $"{workingItem.Name}: no same-quality competitors. Checking live sale history...";
-            }
             else ScanReceived(row, snapshot);
-        }
-        if (step == Step.ExistingHistory)
-        {
-            if (workingItem is not { } historyItem || pendingHistoryListings is null)
-            { Cancel("History fallback lost its original comparison; no price applied."); return; }
-            if (bridge.TryGetLocalHistorySnapshot(historyItem, pendingHistoryListings, out var history, out var historyError))
-            {
-                pendingHistoryListings = null;
-                ScanReceived(row, history!);
-            }
-            else if (historyError.Length != 0 || now > deadline)
-            {
-                pendingHistoryListings = null;
-                ScanFailed(row, historyError.Length != 0 ? historyError : "Live sale history did not arrive. Price unchanged.");
-            }
-            else return;
         }
         if (step == Step.ExistingRetryClosingCompare)
         {
@@ -2278,7 +2256,7 @@ internal sealed class PricingController : IDisposable
         if (workingItem is { } active && AwaitHistoryReview(active, row.Proposal,
             () => ScanReceived(row, snapshot), () => { row.Proposal = null; row.Status = "Skipped at sale-history price review."; step = Step.Closing; })) return;
         if (snapshot.Source == PriceSource.Local && snapshot.Sales is not null)
-            bridge.LogAutomationDiagnostic($"History fallback item={row.Item.ItemId}, HQ={row.Item.IsHq}, retainer={row.Item.Session.RetainerId}, salesReceived={snapshot.Sales.Count}, matchingRecentSales={row.Proposal.MatchingSales}, median={row.Proposal.SaleHistoryMedian}, used={row.Proposal.UsedSalesFallback}, suggested={row.Proposal.SuggestedPrice}, error={row.Proposal.Error}");
+            bridge.LogAutomationDiagnostic($"Universalis history fallback item={row.Item.ItemId}, HQ={row.Item.IsHq}, retainer={row.Item.Session.RetainerId}, salesReceived={snapshot.Sales.Count}, matchingRecentSales={row.Proposal.MatchingSales}, median={row.Proposal.SaleHistoryMedian}, used={row.Proposal.UsedSalesFallback}, suggested={row.Proposal.SuggestedPrice}, error={row.Proposal.Error}");
         row.PriceDropReviewThresholdPercent = config.PriceDropReviewPercentFor(row.Item.CurrentPrice);
         if (!row.Proposal.CanApply) row.Status = row.Proposal.Error!;
         else if (row.Proposal.SuggestedPrice == row.Item.CurrentPrice) row.Status = "Already priced";
@@ -2354,6 +2332,28 @@ internal sealed class PricingController : IDisposable
     {
         snapshot = null;
         error = "";
+        if (historyTask is { } pending)
+        {
+            if (!pending.IsCompleted && now <= deadline) return false;
+            var original = pendingHistoryListings;
+            historyTask = null;
+            pendingHistoryListings = null;
+            if (original is null) { error = "History lookup lost its live comparison."; return true; }
+            if (!bridge.TryReadSellItem(out var current, out _) || !SameDialog(item, current))
+            { error = "The selling item changed during history lookup. No price applied."; return true; }
+            try
+            {
+                if (!pending.IsCompleted) throw new TimeoutException("Universalis history timed out.");
+                snapshot = PriceHistoryFallback.Attach(original, pending.GetAwaiter().GetResult());
+                bridge.LogAutomationDiagnostic($"Universalis home-world history item={item.ItemId}, world={item.Session.WorldId}, HQ={item.IsHq}, sales={snapshot.Sales?.Count ?? 0}, cached={snapshot.WasCached}");
+            }
+            catch (Exception ex)
+            {
+                bridge.LogAutomationDiagnostic($"Universalis home-world history unavailable item={item.ItemId}, world={item.Session.WorldId}: {ex.Message}. User price review required.");
+                snapshot = original with { Sales = [], MostRecentSaleAt = null };
+            }
+            return true;
+        }
         if (quoteTask is { IsCompleted: true } task)
         {
             quoteTask = null;
@@ -2361,7 +2361,21 @@ internal sealed class PricingController : IDisposable
             catch (Exception ex) { error = ex is OperationCanceledException ? "Price lookup cancelled." : ex.Message; }
             return true;
         }
-        if (localRequested && bridge.TryGetLocalSnapshot(item, out snapshot, out error)) return true;
+        if (localRequested && bridge.TryGetLocalSnapshot(item, out snapshot, out error))
+        {
+            localRequested = false;
+            if (snapshot is not null && bridge.TryGetOwnRetainerIds(out var ownIds) && ownIds.Contains(item.Session.RetainerId) &&
+                PriceHistoryFallback.ShouldFetch(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds, now))
+            {
+                pendingHistoryListings = snapshot;
+                snapshot = null;
+                historyTask = universalis.FetchAsync(item.Session.WorldId, item.ItemId, cancellation.Token, config.UniversalisCacheMinutes);
+                deadline = now.AddSeconds(25);
+                Status = $"{item.Name}: no same-quality competitors. Checking Universalis home-world sales history...";
+                return false;
+            }
+            return true;
+        }
         if (!string.IsNullOrEmpty(error)) return true;
         if (now <= deadline) return false;
         error = workSource == PriceSource.Universalis
@@ -2400,6 +2414,7 @@ internal sealed class PricingController : IDisposable
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
         quoteTask = null;
+        historyTask = null; pendingHistoryListings = null;
         approvedHistoryPrice = null;
         localRequested = false;
     }
