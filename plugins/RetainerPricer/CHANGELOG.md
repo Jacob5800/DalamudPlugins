@@ -1,3 +1,7 @@
+## 0.5.1.70
+
+- Skip retainers with no items for sale during repricing, and skip retainers with all 20 market slots filled during new listing runs.
+
 ## 0.5.1.69
 
 - Automatic World pricing checks live marketboard listings for both new and existing listings, falling back to Universalis home-world sales history only when no same-quality competitors exist.

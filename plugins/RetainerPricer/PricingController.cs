@@ -1400,6 +1400,22 @@ internal sealed class PricingController : IDisposable
                     }
                 }
                 var target = autoRetainers[autoRetainerIndex];
+                if (!IsSnapshotTraversal && bridge.TryGetPickerMarketItemCount(target, out var marketItemCount))
+                {
+                    var skipFull = listingTraversal && marketItemCount == NativeMarketBridge.RetainerMarketSlotLimit;
+                    var skipEmpty = !listingTraversal && marketItemCount == 0;
+                    if (skipFull || skipEmpty)
+                    {
+                        if (skipEmpty) autoEmptyRetainers++;
+                        autoRetainersCompleted++;
+                        autoRetainerIndex++;
+                        var reason = skipFull ? "all 20 market slots are filled" : "no items for sale";
+                        Status = $"{TraversalOperation} · skipped {target.Name}: {reason}.";
+                        bridge.LogAutomationDiagnostic(Status);
+                        if (autoRetainerIndex >= autoRetainers.Count) FinishRetainerTraversal();
+                        return;
+                    }
+                }
                 if (!bridge.TrySelectRetainerById(target, out var unavailable, out error))
                 {
                     if (!unavailable) { Cancel($"{TraversalOperation} stopped before selecting {target.Name}: {error}"); return; }
@@ -1898,7 +1914,7 @@ internal sealed class PricingController : IDisposable
             var candidate = batchCandidates[index];
             var listedBefore = bridge.ReadExistingListings(out var listingError);
             if (listingError.Length != 0) { Cancel($"Automatic listing stopped: {listingError}"); return; }
-            if (listedBefore.Count >= 20)
+            if (listedBefore.Count >= NativeMarketBridge.RetainerMarketSlotLimit)
             {
                 FinishBatchListing($"Stopped because the retainer has all 20 listing slots filled. {listingSucceeded} listed, {listingSkipped} skipped.");
                 return;

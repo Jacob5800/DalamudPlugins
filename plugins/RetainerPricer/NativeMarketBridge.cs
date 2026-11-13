@@ -963,6 +963,29 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         return false;
     }
 
+    public const int RetainerMarketSlotLimit = 20;
+
+    public bool TryGetPickerMarketItemCount(RetainerIdentity expected, out int count)
+    {
+        count = 0;
+        if (!IsRetainerPickerVisible || !player.IsLoaded || player.CurrentWorld.RowId != player.HomeWorld.RowId)
+            return false;
+        var manager = RetainerManager.Instance();
+        if (manager == null || !manager->IsReady) return false;
+        var retainerCount = manager->GetRetainerCount();
+        if (retainerCount is 0 or > 10) return false;
+        for (uint index = 0; index < retainerCount; index++)
+        {
+            var retainer = manager->GetRetainerBySortedIndex(index);
+            if (retainer == null || retainer->RetainerId != expected.RetainerId) continue;
+            if (!retainer->Available || retainer->NameString != expected.Name ||
+                retainer->MarketItemCount > RetainerMarketSlotLimit) return false;
+            count = retainer->MarketItemCount;
+            return true;
+        }
+        return false;
+    }
+
     public bool TryGetOwnRetainers(out IReadOnlyList<RetainerIdentity> retainers)
     {
         var result = new List<RetainerIdentity>();
