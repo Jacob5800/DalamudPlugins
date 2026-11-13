@@ -2412,6 +2412,13 @@ internal sealed class PricingController : IDisposable
         if (proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice) && approvedHistoryPrice is { } review &&
             SameListing(item, review.Item) && workingItem is { } active && SameDialog(active, review.Item))
             return proposal with { SuggestedPrice = review.Price, Error = null, Rejection = PriceRejection.None };
+        if (item.IsExisting && proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice))
+        {
+            if (proposal.SaleHistoryMedian is not { } median)
+                return proposal with { Error = "No recent sale-history reference. Current price kept.", Rejection = PriceRejection.None };
+            if (median >= item.CurrentPrice)
+                return proposal with { Error = "The sale-history reference is at or above the current asking price. Current price kept.", Rejection = PriceRejection.None };
+        }
         return proposal;
     }
 
