@@ -9,6 +9,7 @@
     <Compile Include="../ShiftStopPolicy.cs" Link="ShiftStopPolicy.cs" />
     <Compile Include="../ListingRunRejections.cs" Link="ListingRunRejections.cs" />
     <Compile Include="../MarketComparisonRetry.cs" Link="MarketComparisonRetry.cs" />
+    <Compile Include="../RunPriceCache.cs" Link="RunPriceCache.cs" />
     <Compile Include="../PriceHistoryFallback.cs" Link="PriceHistoryFallback.cs" />
     <Compile Include="../PriceCalculator.cs" Link="PriceCalculator.cs" />
     <Compile Include="../BelowVendorPolicy.cs" Link="BelowVendorPolicy.cs" />

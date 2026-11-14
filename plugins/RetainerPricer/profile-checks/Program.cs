@@ -169,4 +169,21 @@ Check(PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99)
     "other quality does not block history fallback");
 Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)] },42,74,false,ownIds,clock),
     "missing ownership cannot become empty-market fallback");
+var runCache = new RunPriceCache();
+var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
+runCache.Remember(runKey,historyOnly);
+Check(runCache.TryGet(runKey,clock,null,out var cachedRunQuote) && ReferenceEquals(cachedRunQuote,historyOnly), "run cache reuses original completed quote");
+Check(!runCache.TryGet(runKey with { IsHq = true },clock,null,out _), "run cache separates HQ from NQ");
+Check(!runCache.TryGet(runKey with { ContentId = 2 },clock,null,out _), "run cache separates characters");
+Check(!runCache.TryGet(runKey with { WorldId = 75 },clock,null,out _), "run cache separates worlds");
+Check(!runCache.TryGet(runKey with { Source = PriceSource.Universalis, Scope = "dc:Light" },clock,null,out _), "run cache separates sources and scopes");
+runCache.Remember(runKey,historyOnly with { IsComplete = false });
+Check(runCache.TryGet(runKey,clock,null,out cachedRunQuote) && cachedRunQuote.IsComplete, "incomplete results cannot replace cached quote");
+runCache.Remove(runKey);
+Check(!runCache.TryGet(runKey,clock,null,out _), "explicit price recheck invalidates cached quote");
+runCache.Remember(runKey,historyOnly);
+Check(!runCache.TryGet(runKey,clock.AddMinutes(2),TimeSpan.FromMinutes(1),out _), "configured age limit invalidates run quote");
+runCache.Remember(runKey,historyOnly);
+runCache.Clear();
+Check(!runCache.TryGet(runKey,clock,null,out _), "next automation session starts without prior quote");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");

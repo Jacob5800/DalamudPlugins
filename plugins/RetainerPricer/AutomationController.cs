@@ -37,6 +37,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         { Status = "Open the retainer picker before starting the full sequence."; return; }
         if (!bridge.TryGetCharacterContext(out contentId, out worldId, out var error))
         { Status = error; return; }
+        pricing.BeginAutomationPriceSession();
         stage = Stage.Idle;
         Advance();
     }
@@ -76,6 +77,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             if (!pricing.Busy) Fail(pricing.Status);
             return;
         }
+        pricing.EndAutomationPriceSession();
         stage = Stage.Idle; CompletedRuns++; Status = "Selected automation steps complete.";
     }
 
@@ -105,6 +107,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
 
     private void Fail(string detail)
     {
+        pricing.EndAutomationPriceSession();
         stage = Stage.Idle;
         Status = $"Full sequence stopped: {detail}";
     }

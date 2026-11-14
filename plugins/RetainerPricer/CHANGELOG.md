@@ -1,3 +1,7 @@
+## 0.5.1.74
+
+- Reuse completed price checks for repeated items of the same quality throughout one automation run, including the new-listing and repricing passes. Each new run starts fresh.
+
 ## 0.5.1.73
 
 - Existing listings that need sale-history approval only prompt when the history median is below the current asking price. If the median is missing or at or above the asking price, the current price is kept.

@@ -55,6 +55,49 @@ internal sealed class PricingController : IDisposable
     private readonly MarketComparisonRetry localRetry = new();
     private PriceSnapshot? pendingHistoryListings;
     private Task<PriceSnapshot>? historyTask;
+    private readonly RunPriceCache runPrices = new();
+    private bool automationPriceSession;
+    private bool historyLookupFailed;
+    private bool CanReuseRunPrices => automationPriceSession || work is Work.Scan or Work.AutoUpdateAllRetainers or Work.BatchListing;
+
+    public void BeginAutomationPriceSession()
+    {
+        runPrices.Clear();
+        automationPriceSession = true;
+    }
+
+    public void EndAutomationPriceSession()
+    {
+        runPrices.Clear();
+        automationPriceSession = false;
+    }
+
+    private void StartStandalonePriceSession()
+    {
+        if (!automationPriceSession) runPrices.Clear();
+    }
+
+    private PriceCacheKey RunPriceKey(SellItem item)
+    {
+        var scope = workSource == PriceSource.Local ? "world" : config.UseRegionPrices
+            ? $"region:{item.Session.DataCenterName}" : config.UseDataCenterPrices
+            ? $"dc:{item.Session.DataCenterName}" : "world";
+        return new(item.Session.ContentId, item.Session.WorldId, item.ItemId, item.IsHq, workSource, scope);
+    }
+
+    private void RememberRunQuote(SellItem item, PriceSnapshot snapshot)
+    {
+        if (!CanReuseRunPrices || historyLookupFailed || !bridge.TryGetOwnRetainerIds(out var ownIds) ||
+            !ownIds.Contains(item.Session.RetainerId)) return;
+        var scope = snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
+            ? item.Session.DataCenterName : null;
+        var result = PriceCalculator.Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq,
+            ownIds, 1, DateTimeOffset.UtcNow, null, scope, requireRecentSale: false, allowSalesFallback: true);
+        if (result.CanApply || result.Rejection is PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice
+            or PriceRejection.BelowMinimum or PriceRejection.CannotUndercutOneGil)
+            runPrices.Remember(RunPriceKey(item), snapshot);
+    }
+
     private PriceSource workSource;
     private uint submittedPrice;
     private List<CarriedItemCandidate> batchCandidates = [];
@@ -392,6 +435,7 @@ internal sealed class PricingController : IDisposable
         if (Busy) return;
         if (!listingTraversal)
         {
+            StartStandalonePriceSession();
             listingPriceRejections.Clear();
             largeStackPlans.Clear();
             skipMateriaWarningsThisRun = false;
@@ -815,6 +859,7 @@ internal sealed class PricingController : IDisposable
     {
         if (Busy) return;
         priceDropDecisionsThisRun.Clear();
+        StartStandalonePriceSession();
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         Rows.Clear();
         if (bridge.TryReadSellItem(out _, out _)) { Status = "Close the individual selling window first, leaving the retainer's selling list open."; return; }
@@ -833,6 +878,7 @@ internal sealed class PricingController : IDisposable
     {
         var row = PriceDropReviewItem;
         if (row is null) return;
+        runPrices.Remove(RunPriceKey(row.Item));
         priceDropDecisionsThisRun[row.Item.ItemId] = true;
         row.AwaitingPriceDropDecision = false;
         row.PriceDropApproved = true;
@@ -885,6 +931,7 @@ internal sealed class PricingController : IDisposable
     {
         if (Busy) return;
         LastTraversalSucceeded = false;
+        StartStandalonePriceSession();
         listingTraversal = false;
         listingPriceRejections.Clear();
         largeStackPlans.Clear();
@@ -2248,6 +2295,7 @@ internal sealed class PricingController : IDisposable
     private void FinishBatchListing(string message)
     {
         var continueTraversal = listingTraversal;
+        if (!continueTraversal && !automationPriceSession) runPrices.Clear();
         work = Work.Idle;
         batchSellingOnly = false;
         workingItem = null;
@@ -2326,6 +2374,13 @@ internal sealed class PricingController : IDisposable
     {
         error = "";
         deadline = now.AddSeconds(25);
+        var maximumAge = config.UseMaximumPriceAge ? TimeSpan.FromMinutes(config.MaximumAgeMinutes) : (TimeSpan?)null;
+        if (CanReuseRunPrices && runPrices.TryGet(RunPriceKey(item), now, maximumAge, out var cached))
+        {
+            quoteTask = Task.FromResult(cached);
+            bridge.LogAutomationDiagnostic($"Reusing run price check item={item.ItemId}, HQ={item.IsHq}, world={item.Session.WorldId}, retainer={item.Session.RetainerId}, source={cached.Source}, observed={cached.ObservedAt:O}.");
+            return true;
+        }
         if (workSource == PriceSource.Universalis)
         {
             if ((config.UseDataCenterPrices || config.UseRegionPrices) && string.IsNullOrWhiteSpace(item.Session.DataCenterName))
@@ -2361,11 +2416,13 @@ internal sealed class PricingController : IDisposable
             {
                 if (!pending.IsCompleted) throw new TimeoutException("Universalis history timed out.");
                 snapshot = PriceHistoryFallback.Attach(original, pending.GetAwaiter().GetResult());
+                RememberRunQuote(item, snapshot);
                 bridge.LogAutomationDiagnostic($"Universalis home-world history item={item.ItemId}, world={item.Session.WorldId}, HQ={item.IsHq}, sales={snapshot.Sales?.Count ?? 0}, cached={snapshot.WasCached}");
             }
             catch (Exception ex)
             {
                 bridge.LogAutomationDiagnostic($"Universalis home-world history unavailable item={item.ItemId}, world={item.Session.WorldId}: {ex.Message}. User price review required.");
+                historyLookupFailed = true;
                 snapshot = original with { Sales = [], MostRecentSaleAt = null };
             }
             return true;
@@ -2373,7 +2430,11 @@ internal sealed class PricingController : IDisposable
         if (quoteTask is { IsCompleted: true } task)
         {
             quoteTask = null;
-            try { snapshot = task.GetAwaiter().GetResult(); }
+            try
+            {
+                snapshot = task.GetAwaiter().GetResult();
+                RememberRunQuote(item, snapshot);
+            }
             catch (Exception ex) { error = ex is OperationCanceledException ? "Price lookup cancelled." : ex.Message; }
             return true;
         }
@@ -2390,6 +2451,7 @@ internal sealed class PricingController : IDisposable
                 Status = $"{item.Name}: no same-quality competitors. Checking Universalis home-world sales history...";
                 return false;
             }
+            if (snapshot is not null) RememberRunQuote(item, snapshot);
             return true;
         }
         if (!string.IsNullOrEmpty(error)) return true;
@@ -2438,12 +2500,14 @@ internal sealed class PricingController : IDisposable
         cancellation = new CancellationTokenSource();
         quoteTask = null;
         historyTask = null; pendingHistoryListings = null;
+        historyLookupFailed = false;
         approvedHistoryPrice = null;
         localRequested = false;
     }
 
     private void Finish(string message)
     {
+        if (!automationPriceSession) runPrices.Clear();
         bridge.ClearApprovedVendorDeparture();
         vendorSalesAwaitingDeparture.Clear();
         work = Work.Idle;
@@ -2455,6 +2519,7 @@ internal sealed class PricingController : IDisposable
 
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
+        EndAutomationPriceSession();
         bridge.ClearApprovedVendorDeparture();
         vendorSalesAwaitingDeparture.Clear();
         LargeStackReviewItem = null; largeStackPlans.Clear();

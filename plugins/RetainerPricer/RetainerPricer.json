@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.73",
+  "AssemblyVersion": "0.5.1.74",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.73\n\n- Existing listings that need sale-history approval only prompt when the history median is below the current asking price. If the median is missing or at or above the asking price, the current price is kept.",
+  "Changelog": "## 0.5.1.74\n\n- Reuse completed price checks for repeated items of the same quality throughout one automation run, including the new-listing and repricing passes. Each new run starts fresh.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
