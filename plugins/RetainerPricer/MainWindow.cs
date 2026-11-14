@@ -9,7 +9,6 @@ internal sealed class MainWindow : Window
 {
     private const string EmptyBatchListPopup = "Batch selling list is empty.";
     private const string EmptyExceptionsWarningPopup = "Your Exceptions list is empty";
-    private const string PriceDropReviewPopup = "Review large price drop";
     private const string MarketboardRequiredPopup = "Open a marketboard first";
     private const string DiscordInviteUrl = "https://discord.gg/TTPZ82xaUd";
     private readonly PluginConfig config;
@@ -466,8 +465,9 @@ internal sealed class MainWindow : Window
         }
         ImGui.EndChild();
         ImGui.PopStyleColor();
+        DrawRunSummary();
         DrawMarketboardPrompt();
-        DrawPriceDropReviewPopup();
+        DrawPriceReviewPanel();
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
             if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
@@ -794,31 +794,70 @@ internal sealed class MainWindow : Window
         ImGui.TextDisabled("Open this retainer's selling list first. Updates only this retainer; does not run ventures.");
     }
 
-    private void DrawPriceDropReviewPopup()
+    private void DrawPriceReviewPanel()
     {
-        var row = controller.PriceDropReviewItem;
-        if (row is null) return;
-
-        ImGui.OpenPopup(PriceDropReviewPopup);
-        if (!ImGui.BeginPopupModal(PriceDropReviewPopup, ImGuiWindowFlags.AlwaysAutoResize)) return;
-        ImGui.TextWrapped($"The proposed price is more than {row.PriceDropReviewThresholdPercent}% below this listing's current price. It was held while the rest of this retainer was processed.");
-        ImGui.Separator();
-        ImGui.TextUnformatted($"{row.Item.Name}{(row.Item.IsHq ? " (HQ)" : " (NQ)")}");
-        ImGui.TextUnformatted($"Current: {row.Item.CurrentPrice:N0} gil each");
-        ImGui.TextUnformatted($"Proposed: {row.Proposal?.SuggestedPrice:N0} gil each");
-        ImGui.TextDisabled("Your choice is remembered for this item for the rest of this run, including Auto update's other retainers; the next run asks again. Approving retrieves the price again and applies only the fresh result.");
-        if (ImGui.Button("Approve this price"))
+        if (!controller.WaitingForPriceReviews) return;
+        ImGui.OpenPopup("Review pending prices");
+        ImGui.SetNextWindowSize(new Vector2(850, 520), ImGuiCond.FirstUseEver);
+        if (!ImGui.BeginPopupModal("Review pending prices")) return;
+        ImGui.TextWrapped("Review pending prices for this retainer. Select items to approve, edit prices if needed, then continue. Unselected items are skipped.");
+        if (ImGui.Button("Select all"))
+            foreach (var entry in controller.PendingPriceReviews.Where(entry => !entry.Decided)) entry.Selected = true;
+        ImGui.SameLine();
+        if (ImGui.Button("Clear selection"))
+            foreach (var entry in controller.PendingPriceReviews.Where(entry => !entry.Decided)) entry.Selected = false;
+        ImGui.BeginChild("PendingPriceRows", new Vector2(0, -65), true);
+        int rowIndex = 0;
+        foreach (var entry in controller.PendingPriceReviews.Where(entry => !entry.Decided))
         {
-            ImGui.CloseCurrentPopup();
-            dispatch(controller.ApprovePriceDrop);
+            ImGui.PushID(rowIndex++);
+            var selected = entry.Selected;
+            if (ImGui.Checkbox($"{entry.Item.Name} ({(entry.Item.IsHq ? "HQ" : "NQ")}) x {entry.Item.Quantity}", ref selected)) entry.Selected = selected;
+            ImGui.TextWrapped(entry.Reason);
+            ImGui.TextUnformatted(entry.Item.IsExisting ? $"Current asking price: {entry.Item.CurrentPrice:N0} gil each" : "New listing");
+            if (entry.Proposal.SaleHistoryMedian is { } median)
+                ImGui.TextUnformatted($"History median: {median:N0} gil · {entry.Proposal.MatchingSales} matching sales");
+            var price = entry.Price;
+            ImGui.SetNextItemWidth(160);
+            if (ImGui.InputInt("Price per item", ref price)) entry.Price = price;
+            if (entry.CanVendor)
+            {
+                var vendor = entry.VendorInstead;
+                if (ImGui.Checkbox("Vendor instead", ref vendor)) { entry.VendorInstead = vendor; entry.Selected = true; }
+            }
+            ImGui.Separator();
+            ImGui.PopID();
+        }
+        ImGui.EndChild();
+        if (ImGui.Button("Approve selected and skip the rest"))
+        {
+            controller.ApplyPriceReviewDecisions(false);
+            if (!controller.WaitingForPriceReviews) ImGui.CloseCurrentPopup();
         }
         ImGui.SameLine();
-        if (ImGui.Button("Ignore"))
-        {
-            ImGui.CloseCurrentPopup();
-            dispatch(controller.IgnorePriceDrop);
-        }
+        if (ImGui.Button("Skip all")) { controller.ApplyPriceReviewDecisions(true); ImGui.CloseCurrentPopup(); }
+        ImGui.TextWrapped(controller.Status);
         ImGui.EndPopup();
+    }
+
+    private void DrawRunSummary()
+    {
+        if (automation.LastSummary is not { Finished: true } summary) return;
+        if (!ImGui.CollapsingHeader($"Last automation run — {summary.Outcome} ({summary.Elapsed.TotalMinutes:F1} min)", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        ImGui.TextUnformatted($"Started {summary.StartedAt:g} · includes time waiting for review");
+        ImGui.TextUnformatted($"Price checks {summary.PriceChecks} · reused {summary.CacheHits} · listed {summary.Listed} · repriced {summary.Repriced} · already at target {summary.AlreadyPriced} · vendored {summary.Vendored}");
+        foreach (var phase in summary.Phases)
+            ImGui.TextUnformatted($"{phase.Key}: {phase.Value.TotalSeconds:F1} seconds");
+        foreach (var reason in summary.SkipReasons)
+            ImGui.TextWrapped($"{reason.Value} skipped — {reason.Key}");
+        ImGui.TextWrapped(summary.Detail);
+        if (summary.SkippedItems.Count > 0 && ImGui.TreeNode("Skipped item details"))
+        {
+            ImGui.BeginChild("SkippedRunItems", new Vector2(0, 160), true);
+            foreach (var item in summary.SkippedItems) ImGui.TextWrapped(item);
+            ImGui.EndChild();
+            ImGui.TreePop();
+        }
     }
 
     private void DrawProfiles()
@@ -1427,7 +1466,7 @@ internal sealed class MainWindow : Window
         ImGui.BulletText("Auto update: start from the retainer picker to visit retainers top-to-bottom, or start from any retainer's selling list to process that one first. It advances greeting and departure dialogue, retrying while the Talk box remains open, and skips unavailable retainers. An approximate ETA appears after the first retainer finishes and updates as the run progresses. Stop halts the run; already submitted changes remain applied.");
         ImGui.BulletText("Venture cycles can run while Sniper watches. Venture cycle: use the yellow top button or the existing Ventures-tab button. At a summoning bell, enable Run ventures and start the separate cycle from the retainer picker. Each retainer defaults to Quick Exploration, and the Which Venture? dropdown includes the item ventures available for that retainer's job and level. Gathering jobs are filtered using your Gathering Log. Open the retainer picker to load your roster; no venture task list needs to be opened. Use Refresh available ventures after unlocking a gathering item; unlock checks refresh automatically while the tab is open. Jobs are detected automatically and can be overridden per retainer. The cycle uses the game's own menus and does not require AutoRetainer.");
         ImGui.BulletText("Start listing items: checks eligible items in your carried inventory and lists them one by one. If Exceptions is empty, a prompt lets you Proceed, Stop, or Proceed and don't show again; only the last choice saves that preference. No sale exceeds 99 items; larger stacks continue in follow-up listings. Exceptions, items in saved gear sets, bound items, untradeable items, and items the market does not support are skipped. The run stops when it finishes or the retainer's 20 listing slots are full.");
-        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. If a live World comparison has no same-quality competitors, it checks Universalis home-world matching-quality sales from the last 45 days. Insufficient or unavailable history asks you to approve a price or skip. It does not run ventures. A proposed price drop above the configurable percentage for its current-price band is held for review at the end of that retainer; approve it to recheck and apply, or ignore it. Your choice is remembered for that item throughout the current run (including Auto update's other retainers), then forgotten so the next run asks again. Set the four bands in the Existing listings tab.");
+        ImGui.BulletText("Update existing listings: reprices eligible listings across all retainers using live home-world marketboard results in World scope, or Universalis in Data Center/Region scope. If a live World comparison has no same-quality competitors, it checks Universalis home-world matching-quality sales from the last 45 days. Insufficient or unavailable history asks you to approve a price or skip. It does not run ventures. Price drops above the configured band, price increases requiring confirmation, below-NPC prices, and sale-history decisions are collected in the current retainer's review panel. Select items to approve, edit prices, or skip them together. Set the four bands in the Existing listings tab.");
         ImGui.BulletText("Start batch selling only: lists only the items in the Batch selling tab. If Exceptions is empty, the same Proceed, Stop, or Proceed and don't show again prompt appears. It ignores other inventory, respects each item's per-listing size and optional per-run total, and caps each sale at 99 items before continuing the remainder.");
         ImGui.BulletText("Auto update collects rewards, reassigns ventures, lists new items, then updates existing listings. Automation has separate default-off triggers for ventures only and the full sequence; the full sequence takes priority. AutoRetainer must be unloaded. Stopping or a failure prevents further steps; already reassigned ventures remain running. Your existing venture selections and repeat/assignment settings apply.");
         ImGui.BulletText("Stop: stops further actions in the current run. Any price changes already submitted remain in place.");
@@ -1458,7 +1497,9 @@ internal sealed class MainWindow : Window
         ImGui.TextUnformatted("How prices work");
         ImGui.BulletText("Automatic new listings and listing updates use live marketboard prices in World scope, falling back to Universalis home-world sales history when no same-quality competitors exist. Data Center/Region pricing and other lookups use Universalis. HQ and normal-quality items are checked separately. The plugin ignores your own retainers and follows your selected pricing rule: match the lowest eligible competitor or undercut it by 1 gil, while respecting your minimum price.");
         ImGui.BulletText("Automatic listing and repricing use current competing listings without requiring a recent sale. When there are no competitors, World pricing can use the same-quality 45-day sales median with your pricing rule and minimum, or skip when recent sales are unavailable. The optional upload-age filter still applies.");
-        ImGui.BulletText("Repeated items of the same quality reuse completed price checks during one automation run, across retainers and the listing/repricing passes. A new run checks prices again. Each stack still follows your pricing settings and protection/review rules. Approving a large price drop requests a fresh check.");
+        ImGui.BulletText("Batch listing and repricing collect pending price decisions for the current retainer in one review panel. Select multiple items, edit their per-item prices, or skip them together. Reviewed items are reopened and checked against current item protections before applying your chosen prices. New listings can continue as quantities and available market slots allow.");
+        ImGui.BulletText("The completed automation summary shows phase timings including review waits, price-check cache hits, listing/repricing totals, and skip reasons. Stopped runs retain their failure details. The summary is available above the tabs even when the Automation tab is hidden.");
+        ImGui.BulletText("Repeated items of the same quality reuse completed price checks during one automation run, across retainers and the listing/repricing passes. A new run checks prices again. Each stack still follows your pricing settings and protection/review rules. Approved prices are applied after reopening and verifying each item.");
         ImGui.BulletText("Prices shown are per item and before tax. If there is no safe price, the plugin leaves that item unchanged.");
         ImGui.BulletText("Use this on your home world with a retainer's selling list open. Switching character, world, or active retainer, disconnecting, or entering a loading state stops the active run.");
 

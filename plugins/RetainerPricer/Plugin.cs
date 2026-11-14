@@ -197,7 +197,7 @@ public sealed class Plugin : IDalamudPlugin
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
                 ventures.Cancel("Venture automation stopped because AutoRetainer is loaded.");
             controller.Update();
-            if (controller.HistoryReviewItem is not null || controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null || controller.BelowVendorItem is not null || controller.LargeStackReviewItem is not null) window.IsOpen = true;
+            if (controller.WaitingForPriceReviews || controller.HistoryReviewItem is not null || controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null || controller.BelowVendorItem is not null || controller.LargeStackReviewItem is not null) window.IsOpen = true;
             vendor.Update();
             ventures.Update();
             UpdateAutomaticVentures();

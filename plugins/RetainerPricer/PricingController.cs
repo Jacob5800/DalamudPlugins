@@ -11,11 +11,24 @@ internal sealed class PriceRow(SellItem item, string retainerName = "")
         .OrderByDescending(sale => sale.SoldAt).FirstOrDefault();
     public PriceProposal? Proposal { get; set; }
     public string Status { get; set; } = "Waiting";
-    public bool AwaitingPriceDropDecision { get; set; }
-    public bool PriceDropApproved { get; set; }
-    public bool PriceDropReviewRecheck { get; set; }
-    public bool PriceDropIgnored { get; set; }
-    public int PriceDropReviewThresholdPercent { get; set; }
+    public PriceReviewEntry? Review { get; set; }
+    public bool ReviewSkipped { get; set; }
+    public bool SummaryRecorded { get; set; }
+}
+
+internal sealed class PriceReviewEntry(SellItem item, PriceProposal proposal, string reason,
+    CarriedItemCandidate? candidate = null)
+{
+    public SellItem Item { get; } = item;
+    public CarriedItemCandidate? Candidate { get; } = candidate;
+    public PriceProposal Proposal { get; } = proposal;
+    public string Reason { get; } = reason;
+    public bool Selected { get; set; }
+    public bool VendorInstead { get; set; }
+    public bool CanVendor { get; set; }
+    public bool Decided { get; set; }
+    public bool Finished { get; set; }
+    public int Price { get; set; } = (int)(proposal.SuggestedPrice > 0 ? proposal.SuggestedPrice : proposal.SaleHistoryMedian ?? item.CurrentPrice);
 }
 
 internal sealed class PricingController : IDisposable
@@ -55,13 +68,102 @@ internal sealed class PricingController : IDisposable
     private readonly MarketComparisonRetry localRetry = new();
     private PriceSnapshot? pendingHistoryListings;
     private Task<PriceSnapshot>? historyTask;
+    private readonly List<PriceReviewEntry> priceReviews = [];
+    public IReadOnlyList<PriceReviewEntry> PendingPriceReviews => priceReviews;
+    public bool WaitingForPriceReviews { get; private set; }
+    private bool applyingPriceReviews;
+    private bool deferringListingReview;
+
+    private void ResetPriceReviews()
+    {
+        priceReviews.Clear();
+        WaitingForPriceReviews = false;
+        applyingPriceReviews = false;
+        deferringListingReview = false;
+    }
+
+    private string PriceReviewReason(SellItem item, PriceProposal proposal)
+    {
+        List<string> reasons = [];
+        if (proposal.Rejection is PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice)
+            reasons.Add(proposal.Error ?? "Sale-history approval required");
+        if (proposal.CanApply && proposal.SuggestedPrice != item.CurrentPrice)
+        {
+            var vendorValue = bridge.VendorUnitPrice(item.ItemId, item.IsHq);
+            if (BelowVendorPolicy.RequiresReview(item.IsExisting, item.CurrentPrice, proposal.SuggestedPrice, vendorValue))
+                reasons.Add($"Below NPC value ({vendorValue:N0} gil)");
+            if (item.IsExisting && proposal.SuggestedPrice > item.CurrentPrice && config.AllowListingPriceIncreases is null)
+                reasons.Add("Price increase");
+            if (item.IsExisting && (decimal)proposal.SuggestedPrice * 100 <
+                (decimal)item.CurrentPrice * (100 - config.PriceDropReviewPercentFor(item.CurrentPrice)))
+                reasons.Add("Large price drop");
+        }
+        return string.Join(" · ", reasons);
+    }
+
+    private PriceReviewEntry AddPriceReview(SellItem item, PriceProposal proposal, string reason,
+        CarriedItemCandidate? candidate = null)
+    {
+        var entry = new PriceReviewEntry(item, proposal, reason, candidate);
+        var vendorValue = bridge.VendorUnitPrice(item.ItemId, item.IsHq);
+        entry.CanVendor = !config.DontVendorItemIds.Contains(item.ItemId) && proposal.CanApply &&
+            BelowVendorPolicy.RequiresReview(item.IsExisting, item.CurrentPrice, proposal.SuggestedPrice, vendorValue);
+        priceReviews.Add(entry);
+        return entry;
+    }
+
+    public void ApplyPriceReviewDecisions(bool skipAll)
+    {
+        if (!WaitingForPriceReviews) return;
+        if (!skipAll && priceReviews.Any(entry => !entry.Decided && entry.Selected && !entry.VendorInstead &&
+            (entry.Price < Math.Max(1, config.MinimumPrice) || entry.Price > PriceCalculator.MaximumPrice)))
+        { Status = "Enter a valid price for every selected item before continuing."; return; }
+        foreach (var entry in priceReviews.Where(entry => !entry.Decided))
+        {
+            entry.Decided = true;
+            entry.Selected &= !skipAll;
+            if (!entry.Selected)
+            {
+                entry.Finished = true;
+                if (entry.Candidate is not null)
+                {
+                    listingSkipped++;
+                    RunSummary?.Skip("Price review declined", entry.Item.Name);
+                }
+                var row = Rows.FirstOrDefault(row => ReferenceEquals(row.Review, entry));
+                if (row is not null)
+                {
+                    row.Status = "Skipped by user at price review";
+                    row.ReviewSkipped = true;
+                    RecordRowOutcome(row);
+                }
+            }
+            bridge.LogAutomationDiagnostic($"Batch price review item={entry.Item.ItemId}, HQ={entry.Item.IsHq}, retainer={entry.Item.Session.RetainerId}, selected={entry.Selected}, vendor={entry.VendorInstead}, price={entry.Price}");
+        }
+        WaitingForPriceReviews = false;
+        applyingPriceReviews = true;
+        if (work == Work.BatchListing)
+            batchCandidates.AddRange(priceReviews.Where(entry => entry.Selected && entry.Candidate is not null).Select(entry => entry.Candidate!));
+        else
+        {
+            index = Rows.FindIndex(row => row.Review is { Selected: true, Finished: false });
+            if (index < 0) index = Rows.Count;
+        }
+        workingItem = null;
+        ResetRequest();
+        step = Step.Start;
+        nextTick = DateTimeOffset.UtcNow;
+    }
+
     private readonly RunPriceCache runPrices = new();
     private bool automationPriceSession;
+    public AutomationRunSummary? RunSummary { get; private set; }
     private bool historyLookupFailed;
     private bool CanReuseRunPrices => automationPriceSession || work is Work.Scan or Work.AutoUpdateAllRetainers or Work.BatchListing;
 
-    public void BeginAutomationPriceSession()
+    public void BeginAutomationPriceSession(AutomationRunSummary summary)
     {
+        RunSummary = summary;
         runPrices.Clear();
         automationPriceSession = true;
     }
@@ -70,6 +172,7 @@ internal sealed class PricingController : IDisposable
     {
         runPrices.Clear();
         automationPriceSession = false;
+        RunSummary = null;
     }
 
     private void StartStandalonePriceSession()
@@ -130,7 +233,6 @@ internal sealed class PricingController : IDisposable
     private bool batchSellingOnly;
     private readonly Dictionary<uint, uint> batchSoldQuantitiesByItemId = [];
     private readonly HashSet<uint> batchMaximumReachedItemIds = [];
-    private readonly Dictionary<uint, bool> priceDropDecisionsThisRun = [];
     private readonly List<RetainerIdentity> autoRetainers = [];
     private int autoRetainerIndex;
     private int autoRetainersCompleted;
@@ -200,9 +302,6 @@ internal sealed class PricingController : IDisposable
     private readonly List<PriceRow> completedRetainerRows = [];
     public IReadOnlyList<PriceRow> ExistingListingResults => work == Work.AutoUpdateAllRetainers
         ? completedRetainerRows.Concat(Rows).Distinct().ToArray() : Rows;
-    public PriceRow? PriceDropReviewItem => index >= Rows.Count && (work is Work.Scan or Work.AutoUpdateAllRetainers)
-        ? Rows.FirstOrDefault(row => row.AwaitingPriceDropDecision)
-        : null;
     public bool Busy => work != Work.Idle || PriceIncreaseItem is not null || BelowVendorItem is not null || vendorListing is not null;
     public bool IsListingItemsRunning => work == Work.BatchListing;
     public bool IsBatchSellingOnlyRunning => work == Work.BatchListing && batchSellingOnly;
@@ -276,7 +375,7 @@ internal sealed class PricingController : IDisposable
             if (now >= nextTick) { nextTick = now.AddMilliseconds(250); TickReviewedVendor(now); }
             return;
         }
-        if (HistoryReviewItem is not null || MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
+        if (WaitingForPriceReviews || HistoryReviewItem is not null || MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -463,6 +562,7 @@ internal sealed class PricingController : IDisposable
             Status = "No configured Batch selling items were found in carried inventory. Add items in the Batch selling tab, and make sure they are not excluded.";
             return;
         }
+        ResetPriceReviews();
         session = active;
         batchCandidates = candidates;
         batchSellingOnly = batchOnly;
@@ -687,6 +787,7 @@ internal sealed class PricingController : IDisposable
 
     private void CompleteReviewedVendor(SellItem sold, DateTimeOffset now)
     {
+        if (RunSummary is { } summary) summary.Vendored++;
         vendorSalesAwaitingDeparture[sold.Session.RetainerId] = sold.Session;
         bridge.MarkApprovedVendorSale(sold.Session);
         // Keep the parent traversal alive, but never continue with slots captured before withdrawal.
@@ -717,9 +818,8 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             for (var i = 0; i < pending.Length; i++) pending[i].Item = replacements[i];
-            bridge.LogAutomationDiagnostic($"Vendor refresh matched {pending.Length} unsold rows after selling item={sold.ItemId}; retainer={sold.Session.RetainerId}, cursor={index}, reviewRecheck={soldRow.PriceDropReviewRecheck}.");
+            bridge.LogAutomationDiagnostic($"Vendor refresh matched {pending.Length} unsold rows after selling item={sold.ItemId}; retainer={sold.Session.RetainerId}, cursor={index}.");
             soldRow.Status = "Sold to NPC";
-            soldRow.AwaitingPriceDropDecision = false;
             AdvanceScanIndex(soldRow);
         }
         else if (work == Work.BatchListing)
@@ -858,7 +958,6 @@ internal sealed class PricingController : IDisposable
     public void UpdateListingsCurrentRetainerOnly()
     {
         if (Busy) return;
-        priceDropDecisionsThisRun.Clear();
         StartStandalonePriceSession();
         if (!CanStartListingItems) { Status = StartListingAvailabilityError!; return; }
         Rows.Clear();
@@ -872,46 +971,6 @@ internal sealed class PricingController : IDisposable
         if (Rows.Count == 0) { Status = "All current listings are excluded, protected from repricing, or not marketable."; return; }
         work = Work.Scan;
         Status = $"Automatically checking and updating {Rows.Count} eligible listing(s) with {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")} ({excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable). World comparisons without competitors use Universalis home-world sales history; insufficient or unusual history requires approval.";
-    }
-
-    public void ApprovePriceDrop()
-    {
-        var row = PriceDropReviewItem;
-        if (row is null) return;
-        runPrices.Remove(RunPriceKey(row.Item));
-        priceDropDecisionsThisRun[row.Item.ItemId] = true;
-        row.AwaitingPriceDropDecision = false;
-        row.PriceDropApproved = true;
-        row.PriceDropReviewRecheck = true;
-        foreach (var matchingRow in Rows.Where(candidate => candidate.Item.ItemId == row.Item.ItemId &&
-                     candidate.AwaitingPriceDropDecision))
-            matchingRow.PriceDropReviewRecheck = true;
-        row.Proposal = null;
-        row.Snapshot = null;
-        row.Status = "Approved; checking the price again before repricing.";
-        index = Rows.IndexOf(row);
-        step = Step.Start;
-        workingItem = null;
-        ResetRequest();
-        Status = $"Rechecking {row.Item.Name} after your approval. The plugin will apply only the current verified quote.";
-    }
-
-    public void IgnorePriceDrop()
-    {
-        var row = PriceDropReviewItem;
-        if (row is null) return;
-        priceDropDecisionsThisRun[row.Item.ItemId] = false;
-        row.AwaitingPriceDropDecision = false;
-        row.PriceDropIgnored = true;
-        row.Status = "Ignored after price-drop review; listing left unchanged for this run.";
-        foreach (var matchingRow in Rows.Where(candidate => candidate.Item.ItemId == row.Item.ItemId &&
-                     candidate.AwaitingPriceDropDecision))
-        {
-            matchingRow.AwaitingPriceDropDecision = false;
-            matchingRow.PriceDropIgnored = true;
-            matchingRow.Status = "Ignored using the earlier review choice for this item in the current run.";
-        }
-        Status = $"Ignored the large price drop for {row.Item.Name}; its listing was left unchanged.";
     }
 
     private bool runVenturesAfterPriceUpdate;
@@ -987,7 +1046,6 @@ internal sealed class PricingController : IDisposable
         }
 
         autoRetainerIndex = 0;
-        priceDropDecisionsThisRun.Clear();
         completedRetainerRows.Clear();
         autoRetainerDialogueClicks = 0;
         autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
@@ -1246,6 +1304,7 @@ internal sealed class PricingController : IDisposable
     private bool TryBeginExistingListingScan(MarketSession active, out int total, out int excluded,
         out int protectedCount, out int unmarketable, out string error)
     {
+        ResetPriceReviews();
         Rows.Clear();
         index = 0;
         workingItem = null;
@@ -1327,6 +1386,9 @@ internal sealed class PricingController : IDisposable
                 }
                 if (!TryBeginExistingListingScan(active, out var total, out var excluded, out var protectedCount, out var unmarketable, out error))
                 { Cancel($"Auto update stopped while reading {target.Name}'s listings: {error}"); return; }
+                RunSummary?.Skip("Excluded or protected item", count: excluded);
+                RunSummary?.Skip("Don't reprice", count: protectedCount);
+                RunSummary?.Skip("Not marketable", count: unmarketable);
                 autoSkipped += excluded + protectedCount + unmarketable;
                 Status = $"Auto update · {target.Name}: {Rows.Count} eligible listing(s), {excluded} excluded, {protectedCount} protected from repricing, {unmarketable} not marketable.";
                 if (total == 0 || Rows.Count == 0)
@@ -1453,6 +1515,7 @@ internal sealed class PricingController : IDisposable
                     var skipEmpty = !listingTraversal && marketItemCount == 0;
                     if (skipFull || skipEmpty)
                     {
+                        RunSummary?.Skip(skipFull ? "Retainer has 20 listings" : "Retainer has no listings", target.Name);
                         if (skipEmpty) autoEmptyRetainers++;
                         autoRetainersCompleted++;
                         autoRetainerIndex++;
@@ -1466,6 +1529,7 @@ internal sealed class PricingController : IDisposable
                 if (!bridge.TrySelectRetainerById(target, out var unavailable, out error))
                 {
                     if (!unavailable) { Cancel($"{TraversalOperation} stopped before selecting {target.Name}: {error}"); return; }
+                    RunSummary?.Skip("Retainer unavailable", target.Name);
                     autoUnavailableRetainers++;
                     autoRetainersCompleted++;
                     autoRetainerIndex++;
@@ -1743,15 +1807,16 @@ internal sealed class PricingController : IDisposable
     {
         if (index >= Rows.Count)
         {
-            var pendingPriceDropCount = Rows.Count(row => row.AwaitingPriceDropDecision);
-            if (pendingPriceDropCount > 0)
+            if (priceReviews.Any(entry => !entry.Decided))
             {
-                Status = $"Review {pendingPriceDropCount} unusually large price drop(s) before continuing.";
+                WaitingForPriceReviews = true;
+                Status = $"Review {priceReviews.Count(entry => !entry.Decided)} pending price decision(s) for this retainer.";
                 return;
             }
             var updated = Rows.Count(row => row.Status == "Updated");
             var unchanged = Rows.Count(row => row.Status == "Already priced");
             var skipped = Rows.Count - updated - unchanged;
+            foreach (var completedRow in Rows) RecordRowOutcome(completedRow);
             if (work == Work.AutoUpdateAllRetainers)
             {
                 completedRetainerRows.AddRange(Rows);
@@ -1888,19 +1953,21 @@ internal sealed class PricingController : IDisposable
                     return;
                 }
             }
-            if (workingItem is not null && !row.AwaitingPriceDropDecision && !row.PriceDropIgnored
+            if (workingItem is not null && row.Review is not { Decided: false } && !row.ReviewSkipped
                 && row.Proposal is { CanApply: true } proposal
-                && proposal.SuggestedPrice != workingItem.CurrentPrice)
+                && (row.Review is { VendorInstead: true } || proposal.SuggestedPrice != workingItem.CurrentPrice))
             {
                 if (workSource == PriceSource.Local && !bridge.TryCloseCompare(workingItem, out var closeError))
                 { Cancel($"Could not close the price comparison before updating {row.Item.Name}: {closeError}"); return; }
-                if (AwaitBelowVendor(workingItem, proposal.SuggestedPrice, () => { }, () => {
-                    row.Proposal = null; row.Status = "Skipped below-vendor price; unchanged";
-                })) return;
-                if (AwaitPriceIncrease(workingItem, proposal.SuggestedPrice, () => { }, () => {
-                    row.Proposal = null;
-                    row.Status = "Price increase declined; unchanged";
-                })) return;
+                if (row.Review is { Selected: true, VendorInstead: true })
+                {
+                    BelowVendorItem = workingItem;
+                    BelowVendorTarget = proposal.SuggestedPrice;
+                    BelowVendorValue = bridge.VendorUnitPrice(workingItem.ItemId, workingItem.IsHq);
+                    VendorReviewedListing();
+                    if (vendorListing is null) Cancel($"Reviewed vendor operation could not start: {Status}");
+                    return;
+                }
                 submittedPrice = proposal.SuggestedPrice;
                 if (!bridge.TrySetExistingPrice(workingItem, submittedPrice, out var updateError))
                 { Cancel($"Stopped while updating {row.Item.Name}: {updateError}"); return; }
@@ -1950,19 +2017,41 @@ internal sealed class PricingController : IDisposable
         {
             // Skip all remembered item/quality copies before opening any listing UI.
             while (index < batchCandidates.Count && listingPriceRejections.Contains(batchCandidates[index].ItemId, batchCandidates[index].IsHq))
-            { listingSkipped++; index++; }
+            {
+                RunSummary?.Skip("Earlier price check rejected this item and quality", batchCandidates[index].Name);
+                listingSkipped++;
+                index++;
+            }
 
             if (index >= batchCandidates.Count)
             {
+                if (priceReviews.Any(entry => !entry.Decided))
+                {
+                    var currentListings = bridge.ReadExistingListings(out var reviewListingError);
+                    if (reviewListingError.Length != 0) { Cancel(reviewListingError); return; }
+                    if (currentListings.Count >= NativeMarketBridge.RetainerMarketSlotLimit)
+                    {
+                        RunSummary?.Skip("Retainer has 20 listings", session?.RetainerId.ToString());
+                        FinishBatchListing($"Retainer market slots are full. {listingSucceeded} listed, {listingSkipped} skipped.");
+                        return;
+                    }
+                    WaitingForPriceReviews = true;
+                    Status = $"Review {priceReviews.Count(entry => !entry.Decided)} pending new-listing prices for this retainer.";
+                    return;
+                }
                 FinishBatchListing($"Automatic listing complete: {listingSucceeded} listed, {listingSkipped} skipped.");
                 return;
             }
 
             var candidate = batchCandidates[index];
+            var candidateReview = priceReviews.FirstOrDefault(entry => entry.Item.ItemId == candidate.ItemId && entry.Item.IsHq == candidate.IsHq);
+            if (!applyingPriceReviews && candidateReview is not null)
+            { index++; return; }
             var listedBefore = bridge.ReadExistingListings(out var listingError);
             if (listingError.Length != 0) { Cancel($"Automatic listing stopped: {listingError}"); return; }
             if (listedBefore.Count >= NativeMarketBridge.RetainerMarketSlotLimit)
             {
+                RunSummary?.Skip("Retainer has 20 listings", session?.RetainerId.ToString());
                 FinishBatchListing($"Stopped because the retainer has all 20 listing slots filled. {listingSucceeded} listed, {listingSkipped} skipped.");
                 return;
             }
@@ -2000,6 +2089,7 @@ internal sealed class PricingController : IDisposable
             {
                 if (batchMaximumReachedItemIds.Add(candidate.ItemId))
                     Status = $"Reached the {maxTotal:N0}-item total for {candidate.Name}; leaving remaining inventory untouched.";
+                RunSummary?.Skip("Configured batch quantity reached", candidate.Name);
                 index++;
                 return;
             }
@@ -2012,7 +2102,7 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             if (!batchSellingOnly && largeStackPlans.TryGetValue((candidate.ItemId, candidate.IsHq), out var approvedPlan) && approvedPlan.Remaining == 0)
-            { index++; Status = $"Approved quantity reached for {candidate.Name}; remaining inventory is unchanged."; return; }
+            { RunSummary?.Skip("Approved quantity reached", candidate.Name); index++; Status = $"Approved quantity reached for {candidate.Name}; remaining inventory is unchanged."; return; }
             listingCandidate = candidate;
             var perListing = config.BatchSaleQuantities.TryGetValue(candidate.ItemId, out var batchSize)
                 ? Math.Min(batchSize, candidate.Quantity)
@@ -2130,15 +2220,38 @@ internal sealed class PricingController : IDisposable
             { SkipBatchItem($"Skipped {current.Name}: {requestError}"); return; }
 
             var proposal = Calculate(snapshot, current);
-            if (AwaitHistoryReview(current, proposal, () => quoteTask = Task.FromResult(snapshot),
-                () => SkipBatchItem($"Skipped {current.Name}: sale-history price declined."))) return;
+            var review = applyingPriceReviews ? priceReviews.FirstOrDefault(entry => entry.Selected &&
+                entry.Item.ItemId == current.ItemId && entry.Item.IsHq == current.IsHq) : null;
+            if (review is not null)
+            {
+                if (!review.VendorInstead && (review.Price < Math.Max(1, config.MinimumPrice) || review.Price > PriceCalculator.MaximumPrice))
+                { SkipBatchItem($"Skipped {current.Name}: reviewed price is outside current limits."); return; }
+                proposal = new PriceProposal(0, (uint)Math.Clamp(review.Price, 1, (int)PriceCalculator.MaximumPrice), 0, null);
+                if (review.VendorInstead)
+                {
+                    BelowVendorItem = current; BelowVendorTarget = proposal.SuggestedPrice;
+                    BelowVendorValue = bridge.VendorUnitPrice(current.ItemId, current.IsHq);
+                    VendorReviewedListing();
+                    if (vendorListing is null) Cancel($"Reviewed vendor operation could not start: {Status}");
+                    return;
+                }
+            }
+            else
+            {
+                var reason = PriceReviewReason(current, proposal);
+                if (reason.Length > 0)
+                {
+                    AddPriceReview(current, proposal, reason, listingCandidate);
+                    deferringListingReview = true;
+                    SkipBatchItem($"Held {current.Name} for price review.");
+                    return;
+                }
+            }
             if (!proposal.CanApply)
             {
                 listingPriceRejections.Record(current.ItemId, current.IsHq, proposal);
                 SkipBatchItem($"Skipped {current.Name}: {proposal.Error}"); return;
             }
-            if (AwaitBelowVendor(current, proposal.SuggestedPrice, () => deadline = DateTimeOffset.UtcNow.AddSeconds(8),
-                () => SkipBatchItem($"Skipped {current.Name}: below-vendor price declined."))) return;
             if (workSource == PriceSource.Local && !bridge.TryCloseCompare(current, out var closeError))
             { Cancel($"Automatic listing stopped before confirming {current.Name}: {closeError}"); return; }
 
@@ -2236,6 +2349,7 @@ internal sealed class PricingController : IDisposable
                     RecordListedQuantity(expected, submitted.Quantity);
                     batchCandidates[index] = remainingStack;
                     listingSucceeded++;
+                    if (RunSummary is { } splitListingSummary) splitListingSummary.Listed++;
                     listingCandidate = null;
                     workingItem = null;
                     step = Step.Start;
@@ -2247,6 +2361,7 @@ internal sealed class PricingController : IDisposable
 
                 RecordListedQuantity(expected, submitted.Quantity);
                 listingSucceeded++;
+                if (RunSummary is { } listingSummary) listingSummary.Listed++;
                 index++;
                 listingCandidate = null;
                 workingItem = null;
@@ -2282,7 +2397,14 @@ internal sealed class PricingController : IDisposable
     private void CompleteSkippedBatchItem()
     {
         var message = pendingSkipMessage ?? "Skipped item; continuing.";
-        listingSkipped++;
+        if (!deferringListingReview)
+        {
+            var prefix = $"Skipped {listingCandidate?.Name}: ";
+            var reason = message.StartsWith(prefix, StringComparison.Ordinal) ? message[prefix.Length..] : message;
+            RunSummary?.Skip(reason, listingCandidate?.Name);
+            listingSkipped++;
+        }
+        deferringListingReview = false;
         index++;
         listingCandidate = null;
         workingItem = null;
@@ -2317,50 +2439,57 @@ internal sealed class PricingController : IDisposable
     {
         row.Snapshot = snapshot;
         row.Proposal = Calculate(snapshot, row.Item);
-        if (workingItem is { } active && AwaitHistoryReview(active, row.Proposal,
-            () => ScanReceived(row, snapshot), () => { row.Proposal = null; row.Status = "Skipped at sale-history price review."; step = Step.Closing; })) return;
-        if (snapshot.Source == PriceSource.Local && snapshot.Sales is not null)
-            bridge.LogAutomationDiagnostic($"Universalis history fallback item={row.Item.ItemId}, HQ={row.Item.IsHq}, retainer={row.Item.Session.RetainerId}, salesReceived={snapshot.Sales.Count}, matchingRecentSales={row.Proposal.MatchingSales}, median={row.Proposal.SaleHistoryMedian}, used={row.Proposal.UsedSalesFallback}, suggested={row.Proposal.SuggestedPrice}, error={row.Proposal.Error}");
-        row.PriceDropReviewThresholdPercent = config.PriceDropReviewPercentFor(row.Item.CurrentPrice);
-        if (!row.Proposal.CanApply) row.Status = row.Proposal.Error!;
-        else if (row.Proposal.SuggestedPrice == row.Item.CurrentPrice) row.Status = "Already priced";
-        else if ((decimal)row.Proposal.SuggestedPrice * 100
-            < (decimal)row.Item.CurrentPrice * (100 - row.PriceDropReviewThresholdPercent)
-            && priceDropDecisionsThisRun.TryGetValue(row.Item.ItemId, out var approvedThisRun))
+        if (row.Review is { Decided: true, Selected: true } review)
         {
-            if (approvedThisRun)
-            {
-                row.AwaitingPriceDropDecision = false;
-                row.PriceDropApproved = true;
-                row.Status = "Approved for this item in the current run; applying the fresh quote.";
-            }
+            if (!review.VendorInstead && (review.Price < Math.Max(1, config.MinimumPrice) || review.Price > PriceCalculator.MaximumPrice))
+            { row.Proposal = null; row.Status = "Skipped because reviewed price is outside current limits"; }
             else
             {
-                row.PriceDropIgnored = true;
-                row.Status = "Ignored using the earlier review choice for this item in the current run.";
+                row.Proposal = new PriceProposal(0, (uint)Math.Clamp(review.Price, 1, (int)PriceCalculator.MaximumPrice), 0, null);
+                row.Status = "Reviewed price approved";
             }
+            step = Step.Closing;
+            return;
         }
-        else if (!row.PriceDropApproved && (decimal)row.Proposal.SuggestedPrice * 100
-            < (decimal)row.Item.CurrentPrice * (100 - row.PriceDropReviewThresholdPercent))
+        if (row.Proposal.CanApply && row.Proposal.SuggestedPrice > row.Item.CurrentPrice && config.AllowListingPriceIncreases is false)
         {
-            row.AwaitingPriceDropDecision = true;
-            row.Status = $"Held for review: target is more than {row.PriceDropReviewThresholdPercent}% below the current price.";
+            row.Proposal = null;
+            row.Status = "Price increase disabled in Settings";
         }
-        else row.Status = "Ready";
+        else
+        {
+            var reason = PriceReviewReason(row.Item, row.Proposal);
+            if (reason.Length > 0)
+            {
+                row.Review = AddPriceReview(row.Item, row.Proposal, reason);
+                row.Status = "Awaiting price review";
+            }
+            else if (!row.Proposal.CanApply) row.Status = row.Proposal.Error!;
+            else row.Status = row.Proposal.SuggestedPrice == row.Item.CurrentPrice ? "Already priced" : "Ready";
+        }
         step = Step.Closing;
+    }
+
+    private void RecordRowOutcome(PriceRow row)
+    {
+        if (RunSummary is not { } summary || row.SummaryRecorded || row.Review is { Decided: false }) return;
+        row.SummaryRecorded = true;
+        if (row.Status == "Updated") summary.Repriced++;
+        else if (row.Status == "Already priced") summary.AlreadyPriced++;
+        else if (row.Status != "Sold to NPC") summary.Skip(row.Status, row.Item.Name);
     }
 
     private void AdvanceScanIndex(PriceRow row)
     {
-        if (!row.PriceDropReviewRecheck)
+        RecordRowOutcome(row);
+        if (applyingPriceReviews)
         {
-            index++;
+            if (row.Review is { } review) review.Finished = true;
+            var next = Rows.FindIndex(index + 1, candidate => candidate.Review is { Selected: true, Finished: false });
+            index = next < 0 ? Rows.Count : next;
             return;
         }
-
-        var nextMatchingHeldRow = Rows.FindIndex(index + 1, candidate =>
-            candidate.Item.ItemId == row.Item.ItemId && candidate.AwaitingPriceDropDecision);
-        index = nextMatchingHeldRow < 0 ? Rows.Count : nextMatchingHeldRow;
+        index++;
     }
 
     private void ScanFailed(PriceRow row, string error)
@@ -2378,9 +2507,11 @@ internal sealed class PricingController : IDisposable
         if (CanReuseRunPrices && runPrices.TryGet(RunPriceKey(item), now, maximumAge, out var cached))
         {
             quoteTask = Task.FromResult(cached);
+            if (RunSummary is { } summary) summary.CacheHits++;
             bridge.LogAutomationDiagnostic($"Reusing run price check item={item.ItemId}, HQ={item.IsHq}, world={item.Session.WorldId}, retainer={item.Session.RetainerId}, source={cached.Source}, observed={cached.ObservedAt:O}.");
             return true;
         }
+        if (RunSummary is { } activeSummary) activeSummary.PriceChecks++;
         if (workSource == PriceSource.Universalis)
         {
             if ((config.UseDataCenterPrices || config.UseRegionPrices) && string.IsNullOrWhiteSpace(item.Session.DataCenterName))
@@ -2512,7 +2643,6 @@ internal sealed class PricingController : IDisposable
         vendorSalesAwaitingDeparture.Clear();
         work = Work.Idle;
         workingItem = null;
-        priceDropDecisionsThisRun.Clear();
         Status = message;
         ResetRequest();
     }
@@ -2520,6 +2650,7 @@ internal sealed class PricingController : IDisposable
     public void Cancel(string message = "Stopped. Already submitted price changes remain applied.")
     {
         EndAutomationPriceSession();
+        ResetPriceReviews();
         bridge.ClearApprovedVendorDeparture();
         vendorSalesAwaitingDeparture.Clear();
         LargeStackReviewItem = null; largeStackPlans.Clear();
@@ -2554,7 +2685,6 @@ internal sealed class PricingController : IDisposable
         }
         ResetRequest();
         work = Work.Idle;
-        priceDropDecisionsThisRun.Clear();
         manualTarget = null;
         if (wasAutoUpdating)
         {

@@ -186,4 +186,23 @@ Check(!runCache.TryGet(runKey,clock.AddMinutes(2),TimeSpan.FromMinutes(1),out _)
 runCache.Remember(runKey,historyOnly);
 runCache.Clear();
 Check(!runCache.TryGet(runKey,clock,null,out _), "next automation session starts without prior quote");
+var automationSummary = new AutomationRunSummary();
+automationSummary.BeginPhase("New listings");
+automationSummary.CacheHits = 3;
+automationSummary.Listed = 2;
+automationSummary.Skip("Price review declined", "Item A");
+automationSummary.Skip("Price review declined", "Item B");
+automationSummary.BeginPhase("Update existing listings");
+automationSummary.Complete("Stopped", "Item dialog changed");
+Check(automationSummary.Finished && automationSummary.Outcome == "Stopped" && automationSummary.Detail == "Item dialog changed",
+    "stopped automation retains failure details");
+Check(automationSummary.CacheHits == 3 && automationSummary.Listed == 2 && automationSummary.Phases.Count == 2,
+    "automation summary retains counters and completed/active phases");
+Check(automationSummary.SkipReasons["Price review declined"] == 2 && automationSummary.SkippedItems.Count == 2,
+    "skip reasons are grouped with item details");
+automationSummary.Complete("Completed", "late callback");
+automationSummary.Skip("late skip");
+Check(automationSummary.Outcome == "Stopped" && automationSummary.SkipReasons.Count == 1,
+    "finished automation summary ignores repeated completion and late skips");
+Check(new AutomationRunSummary().CacheHits == 0, "new automation summary starts with fresh counters");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");
