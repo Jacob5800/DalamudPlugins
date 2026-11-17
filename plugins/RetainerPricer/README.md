@@ -125,6 +125,8 @@ The RP server-bar label turns green when an available retainer has an active ven
 
 ### Troubleshooting status
 
+With listing-selector debugging enabled, Dalamud logs record each pricing row: unit price, quantity, HQ/mannequin flags, ownership, exclusion reason and resulting price. Each snapshot/dialog is logged once.
+
 The Status tab keeps the latest 300 messages for the current plugin session, including pricing, retainer sales, ventures, individual listing failures and Universalis diagnostics. Use Failures only, Copy shown messages, Copy all messages or a row's Copy button to report an issue with its timestamp and plugin version. Messages are also written to Dalamud's normal log. Clearing the tab does not delete log entries. Completed auto-update summaries are green even when inactive retainers were skipped.
 
 

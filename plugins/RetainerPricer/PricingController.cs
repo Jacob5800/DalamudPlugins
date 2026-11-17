@@ -2176,7 +2176,7 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             step = Step.Quote;
-            Status = $"Checking the Universalis price for {opened.Name}{(opened.IsHq ? " (HQ)" : " (NQ)")}...";
+            Status = $"Checking the {(workSource == PriceSource.Local ? "live marketboard" : "Universalis")} price for {opened.Name}{(opened.IsHq ? " (HQ)" : " (NQ)")}...";
             return;
         }
 
@@ -2213,7 +2213,7 @@ internal sealed class PricingController : IDisposable
             { Cancel("Automatic listing stopped because the active item was lost."); return; }
             if (!ReadRequest(current, now, out var snapshot, out var requestError))
             {
-                Status = $"Waiting for the Universalis price for {current.Name}{(current.IsHq ? " (HQ)" : " (NQ)")}...";
+                Status = $"Waiting for the {(workSource == PriceSource.Local ? "live marketboard" : "Universalis")} price for {current.Name}{(current.IsHq ? " (HQ)" : " (NQ)")}...";
                 return;
             }
             if (snapshot is null)
@@ -2594,6 +2594,9 @@ internal sealed class PricingController : IDisposable
         return true;
     }
 
+    private PriceSnapshot? lastDiagnosticSnapshot;
+    private long lastDiagnosticDialog;
+
     private PriceProposal Calculate(PriceSnapshot snapshot, SellItem item)
     {
         if (!bridge.TryGetOwnRetainerIds(out var ownIds) || !ownIds.Contains(item.Session.RetainerId))
@@ -2602,6 +2605,25 @@ internal sealed class PricingController : IDisposable
             snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
                 ? item.Session.DataCenterName : null,
             allowSalesFallback: !item.IsExisting || (snapshot.Source == PriceSource.Local && snapshot.Sales is not null));
+        if (config.DebugListingSelector &&
+            (!ReferenceEquals(lastDiagnosticSnapshot, snapshot) || lastDiagnosticDialog != item.DialogGeneration))
+        {
+            lastDiagnosticSnapshot = snapshot;
+            lastDiagnosticDialog = item.DialogGeneration;
+            bridge.LogAutomationDiagnostic($"Price decision item={item.ItemId} name={item.Name} requestedHQ={item.IsHq} stack={item.Quantity} world={item.Session.WorldId} retainer={item.Session.RetainerId} dialog={item.DialogGeneration} source={snapshot.Source} cached={snapshot.WasCached} observed={snapshot.ObservedAt:O} complete={snapshot.IsComplete} rows={snapshot.Listings.Count} strategy={config.PriceStrategy} ownRetainers={string.Join(",", ownIds.Order())}");
+            for (var rowIndex = 0; rowIndex < snapshot.Listings.Count; rowIndex++)
+            {
+                var listing = snapshot.Listings[rowIndex];
+                var reason = listing is null ? "invalid-null" :
+                    listing.ItemId != item.ItemId || listing.PricePerUnit is 0 or > PriceCalculator.MaximumPrice || listing.Quantity == 0 ? "invalid-row" :
+                    listing.IsHq != item.IsHq ? "different-quality" :
+                    listing.OnMannequin ? "mannequin" :
+                    listing.RetainerId == 0 ? "missing-retainer-id" :
+                    ownIds.Contains(listing.RetainerId) ? "own-retainer" : "eligible";
+                bridge.LogAutomationDiagnostic($"Price row item={item.ItemId} row={rowIndex} rowItem={listing?.ItemId} unitPrice={listing?.PricePerUnit} quantity={listing?.Quantity} HQ={listing?.IsHq} mannequin={listing?.OnMannequin} retainer={listing?.RetainerId} own={(listing is not null && ownIds.Contains(listing.RetainerId))} reason={reason}");
+            }
+            bridge.LogAutomationDiagnostic($"Price result item={item.ItemId} lowest={proposal.LowestPrice} suggested={proposal.SuggestedPrice} eligible={proposal.MatchingListings} historyFallback={proposal.UsedSalesFallback} matchingSales={proposal.MatchingSales} median={proposal.SaleHistoryMedian} rejection={proposal.Rejection} error={proposal.Error ?? "none"}");
+        }
         if (proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice) && approvedHistoryPrice is { } review &&
             SameListing(item, review.Item) && workingItem is { } active && SameDialog(active, review.Item))
             return proposal with { SuggestedPrice = review.Price, Error = null, Rejection = PriceRejection.None };

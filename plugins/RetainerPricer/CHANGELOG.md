@@ -1,3 +1,8 @@
+## 0.5.1.76
+
+- Added detailed pricing diagnostics when listing-selector debugging is enabled, showing each market row, exclusion reason and selected price.
+- Corrected live marketboard pricing status messages that incorrectly named Universalis.
+
 ## 0.5.1.75
 
 - Batch listing and repricing collect pending price decisions into one scrollable panel per retainer, with editable prices, multiple selection, and a shared skip action.
