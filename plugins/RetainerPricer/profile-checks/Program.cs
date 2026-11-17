@@ -206,3 +206,20 @@ Check(automationSummary.Outcome == "Stopped" && automationSummary.SkipReasons.Co
     "finished automation summary ignores repeated completion and late skips");
 Check(new AutomationRunSummary().CacheHits == 0, "new automation summary starts with fresh counters");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");
+
+// Regression: live ordinary Silver Piece listings must undercut across stack sizes;
+// only set-only offers (mapped to OnMannequin by the native reader) are excluded.
+{
+    var now = DateTimeOffset.UtcNow;
+    var rows = new MarketListing[] {
+        new(5825, false, 1, 1, 90, true),
+        new(5825, false, 500, 94, 91),
+        new(5825, false, 500, 7, 92),
+        new(5825, false, 895, 7, 93),
+    };
+    var snapshot = new PriceSnapshot(5825, 402, PriceSource.Local, now, rows);
+    var proposal = PriceCalculator.Calculate(snapshot, 5825, 402, false, new HashSet<ulong>(), 1, now, null);
+    Check(proposal.CanApply && proposal.LowestPrice == 500 && proposal.SuggestedPrice == 499 && proposal.MatchingListings == 3,
+        "ordinary live listings undercut regardless of stack size while set-only offers remain excluded");
+    Console.WriteLine("Silver Piece pricing regression passed.");
+}

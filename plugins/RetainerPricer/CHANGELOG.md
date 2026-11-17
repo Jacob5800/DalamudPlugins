@@ -1,3 +1,8 @@
+## 0.5.1.77
+
+- Fixed live marketboard pricing incorrectly skipping cheaper ordinary listings as mannequin offers. Only set-only offers are excluded from live comparisons.
+- Applied the same correction to marketboard ROI overlays.
+
 ## 0.5.1.76
 
 - Added detailed pricing diagnostics when listing-selector debugging is enabled, showing each market row, exclusion reason and selected price.

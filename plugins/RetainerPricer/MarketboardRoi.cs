@@ -61,7 +61,7 @@ internal sealed class MarketboardRoi(IGameGui gameGui, NativeMarketBridge bridge
             if (renderer == null || renderer->OwnerNode == null) continue;
             visible++;
             var offer = proxy->Listings[index];
-            if (offer.ItemId != id || offer.UnitPrice == 0 || offer.IsMannequin) continue;
+            if (offer.ItemId != id || offer.UnitPrice == 0 || offer.IsSellingAsSet) continue;
             var node = renderer->OwnerNode;
             var top = node->ScreenY;
             if (top < addon->Y || top >= addon->Y + addon->GetScaledHeight(true) - 25 * addon->Scale) continue;

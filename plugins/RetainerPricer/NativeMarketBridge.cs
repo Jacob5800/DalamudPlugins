@@ -1927,6 +1927,8 @@ public sealed unsafe class NativeMarketBridge : IDisposable
             return;
         }
 
+        // Only set-only offers cannot be bought individually. IsMannequin is not
+        // a reliable exclusion flag for ordinary live market rows.
         var rows = new List<MarketListing>(expectedListingCount);
         for (var i = 0; i < expectedListingCount; i++)
         {
@@ -1939,7 +1941,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 return;
             }
             rows.Add(new MarketListing(row.ItemId, row.IsHqItem, row.UnitPrice,
-                row.Quantity, row.RetainerId, row.IsMannequin));
+                row.Quantity, row.RetainerId, row.IsSellingAsSet));
         }
 
         localSnapshot = new PriceSnapshot(compareItem.ItemId, compareItem.Session.WorldId,
@@ -1976,7 +1978,7 @@ public sealed unsafe class NativeMarketBridge : IDisposable
                 return;
             }
             rows.Add(new MarketListing(row.ItemId, row.IsHqItem, row.UnitPrice,
-                row.Quantity, row.RetainerId, row.IsMannequin));
+                row.Quantity, row.RetainerId, row.IsSellingAsSet));
         }
 
         var worldId = player.CurrentWorld.RowId;
