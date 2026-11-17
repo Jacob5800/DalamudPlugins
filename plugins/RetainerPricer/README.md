@@ -125,6 +125,8 @@ The RP server-bar label turns green when an available retainer has an active ven
 
 ### Troubleshooting status
 
+Pending price reviews and pricing confirmations automatically reopen and expand the main window, including when it was minimized.
+
 Live comparisons include ordinary individually purchasable listings and exclude set-only mannequin offers; competitor stack quantity does not need to match yours.
 
 With listing-selector debugging enabled, Dalamud logs record each pricing row: unit price, quantity, HQ/mannequin flags, ownership, exclusion reason and resulting price. Each snapshot/dialog is logged once.

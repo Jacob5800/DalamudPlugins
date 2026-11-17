@@ -166,6 +166,15 @@ internal sealed class MainWindow : Window
         ImGui.CloseCurrentPopup();
     }
 
+    public override void PreDraw()
+    {
+        // Draw() is skipped when collapsed, so reveal reviews before ImGui.Begin.
+        if (controller.WaitingForPriceReviews || controller.HistoryReviewItem is not null ||
+            controller.MateriaWarningItem is not null || controller.PriceIncreaseItem is not null ||
+            controller.BelowVendorItem is not null || controller.LargeStackReviewItem is not null)
+            ImGui.SetNextWindowCollapsed(false, ImGuiCond.Always);
+    }
+
     public override void Draw()
     {
         if (startListingFromShortcut) { startListingFromShortcut = false; RequestListingStart(controller.StartListingItems); }
@@ -1460,7 +1469,7 @@ internal sealed class MainWindow : Window
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
         ImGui.BulletText("Undercut notifier: Sniper watching in the same World, Data Center or Region scope also runs these checks. The notifier alone never starts Sniper. Listing and batch-selling runs save the current retainer after confirmed new listings without starting watching. Refresh other retainers, then start independent watching to check Universalis prices in the selected scope every 60 seconds. Shows cheaper listings of the same quality and optional Echo messages once per item, quality, retainer and saved price during this plugin session. Pause and hide in duties is enabled by default. Saved listings and market data can be outdated, so refresh after sales or repricing. Unknown listing owners are skipped. Last recorded sale shows the latest same-quality sale within 45 days; hover for its date.");
-        ImGui.BulletText("Listing-selector debugging writes market-row prices, quality/mannequin flags, ownership exclusions and the final pricing decision to the Dalamud log. Live comparisons exclude set-only offers, not ordinary individually purchasable listings. Stack sizes do not need to match.");
+        ImGui.BulletText("Listing-selector debugging writes market-row prices, quality/mannequin flags, ownership exclusions and the final pricing decision to the Dalamud log. Live comparisons exclude set-only offers, not ordinary individually purchasable listings. Stack sizes do not need to match. Pending pricing decisions automatically reopen and expand the window.");
         ImGui.Separator();
 
         ImGui.TextUnformatted("Top buttons");
