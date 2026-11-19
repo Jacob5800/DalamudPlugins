@@ -1,3 +1,3 @@
-## 0.5.1.80
+## 0.5.1.81
 
-- Automation retries an unopened sale window after 750 ms instead of 3 seconds.
+- Automation waits 950 ms before retrying an unopened sale window.
