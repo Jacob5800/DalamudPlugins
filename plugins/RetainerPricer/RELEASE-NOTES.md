@@ -1,3 +1,3 @@
-## 0.5.1.79
+## 0.5.1.80
 
-- Automation moves to the next inventory item sooner after confirming a listing.
+- Automation retries an unopened sale window after 750 ms instead of 3 seconds.

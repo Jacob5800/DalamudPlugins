@@ -2114,7 +2114,7 @@ internal sealed class PricingController : IDisposable
             preListingSlots = listedBefore.Select(row => row.Slot).ToHashSet();
             if (!bridge.TryOpenInventoryItem(candidate, out var openError, config.DebugListingSelector))
             { Cancel($"Automatic listing stopped before opening {candidate.Name}: {openError}"); return; }
-            listingOpenRetryAt = now.AddSeconds(3);
+            listingOpenRetryAt = now.AddMilliseconds(listingTraversal ? 750 : 3_000);
             listingOpenRetried = false;
             Status = $"Opening {candidate.Name} (item {candidate.ItemId}, inventory {candidate.InventoryType}, slot {candidate.Slot}) for market listing...";
             workingItem = null;
