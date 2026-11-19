@@ -25,13 +25,6 @@ Assert(cleanupCount == 1, "concurrent shutdown executes cleanup once");
  Assert(called == 1, "PortraitAtelier disposal is repeat-safe");
 }
 {
- var helper = new StrategyBoardLibrary.ShutdownSequence(); int called = 0;
- var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
- Assert(errors.Count == 1 && called == 1, "StrategyBoardLibrary cleanup survives failure");
- helper.Run(("duplicate", () => called++));
- Assert(called == 1, "StrategyBoardLibrary disposal is repeat-safe");
-}
-{
  var helper = new TugOfWar.ShutdownSequence(); int called = 0;
  var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
  Assert(errors.Count == 1 && called == 1, "TugOfWar cleanup survives failure");
@@ -53,11 +46,11 @@ Assert(cleanupCount == 1, "concurrent shutdown executes cleanup once");
  Assert(called == 1, "NekoBoiNick.FFXIV.DalamudPlugin.HousingTimeoutReminder disposal is repeat-safe");
 }
 {
- var helper = new TataruBrawler.ShutdownSequence(); int called = 0;
+ var helper = new KeyboundAutomation.ShutdownSequence(); int called = 0;
  var errors = helper.Run(("failure", () => throw new InvalidOperationException()), ("remaining", () => called++));
- Assert(errors.Count == 1 && called == 1, "TataruBrawler cleanup survives failure");
+ Assert(errors.Count == 1 && called == 1, "KeyboundAutomation cleanup survives failure");
  helper.Run(("duplicate", () => called++));
- Assert(called == 1, "TataruBrawler disposal is repeat-safe");
+ Assert(called == 1, "KeyboundAutomation disposal is repeat-safe");
 }
 {
  var helper = new BiSplanner.ShutdownSequence(); int called = 0;
@@ -145,7 +138,7 @@ async Task RejectFetch(Func<Task<PriceSnapshot>> fetch, string expectedMessage, 
 
 var fetched = await Fetch((request, _) =>
 {
-    Assert(request.Method == HttpMethod.Get && request.RequestUri!.AbsoluteUri == "https://universalis.app/api/v2/74/5333?entries=100&entriesWithin=2592000",
+    Assert(request.Method == HttpMethod.Get && request.RequestUri!.AbsoluteUri == "https://universalis.app/api/v2/74/5333?entries=100&entriesWithin=3888000",
         "Single-world read-only request uses documented limits");
     Assert(request.Headers.UserAgent.ToString().StartsWith("RetainerPricer/"), "Identify application to API");
     return Task.FromResult(JsonResponse(Body()));

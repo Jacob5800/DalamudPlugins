@@ -1,3 +1,7 @@
+## 0.5.1.79
+
+- Automation moves to the next inventory item sooner after confirming a listing.
+
 ## 0.5.1.78
 
 - Automatically expand Retainer Pricer when pending price reviews or pricing confirmations require your input, so prompts remain visible when the window was minimized.

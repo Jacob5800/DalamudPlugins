@@ -412,7 +412,7 @@ internal sealed class PricingController : IDisposable
             // before changing a price, so don't abort the whole operation on visibility alone.
         }
         if (now < nextTick) return;
-        nextTick = now.AddMilliseconds(250);
+        nextTick = now.AddMilliseconds(listingTraversal ? 100 : 250);
         CurrentItem = bridge.TryReadSellItem(out var selected, out _) ? selected : null;
         if (work == Work.Manual) { TickManual(now); return; }
         if (work == Work.MarketboardLookup) { TickMarketboardLookup(now); return; }
@@ -2366,7 +2366,9 @@ internal sealed class PricingController : IDisposable
                 listingCandidate = null;
                 workingItem = null;
                 step = Step.Start;
-                nextTick = now.AddSeconds(1);
+                // The sale window is closed and the new listing is verified. Automation
+                // can continue on its next poll and resolve the next stack against live inventory.
+                if (!listingTraversal) nextTick = now.AddSeconds(1);
                 Status = $"Listed {submitted.Name} at {listingSubmittedPrice:N0} gil each. Continuing with the next eligible item.";
                 return;
             }
