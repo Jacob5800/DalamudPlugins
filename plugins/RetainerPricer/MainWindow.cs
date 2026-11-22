@@ -863,7 +863,7 @@ internal sealed class MainWindow : Window
         if (summary.SkippedItems.Count > 0 && ImGui.TreeNode("Skipped item details"))
         {
             ImGui.BeginChild("SkippedRunItems", new Vector2(0, 160), true);
-            foreach (var item in summary.SkippedItems) ImGui.TextWrapped(item);
+            foreach (var item in summary.SkippedItems) ImGui.TextWrapped($"{item.Name} — {item.Reason}");
             ImGui.EndChild();
             ImGui.TreePop();
         }

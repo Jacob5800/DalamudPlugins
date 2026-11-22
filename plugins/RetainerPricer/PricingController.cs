@@ -14,6 +14,7 @@ internal sealed class PriceRow(SellItem item, string retainerName = "")
     public PriceReviewEntry? Review { get; set; }
     public bool ReviewSkipped { get; set; }
     public bool SummaryRecorded { get; set; }
+    public PriceCacheKey? FailedLookup { get; set; }
 }
 
 internal sealed class PriceReviewEntry(SellItem item, PriceProposal proposal, string reason,
@@ -59,6 +60,7 @@ internal sealed class PricingController : IDisposable
     private DateTimeOffset listingOpenRetryAt;
     private bool listingOpenRetried;
     private string? pendingSkipMessage;
+    private PriceCacheKey? pendingSkipLookup;
     private bool suppressAutoPriceUntilSellWindowCloses;
     private SellItem? workingItem;
     private ManualQuoteTarget? manualTarget;
@@ -1875,7 +1877,7 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             if (!localRetry.IsReady(now)) return;
-            if (!StartRequest(waiting, now, out var error)) { ScanFailed(row, error); return; }
+            if (!StartRequest(waiting, now, out var error)) { ScanFailed(row, error, RunPriceKey(waiting)); return; }
             Status = $"Checking {waiting.Name} using {(workSource == PriceSource.Local ? "live home-world marketboard listings" : "Universalis")}.";
             step = Step.Quote;
         }
@@ -1891,7 +1893,7 @@ internal sealed class PricingController : IDisposable
                 deadline = now.AddSeconds(10);
                 step = Step.ExistingRetryClosingCompare;
             }
-            else if (snapshot is null) ScanFailed(row, failure);
+            else if (snapshot is null) ScanFailed(row, failure, RunPriceKey(workingItem));
             else ScanReceived(row, snapshot);
         }
         if (step == Step.ExistingRetryClosingCompare)
@@ -2172,7 +2174,7 @@ internal sealed class PricingController : IDisposable
                     Status = $"Waiting for the previous marketboard response before checking {opened.Name}...";
                     return;
                 }
-                SkipBatchItem($"Skipped {opened.Name}: {requestError}");
+                SkipBatchItem($"Skipped {opened.Name}: {requestError}", RunPriceKey(opened));
                 return;
             }
             step = Step.Quote;
@@ -2200,7 +2202,7 @@ internal sealed class PricingController : IDisposable
                     if (now > deadline) Cancel("Automatic listing stopped because the previous marketboard response did not finish. Close any market comparison and retry.");
                     return;
                 }
-                SkipBatchItem($"Skipped {current.Name}: {retryError}");
+                SkipBatchItem($"Skipped {current.Name}: {retryError}", RunPriceKey(current));
                 return;
             }
             step = Step.Quote;
@@ -2217,8 +2219,9 @@ internal sealed class PricingController : IDisposable
                 return;
             }
             if (snapshot is null)
-            { SkipBatchItem($"Skipped {current.Name}: {requestError}"); return; }
+            { SkipBatchItem($"Skipped {current.Name}: {requestError}", RunPriceKey(current)); return; }
 
+            RunSummary?.ResolveLookup(RunPriceKey(current));
             var proposal = Calculate(snapshot, current);
             var review = applyingPriceReviews ? priceReviews.FirstOrDefault(entry => entry.Selected &&
                 entry.Item.ItemId == current.ItemId && entry.Item.IsHq == current.IsHq) : null;
@@ -2380,9 +2383,10 @@ internal sealed class PricingController : IDisposable
         }
     }
 
-    private void SkipBatchItem(string message)
+    private void SkipBatchItem(string message, PriceCacheKey? failedLookup = null)
     {
         pendingSkipMessage = message;
+        pendingSkipLookup = failedLookup;
         ResetRequest();
         if (workingItem is { } openItem && bridge.IsSellWindowVisible)
         {
@@ -2403,7 +2407,9 @@ internal sealed class PricingController : IDisposable
         {
             var prefix = $"Skipped {listingCandidate?.Name}: ";
             var reason = message.StartsWith(prefix, StringComparison.Ordinal) ? message[prefix.Length..] : message;
-            RunSummary?.Skip(reason, listingCandidate?.Name);
+            if (pendingSkipLookup is { } key && listingCandidate is { } candidate)
+                RunSummary?.SkipLookup(key, reason, candidate.Name);
+            else RunSummary?.Skip(reason, listingCandidate?.Name);
             listingSkipped++;
         }
         deferringListingReview = false;
@@ -2411,6 +2417,7 @@ internal sealed class PricingController : IDisposable
         listingCandidate = null;
         workingItem = null;
         pendingSkipMessage = null;
+        pendingSkipLookup = null;
         step = Step.Start;
         ResetRequest();
         Status = message;
@@ -2439,6 +2446,7 @@ internal sealed class PricingController : IDisposable
 
     private void ScanReceived(PriceRow row, PriceSnapshot snapshot)
     {
+        RunSummary?.ResolveLookup(RunPriceKey(row.Item));
         row.Snapshot = snapshot;
         row.Proposal = Calculate(snapshot, row.Item);
         if (row.Review is { Decided: true, Selected: true } review)
@@ -2478,6 +2486,7 @@ internal sealed class PricingController : IDisposable
         row.SummaryRecorded = true;
         if (row.Status == "Updated") summary.Repriced++;
         else if (row.Status == "Already priced") summary.AlreadyPriced++;
+        else if (row.FailedLookup is { } key) summary.SkipLookup(key, row.Status, row.Item.Name);
         else if (row.Status != "Sold to NPC") summary.Skip(row.Status, row.Item.Name);
     }
 
@@ -2494,9 +2503,10 @@ internal sealed class PricingController : IDisposable
         index++;
     }
 
-    private void ScanFailed(PriceRow row, string error)
+    private void ScanFailed(PriceRow row, string error, PriceCacheKey? failedLookup = null)
     {
         row.Status = error;
+        row.FailedLookup = failedLookup;
         if (workingItem is { DialogGeneration: > 0 }) step = Step.Closing;
         else { AdvanceScanIndex(row); step = Step.Start; }
     }

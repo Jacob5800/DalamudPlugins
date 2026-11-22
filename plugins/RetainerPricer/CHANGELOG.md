@@ -1,3 +1,7 @@
+## 0.5.1.83
+
+- Automation clears earlier price lookup failures from the run summary when a later lookup for the same item, quality, and pricing scope succeeds.
+
 ## 0.5.1.82
 
 - If the live marketboard rejects a listing comparison twice, the final retry waits 1 second. Successful comparisons keep their existing timing.

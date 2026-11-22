@@ -2,6 +2,8 @@ using System.Diagnostics;
 
 namespace RetainerPricer;
 
+internal sealed record SkippedItem(string Name, string Reason, PriceCacheKey? LookupKey);
+
 internal sealed class AutomationRunSummary
 {
     private readonly long startedAt = Stopwatch.GetTimestamp();
@@ -20,7 +22,7 @@ internal sealed class AutomationRunSummary
     public int AlreadyPriced { get; set; }
     public Dictionary<string, TimeSpan> Phases { get; } = [];
     public Dictionary<string, int> SkipReasons { get; } = [];
-    public List<string> SkippedItems { get; } = [];
+    public List<SkippedItem> SkippedItems { get; } = [];
 
     public void BeginPhase(string name)
     {
@@ -41,7 +43,29 @@ internal sealed class AutomationRunSummary
     {
         if (Finished || count <= 0) return;
         SkipReasons[reason] = SkipReasons.GetValueOrDefault(reason) + count;
-        if (item is not null) SkippedItems.Add($"{item} — {reason}");
+        if (item is not null) SkippedItems.Add(new(item, reason, null));
+    }
+
+    public void SkipLookup(PriceCacheKey key, string reason, string item)
+    {
+        if (Finished) return;
+        SkipReasons[reason] = SkipReasons.GetValueOrDefault(reason) + 1;
+        SkippedItems.Add(new(item, reason, key));
+    }
+
+    public void ResolveLookup(PriceCacheKey key)
+    {
+        if (Finished) return;
+        for (var index = SkippedItems.Count - 1; index >= 0; index--)
+        {
+            var skipped = SkippedItems[index];
+            if (skipped.LookupKey != key) continue;
+
+            SkippedItems.RemoveAt(index);
+            var remaining = SkipReasons[skipped.Reason] - 1;
+            if (remaining == 0) SkipReasons.Remove(skipped.Reason);
+            else SkipReasons[skipped.Reason] = remaining;
+        }
     }
 
     public void Complete(string outcome, string detail)

@@ -206,6 +206,18 @@ automationSummary.Skip("late skip");
 Check(automationSummary.Outcome == "Stopped" && automationSummary.SkipReasons.Count == 1,
     "finished automation summary ignores repeated completion and late skips");
 Check(new AutomationRunSummary().CacheHits == 0, "new automation summary starts with fresh counters");
+var recoverySummary = new AutomationRunSummary();
+var hqKey = runKey with { IsHq = true };
+recoverySummary.SkipLookup(runKey, "Lookup failed", "Item A");
+recoverySummary.SkipLookup(runKey, "Lookup failed", "Item A");
+recoverySummary.SkipLookup(hqKey, "Lookup failed", "Item A");
+recoverySummary.Skip("Price increase disabled", "Item A");
+recoverySummary.ResolveLookup(runKey);
+Check(recoverySummary.SkipReasons["Lookup failed"] == 1 && recoverySummary.SkippedItems.Count == 2,
+    "later success clears matching lookup failures and preserves other quality and policy skips");
+recoverySummary.ResolveLookup(hqKey);
+Check(!recoverySummary.SkipReasons.ContainsKey("Lookup failed") && recoverySummary.SkippedItems.Count == 1,
+    "last recovered lookup removes its grouped reason");
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");
 
 // Regression: live ordinary Silver Piece listings must undercut across stack sizes;
