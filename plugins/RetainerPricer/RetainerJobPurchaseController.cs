@@ -47,7 +47,7 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
     }
     public void Stop(string reason="Modern Vocation purchase stopped.")
     {
-        if(navigationOwned)try{pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction();}catch{}
+        if(navigationOwned)try{pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction();}catch(Exception ex){bridge.LogAutomationDiagnostic($"vnavmesh could not stop the path: {ex.Message}");}
         navigationOwned=false;IsRunning=false;Status=reason;
     }
     public void Update()

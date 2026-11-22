@@ -1523,7 +1523,7 @@ internal sealed class MainWindow : Window
         ImGui.InputTextMultiline("##feedbackMessage", ref feedbackMessage, 4001, new Vector2(feedbackWidth, 120));
         ImGui.SameLine(0, feedbackGap);
         if (DrawDiscordButton(new Vector2(discordWidth, 120))) Util.OpenLink(DiscordInviteUrl);
-        ImGui.TextDisabled($"{feedbackMessage.Length}/4000 characters · your note and plugin version are emailed to the developer; no character or market data is attached.");
+        ImGui.TextDisabled($"{feedbackMessage.Length}/4000 characters · your note and plugin version are sent through a Google Apps Script relay and emailed to the developer; no character or market data is attached.");
         ImGui.BeginDisabled(!feedback.IsConfigured || feedbackSending || string.IsNullOrWhiteSpace(feedbackMessage) || feedbackMessage.Trim().Length > 4000);
         if (ImGui.Button(feedbackSending ? "Sending feedback..." : "Send feedback")) StartFeedbackSend();
         ImGui.EndDisabled();

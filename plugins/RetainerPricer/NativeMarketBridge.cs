@@ -205,9 +205,22 @@ public sealed unsafe class NativeMarketBridge : IDisposable
         try
         {
             // AgentRetainer's inventory context command uses the retainer agent's item-command submodule.
+            // The pattern is only a function prologue, so a game patch could make it match another function.
+            // Require exactly one match, and require that the verified OpenRetainerSell call site lies inside
+            // the matched function. Otherwise the action stays disabled instead of calling an unknown function.
             const string retainerItemCommandSignature = "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 48 8B 5C 24 ?? 41 8B F0";
-            var target = scanner.ScanText(retainerItemCommandSignature);
-            retainerItemCommandAction = Marshal.GetDelegateForFunctionPointer<RetainerItemCommandDelegate>(target);
+            const string retainerSellCallSite = "E8 ?? ?? ?? ?? EB ?? 48 83 BF ?? ?? ?? ?? ?? 74 ?? 8B CE";
+            const int maximumFunctionSpan = 0x800;
+            var functionMatches = scanner.ScanAllText(retainerItemCommandSignature).Distinct().Take(2).ToArray();
+            if (functionMatches.Length != 1)
+                throw new InvalidOperationException($"The retainer item-command signature matched {functionMatches.Length} locations; expected exactly one.");
+            var callSiteMatches = scanner.ScanAllText(retainerSellCallSite).Distinct().Take(2).ToArray();
+            if (callSiteMatches.Length != 1)
+                throw new InvalidOperationException($"The retainer sell call-site signature matched {callSiteMatches.Length} locations; expected exactly one.");
+            var span = callSiteMatches[0] - functionMatches[0];
+            if (span <= 0 || span >= maximumFunctionSpan)
+                throw new InvalidOperationException("The retainer sell call site is not inside the matched item-command function.");
+            retainerItemCommandAction = Marshal.GetDelegateForFunctionPointer<RetainerItemCommandDelegate>(functionMatches[0]);
         }
         catch (Exception ex)
         {

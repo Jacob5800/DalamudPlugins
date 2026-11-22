@@ -85,7 +85,7 @@ internal sealed class UndercutNotifier : IDisposable
             }).ToArray();
         if (snapshots.Length == 0) { Status = "No saved listings. Refresh all retainer listings first."; nextCheck = DateTimeOffset.UtcNow.AddSeconds(60); return; }
         nextCheck = DateTimeOffset.UtcNow.AddSeconds(60);
-        Status = "Checking selected market scope with Universalisâ€¦";
+        Status = "Checking selected market scope with Universalis…";
         pendingWorld = world.WorldId;
         scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         pending = Scan(world, config.UndercutMarketScope, snapshots, config.UniversalisRetainerListings.Keys.ToHashSet(), scanCancellation.Token);
@@ -98,6 +98,7 @@ internal sealed class UndercutNotifier : IDisposable
     {
         var rows = new List<UndercutRow>();
         var failed = 0;
+        string? firstFailure = null;
         foreach (var id in snapshots.SelectMany(value => value.Listings).Select(value => value.ItemId).Distinct())
         {
             if (token.IsCancellationRequested) break;
@@ -124,9 +125,11 @@ internal sealed class UndercutNotifier : IDisposable
                     }
             }
             catch (OperationCanceledException) { break; }
-            catch (Exception) { failed++; }
+            catch (Exception ex) { failed++; firstFailure ??= ex.Message; }
         }
-        return (rows, $"Last check {DateTimeOffset.Now:HH:mm:ss} Â· {rows.Count} undercut listing(s) Â· {failed} item check(s) unavailable. Checks repeat every 60 seconds.");
+        if (firstFailure is not null)
+            client.DiagnosticLog?.Invoke($"Undercut check: {failed} item check(s) unavailable. First error: {firstFailure}");
+        return (rows, $"Last check {DateTimeOffset.Now:HH:mm:ss} · {rows.Count} undercut listing(s) · {failed} item check(s) unavailable. Checks repeat every 60 seconds.");
     }
 
     public void Dispose()

@@ -45,7 +45,7 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
     }
     public void Stop(string reason="TT card selling stopped.")
     {
-        if(navigationOwned) try { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); } catch { }
+        if(navigationOwned) try { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); } catch (Exception ex) { bridge.LogAutomationDiagnostic($"vnavmesh could not stop the path: {ex.Message}"); }
         navigationOwned=false; IsRunning=false; Status=reason;
     }
     private Dictionary<uint,(ushort Card,uint Count)> EligibleCards()

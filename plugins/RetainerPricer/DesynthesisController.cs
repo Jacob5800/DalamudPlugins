@@ -443,7 +443,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                     confirmationSentAt = now;
                     deadline = now.AddSeconds(15);
                     DesynthesisDiagnostic($"Desynthesis confirmation sent: item={wait.Id}, bag={wait.Bag}, slot={wait.Slot}.");
-                    Status = $"Desynthesizing {data.GetExcelSheet<Item>().GetRow(wait.Id).Name} Â· {completed} completed.";
+                    Status = $"Desynthesizing {data.GetExcelSheet<Item>().GetRow(wait.Id).Name} · {completed} completed.";
                 }
                 else DesynthesisDiagnostic($"Desynthesis dialog waiting: item={wait.Id}, buttonEnabled={dialog->DesynthesizeButton != null && dialog->DesynthesizeButton->IsEnabled}.");
             }
@@ -501,7 +501,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 desynthesisDiagnostic = "";
                 agent->SalvageItem(slot);
                 DesynthesisDiagnostic($"Opening desynthesis dialog: item={id}, bag={type}, slot={i}, quantity={slot->GetQuantity()}.");
-                Status = $"Preparing desynthesis for {item.Name} Â· {completed} completed.";
+                Status = $"Preparing desynthesis for {item.Name} · {completed} completed.";
                 return;
             }
         }

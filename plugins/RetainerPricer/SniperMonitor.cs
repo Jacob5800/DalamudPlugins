@@ -379,7 +379,11 @@ internal sealed class SniperMonitor : IDisposable
                             }
                         }
                         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-                        catch (Exception) { lock (gate) foreach (var id in existingIds) state.ExistingOneGilNext[id] = DateTimeOffset.UtcNow.AddSeconds(30); }
+                        catch (Exception ex)
+                        {
+                            universalis.DiagnosticLog?.Invoke($"Sniper existing 1-gil lookup failed for {existingIds.Length} item(s); retrying in 30 seconds: {ex.Message}");
+                            lock (gate) foreach (var id in existingIds) state.ExistingOneGilNext[id] = DateTimeOffset.UtcNow.AddSeconds(30);
+                        }
                         finally { lock (gate) verifyingCandidate = false; }
                         await Task.Delay(1000, ct).ConfigureAwait(false);
                         continue;

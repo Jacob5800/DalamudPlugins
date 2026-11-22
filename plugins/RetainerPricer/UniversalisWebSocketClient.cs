@@ -83,7 +83,8 @@ internal sealed class UniversalisWebSocketClient : IAsyncDisposable
                 await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Sniper stopped", CancellationToken.None)
                     .ConfigureAwait(false);
         }
-        catch { }
+        // A failed close handshake is expected when the connection already dropped; other errors still surface.
+        catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or OperationCanceledException or IOException) { }
         socket.Dispose();
     }
 
