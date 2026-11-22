@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.83",
+  "AssemblyVersion": "0.5.1.84",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.83\n\n- Automation clears earlier price lookup failures from the run summary when a later lookup for the same item, quality, and pricing scope succeeds.",
+  "Changelog": "## 0.5.1.84\n\n- The retainer sale action is now disabled, instead of risking a wrong game call, if a game update changes the code it depends on.\n- Feedback waits 60 seconds between notes, and the help text and README explain that notes are sent through a Google relay.\n- Fixed garbled separator and ellipsis characters in the Undercut notifier and Desynthesis status text.\n- Failed Sniper one-gil lookups, undercut checks and vnavmesh stops are now written to the log.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
