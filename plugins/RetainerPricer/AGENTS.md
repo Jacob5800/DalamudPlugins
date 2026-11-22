@@ -5,7 +5,7 @@
 - The shared feed lives at the repository root in `repo.json`. Release workflows must update only the `RetainerPricer` entry using `scripts/Update-RepoFeed.ps1`, then commit the feed update to `main`.
 - Before publishing, verify the packaged plugin manifest and root feed entry have the same assembly version and changelog.
 - Keep `README.md` batch-selling documentation aligned with current behavior.
-- Review the plugin's `?` tab in `MainWindow.DrawHelp()` for every release and check the version label at the bottom-left of the menu.
+- Review the plugin's `?` tab in `MainWindow.DrawHelp()` for every release and check the version label at the top of the `?` tab.
 
 - Publish Retainer Pricer changes directly to the stable release channel by default. Use the testing channel only when the user explicitly requests testing. Stable tags use `RetainerPricer-v<version>`; explicitly requested testing tags use `RetainerPricer-testing-v<version>`.
 

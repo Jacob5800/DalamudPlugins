@@ -238,6 +238,13 @@ internal sealed class PricingController : IDisposable
     private readonly List<RetainerIdentity> autoRetainers = [];
     private int autoRetainerIndex;
     private int autoRetainersCompleted;
+    // ETA inputs: retainers whose work actually ran (instant skips excluded), their listing counts, the retainers'
+    // listing counts read from the picker at the start, and the time spent waiting for the user's decisions.
+    private int autoProcessedRetainers;
+    private int autoProcessedUnits;
+    private readonly Dictionary<ulong, int> autoPickerCounts = [];
+    private TimeSpan autoPausedTime;
+    private DateTimeOffset? autoPauseStartedAt;
     private DateTimeOffset autoUpdateStartedAt;
     private int autoUnavailableRetainers;
     private int autoEmptyRetainers;
@@ -357,16 +364,64 @@ internal sealed class PricingController : IDisposable
     {
         var remainingRetainers = autoRetainers.Count - autoRetainersCompleted;
         if (remainingRetainers <= 0) return "finishing";
-        if (autoRetainersCompleted == 0) return "ETA calculating after the first retainer";
+        if (autoProcessedRetainers == 0) return "ETA calculating after the first retainer";
 
-        var elapsedSeconds = Math.Max(0, (DateTimeOffset.UtcNow - autoUpdateStartedAt).TotalSeconds);
-        var averageSecondsPerRetainer = elapsedSeconds / autoRetainersCompleted;
-        var eta = TimeSpan.FromSeconds(Math.Max(1, Math.Ceiling(averageSecondsPerRetainer * remainingRetainers)));
+        var now = DateTimeOffset.UtcNow;
+        // Time spent waiting for price decisions or confirmations is the user's, not the run's pace.
+        var paused = autoPausedTime + (autoPauseStartedAt is { } pausedSince ? now - pausedSince : TimeSpan.Zero);
+        var activeSeconds = Math.Max(1, (now - autoUpdateStartedAt - paused).TotalSeconds);
+        var upcoming = autoRetainers.Skip(Math.Min(autoRetainersCompleted, autoRetainers.Count)).ToList();
+        double etaSeconds;
+        if (!listingTraversal && autoProcessedUnits > 0 && autoPickerCounts.Count == autoRetainers.Count)
+        {
+            // Time scales with how many listings each retainer has; retainers with none are skipped instantly.
+            var upcomingUnits = upcoming.Sum(retainer => autoPickerCounts.GetValueOrDefault(retainer.RetainerId));
+            etaSeconds = activeSeconds / autoProcessedUnits * upcomingUnits;
+        }
+        else
+        {
+            var secondsPerRetainer = activeSeconds / autoProcessedRetainers;
+            var needed = upcoming.Count(retainer => !PredictedPickerSkip(retainer));
+            if (listingTraversal) needed = Math.Min(needed, RetainersNeededForCarriedStacks(upcoming));
+            etaSeconds = secondsPerRetainer * needed;
+        }
+        var eta = TimeSpan.FromSeconds(Math.Max(1, Math.Ceiling(etaSeconds)));
         return eta.TotalHours >= 1
             ? $"ETA ~{(int)eta.TotalHours}h {eta.Minutes:D2}m"
             : eta.TotalMinutes >= 1
                 ? $"ETA ~{(int)Math.Ceiling(eta.TotalMinutes)}m"
                 : $"ETA ~{(int)Math.Ceiling(eta.TotalSeconds)}s";
+    }
+
+    private void ResetAutoEtaInputs()
+    {
+        autoProcessedRetainers = autoProcessedUnits = 0;
+        autoPickerCounts.Clear();
+        autoPausedTime = TimeSpan.Zero;
+        autoPauseStartedAt = null;
+    }
+
+    // The picker's listing count tells us ahead of time which retainers the pass skips (no listings to reprice,
+    // all 20 slots full for a new-listing pass).
+    private bool PredictedPickerSkip(RetainerIdentity retainer) =>
+        autoPickerCounts.TryGetValue(retainer.RetainerId, out var count) &&
+        (listingTraversal ? count >= NativeMarketBridge.RetainerMarketSlotLimit : count == 0);
+
+    // A new-listing pass ends as soon as the carried inventory is empty, so it rarely visits every retainer.
+    private int RetainersNeededForCarriedStacks(IReadOnlyList<RetainerIdentity> upcoming)
+    {
+        var stacks = InventoryCandidates.Count;
+        if (stacks == 0) return 0;
+        var needed = 0;
+        var capacity = 0;
+        foreach (var retainer in upcoming)
+        {
+            if (PredictedPickerSkip(retainer)) continue;
+            capacity += NativeMarketBridge.RetainerMarketSlotLimit - autoPickerCounts.GetValueOrDefault(retainer.RetainerId);
+            needed++;
+            if (capacity >= stacks) break;
+        }
+        return needed;
     }
 
     public void Update()
@@ -377,7 +432,16 @@ internal sealed class PricingController : IDisposable
             if (now >= nextTick) { nextTick = now.AddMilliseconds(250); TickReviewedVendor(now); }
             return;
         }
-        if (WaitingForPriceReviews || HistoryReviewItem is not null || MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null) return;
+        if (WaitingForPriceReviews || HistoryReviewItem is not null || MateriaWarningItem is not null || PriceIncreaseItem is not null || BelowVendorItem is not null || LargeStackReviewItem is not null)
+        {
+            if (work is Work.AutoUpdateAllRetainers or Work.SnapshotAllRetainers) autoPauseStartedAt ??= now;
+            return;
+        }
+        if (autoPauseStartedAt is { } pauseStarted)
+        {
+            autoPausedTime += now - pauseStarted;
+            autoPauseStartedAt = null;
+        }
         if (work != Work.Idle)
         {
             if (bridge.IsClientStateUnavailable)
@@ -1049,6 +1113,10 @@ internal sealed class PricingController : IDisposable
 
         autoRetainerIndex = 0;
         completedRetainerRows.Clear();
+        ResetAutoEtaInputs();
+        if (startedAtPicker)
+            foreach (var retainer in autoRetainers)
+                if (bridge.TryGetPickerMarketItemCount(retainer, out var pickerCount)) autoPickerCounts[retainer.RetainerId] = pickerCount;
         autoRetainerDialogueClicks = 0;
         autoRetainerNextDialogueClick = DateTimeOffset.MinValue;
         autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
@@ -1117,6 +1185,7 @@ internal sealed class PricingController : IDisposable
         autoRetainersCompleted = autoUnavailableRetainers = autoEmptyRetainers = 0;
         autoUpdated = autoAlreadyPriced = autoSkipped = 0;
         snapshotChangedItemIds.Clear();
+        ResetAutoEtaInputs();
         autoUpdateStartedAt = DateTimeOffset.UtcNow;
         work = Work.SnapshotAllRetainers;
         nextTick = autoUpdateStartedAt;
@@ -1366,6 +1435,8 @@ internal sealed class PricingController : IDisposable
                     {
                         if (InventorySnapshotError is not null || InventoryCandidates.Count > 0)
                         { Cancel($"Listing traversal stopped: {Status}"); return; }
+                        // Visited, but nothing was listed here; the pass counts it as done without treating it as work.
+                        autoRetainersCompleted++;
                         work = Work.AutoUpdateAllRetainers;
                         step = Step.AutoCloseSellList;
                         deadline = now.AddSeconds(10);
@@ -1381,6 +1452,8 @@ internal sealed class PricingController : IDisposable
                     { Cancel($"Retainer snapshot stopped because {target.Name}'s listing list changed while being read."); return; }
                     RefreshRetainerListingCache(target, active, listings);
                     autoRetainersCompleted++;
+                    autoProcessedRetainers++;
+                    autoProcessedUnits += listings.Count;
                     Status = $"Retainer snapshot · {target.Name}: saved {listings.Count} listing(s); {snapshotChangedItemIds.Count} changed item ID(s) detected so far.";
                     step = Step.AutoCloseSellList;
                     deadline = now.AddSeconds(10);
@@ -1826,6 +1899,8 @@ internal sealed class PricingController : IDisposable
                 autoAlreadyPriced += unchanged;
                 autoSkipped += skipped;
                 autoRetainersCompleted++;
+                autoProcessedRetainers++;
+                autoProcessedUnits += Rows.Count;
                 var name = autoRetainers[autoRetainerIndex].Name;
                 Status = $"Auto update · {name} complete: {updated} repriced, {unchanged} already at target, {skipped} left unchanged.";
                 step = Step.AutoCloseSellList;
@@ -2438,6 +2513,10 @@ internal sealed class PricingController : IDisposable
         ResetRequest();
         if (continueTraversal)
         {
+            // This retainer's new listings are finished; previously only skipped retainers were counted, so the
+            // ETA stayed on "calculating" for the whole new-listing pass and the final tally was short.
+            autoRetainersCompleted++;
+            autoProcessedRetainers++;
             work = Work.AutoUpdateAllRetainers;
             step = Step.AutoCloseSellList;
             deadline = DateTimeOffset.UtcNow.AddSeconds(10);

@@ -502,12 +502,13 @@ internal sealed class MainWindow : Window
             ImGui.EndTabBar();
         }
 
+    }
+
+    private string VersionLabel()
+    {
         var version = typeof(MainWindow).Assembly.GetName().Version;
-        var versionLabel = version is null ? "Version unavailable" : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
-        if (isTesting) versionLabel += " (testing)";
-        ImGui.SetCursorPos(new Vector2(ImGui.GetStyle().WindowPadding.X,
-            ImGui.GetWindowHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetTextLineHeight()));
-        ImGui.TextDisabled(versionLabel);
+        var label = version is null ? "Version unavailable" : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
+        return isTesting ? label + " (testing)" : label;
     }
 
     private void DrawMarketboardPrompt()
@@ -1453,6 +1454,8 @@ internal sealed class MainWindow : Window
 
     private void DrawHelp()
     {
+        ImGui.TextDisabled($"Retainer Pricer {VersionLabel()}");
+        ImGui.Separator();
         ImGui.TextWrapped("Auto list stacks over 50 ask for a listing size and total to sell. The chosen total applies across retainers for the current run and leaves excess inventory carried. No, don’t split and don’t ask again keeps full stacks; restore the prompt in Settings. Batch selling uses its own rules.");
         ImGui.TextWrapped("New-item listing remembers 1-gil undercut and below-minimum price rejections for the current run across all retainers, with HQ/NQ tracked separately. Start a new run to check those items again.");
         ImGui.TextWrapped("Profiles: create, rename and switch named settings presets in the Profiles tab. Changes save automatically to the active profile, including item lists and toggles. Stop active operations and watchers before switching. Import/export shares the active profile without including market caches.");

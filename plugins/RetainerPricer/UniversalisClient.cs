@@ -43,6 +43,13 @@ public sealed class UniversalisClient : IDisposable
     public const int SniperHistoryBatchSize = 100;
     private const int MaximumCachedItems = 512;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
+    // One identifier for every request, built from the running plugin version so Universalis can tell releases apart.
+    private static readonly string UserAgent = BuildUserAgent();
+    private static string BuildUserAgent()
+    {
+        var version = typeof(UniversalisClient).Assembly.GetName().Version;
+        return version is null ? "RetainerPricer" : $"RetainerPricer/{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{Math.Max(version.Revision, 0)}";
+    }
     private readonly HttpClient client;
     private readonly bool ownsClient;
     private readonly object cacheLock = new();
@@ -402,7 +409,7 @@ public sealed class UniversalisClient : IDisposable
     private async Task<byte[]> RequestHistoryJsonAsync(string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://universalis.app/api/v2/{path}");
-        request.Headers.UserAgent.ParseAdd("RetainerPricer/0.4");
+        request.Headers.UserAgent.ParseAdd(UserAgent);
         request.Headers.Accept.ParseAdd("application/json");
         await RequestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -596,7 +603,7 @@ public sealed class UniversalisClient : IDisposable
     private async Task<byte[]> RequestJsonAsync(string path, string scopeDescription, CancellationToken ct, int maximumResponseBytes = MaximumResponseBytes)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://universalis.app/api/v2/{path}");
-        request.Headers.UserAgent.ParseAdd("RetainerPricer/0.1");
+        request.Headers.UserAgent.ParseAdd(UserAgent);
         request.Headers.Accept.ParseAdd("application/json");
         await RequestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
         try
