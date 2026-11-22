@@ -1,3 +1,3 @@
-## 0.5.1.81
+## 0.5.1.82
 
-- Automation waits 950 ms before retrying an unopened sale window.
+- If the live marketboard rejects a listing comparison twice, the final retry waits 1 second. Successful comparisons keep their existing timing.

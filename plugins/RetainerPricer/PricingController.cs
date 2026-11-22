@@ -1886,7 +1886,7 @@ internal sealed class PricingController : IDisposable
             {
                 if (!bridge.TryCloseCompare(workingItem, out var closeError))
                 { Cancel($"Could not close the rejected comparison for {row.Item.Name}: {closeError}"); return; }
-                row.Status = $"Market request rejected; retry {localRetry.Attempts}/2 after 0.5 seconds.";
+                row.Status = $"Market request rejected; retry {localRetry.Attempts}/{MarketComparisonRetry.MaxAttempts} after {localRetry.DelayMilliseconds} ms.";
                 Status = $"{row.Item.Name}: {row.Status}";
                 deadline = now.AddSeconds(10);
                 step = Step.ExistingRetryClosingCompare;
