@@ -506,7 +506,14 @@ internal sealed class MainWindow : Window
 
     private static void DrawTabContents(string id, Action draw)
     {
-        if (ImGui.BeginChild(id, new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y))))
+        var flags = id is nameof(DrawSettings) or nameof(DrawHelp)
+            ? ImGuiWindowFlags.AlwaysVerticalScrollbar
+            : ImGuiWindowFlags.None;
+        var height = ImGui.GetContentRegionAvail().Y;
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, Math.Max(14f, ImGui.GetStyle().ScrollbarSize));
+        var visible = ImGui.BeginChild(id, new Vector2(0, Math.Max(1f, height)), false, flags);
+        ImGui.PopStyleVar();
+        if (visible)
             draw();
         ImGui.EndChild();
     }
@@ -861,20 +868,25 @@ internal sealed class MainWindow : Window
     {
         if (automation.LastSummary is not { Finished: true } summary) return;
         if (!ImGui.CollapsingHeader($"Last automation run — {summary.Outcome} ({summary.Elapsed.TotalMinutes:F1} min)", ImGuiTreeNodeFlags.DefaultOpen)) return;
-        ImGui.TextUnformatted($"Started {summary.StartedAt:g} · includes time waiting for review");
-        ImGui.TextUnformatted($"Price checks {summary.PriceChecks} · reused {summary.CacheHits} · listed {summary.Listed} · repriced {summary.Repriced} · already at target {summary.AlreadyPriced} · vendored {summary.Vendored}");
-        foreach (var phase in summary.Phases)
-            ImGui.TextUnformatted($"{phase.Key}: {phase.Value.TotalSeconds:F1} seconds");
-        foreach (var reason in summary.SkipReasons)
-            ImGui.TextWrapped($"{reason.Value} skipped — {reason.Key}");
-        ImGui.TextWrapped(summary.Detail);
-        if (summary.SkippedItems.Count > 0 && ImGui.TreeNode("Skipped item details"))
+        var summaryHeight = Math.Clamp(ImGui.GetContentRegionAvail().Y * 0.3f, 48f, 180f);
+        if (ImGui.BeginChild("##RunSummary", new Vector2(0, summaryHeight)))
         {
-            ImGui.BeginChild("SkippedRunItems", new Vector2(0, 160), true);
-            foreach (var item in summary.SkippedItems) ImGui.TextWrapped($"{item.Name} — {item.Reason}");
-            ImGui.EndChild();
-            ImGui.TreePop();
+            ImGui.TextUnformatted($"Started {summary.StartedAt:g} · includes time waiting for review");
+            ImGui.TextUnformatted($"Price checks {summary.PriceChecks} · reused {summary.CacheHits} · listed {summary.Listed} · repriced {summary.Repriced} · already at target {summary.AlreadyPriced} · vendored {summary.Vendored}");
+            foreach (var phase in summary.Phases)
+                ImGui.TextUnformatted($"{phase.Key}: {phase.Value.TotalSeconds:F1} seconds");
+            foreach (var reason in summary.SkipReasons)
+                ImGui.TextWrapped($"{reason.Value} skipped — {reason.Key}");
+            ImGui.TextWrapped(summary.Detail);
+            if (summary.SkippedItems.Count > 0 && ImGui.TreeNode("Skipped item details"))
+            {
+                ImGui.BeginChild("SkippedRunItems", new Vector2(0, 160), true);
+                foreach (var item in summary.SkippedItems) ImGui.TextWrapped($"{item.Name} — {item.Reason}");
+                ImGui.EndChild();
+                ImGui.TreePop();
+            }
         }
+        ImGui.EndChild();
     }
 
     private void DrawProfiles()
