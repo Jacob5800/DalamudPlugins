@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.85",
+  "AssemblyVersion": "0.5.1.86",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.85\n\n- The Auto update ETA is more accurate: it now counts retainers finished in the new-listing pass, ignores time spent waiting for your price decisions, and scales by each retainer's listings.\n- The plugin version now shows at the top of the ? tab.\n- Universalis requests now identify the real plugin version.",
+  "Changelog": "## 0.5.1.86\n\n- Tabs now support mouse-wheel scrolling and show a vertical scrollbar when their contents exceed the available space.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

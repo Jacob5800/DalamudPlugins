@@ -479,29 +479,36 @@ internal sealed class MainWindow : Window
         DrawPriceReviewPanel();
         if (ImGui.BeginTabBar("##pricingTabs"))
         {
-            if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawManualLookup(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Existing listings")) { DrawExisting(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Universalis lookup")) { DrawUniversalisLookup(); ImGui.EndTabItem(); }
-            if (config.ShowSniper && BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawSniper(); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Price lookup", openPriceLookupTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openPriceLookupTab = false; DrawTabContents(nameof(DrawManualLookup), DrawManualLookup); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Existing listings")) { DrawTabContents(nameof(DrawExisting), DrawExisting); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Universalis lookup")) { DrawTabContents(nameof(DrawUniversalisLookup), DrawUniversalisLookup); ImGui.EndTabItem(); }
+            if (config.ShowSniper && BeginColoredTab("Sniper", new Vector4(.46f,.26f,.68f,1))) { DrawTabContents(nameof(DrawSniper), DrawSniper); ImGui.EndTabItem(); }
             if (config.ShowSniper && BeginColoredTab("Sniper results", new Vector4(.46f,.26f,.68f,1), openSniperResultsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
-            { openSniperResultsTab = false; DrawSniperResults(); ImGui.EndTabItem(); }
-            if (config.ShowSniper && BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawBuyList(); ImGui.EndTabItem(); }
-            if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawUndercutNotifier(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Exceptions")) { DrawExceptions(); ImGui.EndTabItem(); }
-            if (config.ShowDontMarket && ImGui.BeginTabItem("Don't market")) { DrawDontMarket(); ImGui.EndTabItem(); }
-            if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawNoReprice(); ImGui.EndTabItem(); }
-            if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawBatchSelling(); ImGui.EndTabItem(); }
-            if (config.ShowDesynthesisList && BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawDesynthesis(); ImGui.EndTabItem(); }
-            if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawAutoVendor(); ImGui.EndTabItem(); }
-            if (config.ShowAutomationList && BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawAutomation(); ImGui.EndTabItem(); }
-            if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawVentures(); ImGui.EndTabItem(); }
-            if (config.ShowDebugStatus && ImGui.BeginTabItem("Status")) { DrawStatusHistory(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Profiles")) { DrawProfiles(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("Settings")) { DrawSettings(); ImGui.EndTabItem(); }
-            if (ImGui.BeginTabItem("?")) { DrawHelp(); ImGui.EndTabItem(); }
+            { openSniperResultsTab = false; DrawTabContents(nameof(DrawSniperResults), DrawSniperResults); ImGui.EndTabItem(); }
+            if (config.ShowSniper && BeginColoredTab("Buy list", new Vector4(.46f,.26f,.68f,1), openBuyListTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None)) { openBuyListTab = false; DrawTabContents(nameof(DrawBuyList), DrawBuyList); ImGui.EndTabItem(); }
+            if (config.ShowUndercutNotifier && ImGui.BeginTabItem("Undercut notifier")) { DrawTabContents(nameof(DrawUndercutNotifier), DrawUndercutNotifier); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Exceptions")) { DrawTabContents(nameof(DrawExceptions), DrawExceptions); ImGui.EndTabItem(); }
+            if (config.ShowDontMarket && ImGui.BeginTabItem("Don't market")) { DrawTabContents(nameof(DrawDontMarket), DrawDontMarket); ImGui.EndTabItem(); }
+            if (config.ShowDontReprice && ImGui.BeginTabItem("Don't reprice")) { DrawTabContents(nameof(DrawNoReprice), DrawNoReprice); ImGui.EndTabItem(); }
+            if (config.ShowBatchSelling && ImGui.BeginTabItem("Batch selling")) { DrawTabContents(nameof(DrawBatchSelling), DrawBatchSelling); ImGui.EndTabItem(); }
+            if (config.ShowDesynthesisList && BeginColoredTab("Desynthesis", new Vector4(.08f, .35f, .70f, 1))) { DrawTabContents(nameof(DrawDesynthesis), DrawDesynthesis); ImGui.EndTabItem(); }
+            if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawTabContents(nameof(DrawAutoVendor), DrawAutoVendor); ImGui.EndTabItem(); }
+            if (config.ShowAutomationList && BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawTabContents(nameof(DrawAutomation), DrawAutomation); ImGui.EndTabItem(); }
+            if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawTabContents(nameof(DrawVentures), DrawVentures); ImGui.EndTabItem(); }
+            if (config.ShowDebugStatus && ImGui.BeginTabItem("Status")) { DrawTabContents(nameof(DrawStatusHistory), DrawStatusHistory); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Profiles")) { DrawTabContents(nameof(DrawProfiles), DrawProfiles); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Settings")) { DrawTabContents(nameof(DrawSettings), DrawSettings); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("?")) { DrawTabContents(nameof(DrawHelp), DrawHelp); ImGui.EndTabItem(); }
             ImGui.EndTabBar();
         }
 
+    }
+
+    private static void DrawTabContents(string id, Action draw)
+    {
+        if (ImGui.BeginChild(id, new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y))))
+            draw();
+        ImGui.EndChild();
     }
 
     private string VersionLabel()
@@ -1463,11 +1470,6 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Optional blue desynthesis-list fill is available in Settings and Desynthesis. It marks list membership in bags, saddlebags and armoury chest; item protections still apply.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. Matching copies in carried bags and armoury chest are processed. Eligible armoury items move into a free carried slot first; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
-        if (!ImGui.BeginChild("##helpContents", new Vector2(0, Math.Max(120, ImGui.GetContentRegionAvail().Y)), true))
-        {
-            ImGui.EndChild();
-            return;
-        }
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage with up to two decimal places), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
@@ -1533,7 +1535,6 @@ internal sealed class MainWindow : Window
         if (!feedback.IsConfigured)
             ImGui.TextDisabled("Feedback email setup is not finished yet.");
         if (feedbackStatus is { Length: > 0 } status) ImGui.TextWrapped(status);
-        ImGui.EndChild();
     }
 
     private static bool DrawDiscordButton(Vector2 buttonSize)
@@ -1917,7 +1918,7 @@ internal sealed class MainWindow : Window
         if (ImGui.BeginTable(buyList ? "##buyListDealsV3" : "##sniperDealsLayoutV8", 15, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Sortable | ImGuiTableFlags.SortTristate | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX |
                 ImGuiTableFlags.Resizable | ImGuiTableFlags.Hideable,
-                new Vector2(0, Math.Max(1, ImGui.GetContentRegionAvail().Y - 65))))
+                new Vector2(0, Math.Max(150, ImGui.GetContentRegionAvail().Y - 65))))
         {
             void SetupDealColumn(string heading, ImGuiTableColumnFlags flags, float width)
             {

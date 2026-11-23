@@ -1,3 +1,7 @@
+## 0.5.1.86
+
+- Tabs now support mouse-wheel scrolling and show a vertical scrollbar when their contents exceed the available space.
+
 ## 0.5.1.85
 
 - The Auto update ETA is more accurate: it now counts retainers finished in the new-listing pass, ignores time spent waiting for your price decisions, and scales by each retainer's listings.
