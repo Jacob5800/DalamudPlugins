@@ -1,3 +1,7 @@
+## 0.5.1.89
+
+- When another food buff is active, desynthesis can now replace it with Bacon Broth, continue without it, or stop.
+
 ## 0.5.1.88
 
 - Desynthesis has a new Use Tinker's Calm option, which can be combined with Bacon Broth. It is used once per run, HQ before NQ.

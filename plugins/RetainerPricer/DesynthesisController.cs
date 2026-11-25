@@ -141,7 +141,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         public readonly uint ItemId = itemId, StatusId = statusId;
         public readonly int FoodRow = foodRow;
         public readonly Func<bool> Enabled = enabled;
-        public bool Handled, Requested;
+        public bool Handled, Requested, Replace;
         public DateTimeOffset Deadline;
     }
 
@@ -154,18 +154,23 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     public bool WaitingForBuff => review != null;
     public string BuffName => review?.Name ?? "";
     public string BuffReviewReason { get; private set; } = "";
+    public bool CanReplaceBuff { get; private set; }
     public void ContinueWithoutBuff() { if (review != null) review.Handled = true; review = null; }
+    // The next update uses the item over the active food buff.
+    public void ReplaceBuff() { if (review != null && CanReplaceBuff) review.Replace = true; review = null; }
     private void ResetConsumables()
     {
         review = null;
-        foreach (var buff in consumables) buff.Handled = buff.Requested = false;
+        foreach (var buff in consumables) buff.Handled = buff.Requested = buff.Replace = false;
     }
-    private bool AskToContinueWithoutBuff(Consumable buff, string reason)
+    private bool AskToContinueWithoutBuff(Consumable buff, string reason, bool canReplace = false)
     {
         buff.Requested = false;
         review = buff;
+        CanReplaceBuff = canReplace;
         BuffReviewReason = reason;
-        Status = $"{reason} Choose Continue without {buff.Name} or Stop.";
+        Status = canReplace ? $"{reason} Choose Replace food, Continue without {buff.Name} or Stop."
+            : $"{reason} Choose Continue without {buff.Name} or Stop.";
         return false;
     }
 
@@ -198,9 +203,10 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             }
             return false;
         }
-        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId &&
+        if (!buff.Replace && objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId &&
             status.Param % 10000 != buff.FoodRow && status.RemainingTime > 0) == true)
-            return AskToContinueWithoutBuff(buff, $"Another {buff.Kind} buff is active. Continuing will keep your current {buff.Kind} buff.");
+            return AskToContinueWithoutBuff(buff, $"Another {buff.Kind} buff is active. Continuing will keep your current {buff.Kind} buff.",
+                canReplace: buff.Kind == "food");
         // A second consumable can follow immediately after the first; wait until the character can act.
         if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
             || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return false;
