@@ -163,6 +163,8 @@ The Desynthesis tab also offers **Grab carried inventory** and **Grab chocobo sa
 
 **Use Bacon Broth** in Desynthesis is off by default. When enabled, an existing Bacon Broth food buff is reused; otherwise the run uses HQ from carried bags before falling back to NQ and waits for the buff. If none is found, a popup offers **Continue without Bacon Broth** for that run or **Stop**. The preference is saved and included in settings backups.
 
+**Use Tinker's Calm** is a separate option, also off by default, and can be combined with Bacon Broth. It uses the medicine in the same way: an active Tinker's Calm is reused, otherwise HQ then NQ from carried bags, with the same Continue/Stop choice if it is missing, cannot be confirmed, or another medicine buff is active. It is applied once per run and is not renewed when its 10 minutes expire.
+
 ### Selected-item Sniper scans
 
 When specific items are selected, Sniper loads their price references and configured sales history, checks up to 100 current listings per selected item in the chosen world/data-center/region, then continues live monitoring for those items only. Existing offers use the same HQ/NQ baselines, minimum-sales requirement and deal filters as incoming offers. The all-items discovery mode keeps its existing cache-and-live-candidate behaviour. Failed current-listing requests are reported rather than counted as empty successful results.

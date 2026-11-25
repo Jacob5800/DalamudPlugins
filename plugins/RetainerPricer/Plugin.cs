@@ -183,7 +183,7 @@ public sealed class Plugin : IDalamudPlugin
                 venturePickerReadyAt = null;
             }
             desynthesis.Update();
-            if (desynthesis.WaitingForBroth || desynthesis.WaitingForMateria) window.IsOpen = true;
+            if (desynthesis.WaitingForBuff || desynthesis.WaitingForMateria) window.IsOpen = true;
             statusHistory.Observe("Desynthesis", desynthesis.Status);
             automation.Update();
             if (observedFullSequences != automation.CompletedRuns)

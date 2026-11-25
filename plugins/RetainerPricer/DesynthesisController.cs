@@ -134,46 +134,76 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     }
     private static string Melds(InventoryItem* slot) => string.Join(",", Enumerable.Range(0,5).Select(i => $"{slot->Materia[i]}:{slot->MateriaGrades[i]}"));
 
-    public bool WaitingForBroth { get; private set; }
-    public string BrothReviewReason { get; private set; } = "";
-    private bool brothHandled, brothRequested;
-    private DateTimeOffset brothDeadline;
-    public void ContinueWithoutBroth() { WaitingForBroth = false; brothHandled = true; }
-    private bool HasBrothBuff => objects.LocalPlayer?.StatusList.Any(status => status.StatusId == 48
-        && status.Param % 10000 == 270 && status.RemainingTime > 5) == true;
-    private bool AskToContinueWithoutBroth(string reason)
+    // Optional one-per-run buffs. FoodRow is the ItemFood row reported in the status parameter (+10000 for HQ).
+    private sealed class Consumable(string name, uint itemId, uint statusId, int foodRow, string kind, Func<bool> enabled)
     {
-        brothRequested = false;
-        WaitingForBroth = true;
-        BrothReviewReason = reason;
-        Status = $"{reason} Choose Continue without Bacon Broth or Stop.";
+        public readonly string Name = name, Kind = kind;
+        public readonly uint ItemId = itemId, StatusId = statusId;
+        public readonly int FoodRow = foodRow;
+        public readonly Func<bool> Enabled = enabled;
+        public bool Handled, Requested;
+        public DateTimeOffset Deadline;
+    }
+
+    private readonly Consumable[] consumables =
+    [
+        new("Bacon Broth", 9335, 48, 270, "food", () => config.UseBaconBroth),
+        new("Tinker's Calm", 10086, 49, 271, "medicine", () => config.UseTinkersCalm),
+    ];
+    private Consumable? review;
+    public bool WaitingForBuff => review != null;
+    public string BuffName => review?.Name ?? "";
+    public string BuffReviewReason { get; private set; } = "";
+    public void ContinueWithoutBuff() { if (review != null) review.Handled = true; review = null; }
+    private void ResetConsumables()
+    {
+        review = null;
+        foreach (var buff in consumables) buff.Handled = buff.Requested = false;
+    }
+    private bool AskToContinueWithoutBuff(Consumable buff, string reason)
+    {
+        buff.Requested = false;
+        review = buff;
+        BuffReviewReason = reason;
+        Status = $"{reason} Choose Continue without {buff.Name} or Stop.";
         return false;
     }
 
-    private bool EnsureBroth(InventoryManager* inventory, DateTimeOffset now)
+    private bool EnsureBuffs(InventoryManager* inventory, DateTimeOffset now)
     {
-        if (!config.UseBaconBroth || brothHandled) return true;
-        if (WaitingForBroth) return false;
-        if (HasBrothBuff)
+        foreach (var buff in consumables)
+            if (!EnsureBuff(buff, inventory, now)) return false;
+        return true;
+    }
+
+    private bool EnsureBuff(Consumable buff, InventoryManager* inventory, DateTimeOffset now)
+    {
+        if (!buff.Enabled() || buff.Handled) return true;
+        if (review != null) return false;
+        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId
+            && status.Param % 10000 == buff.FoodRow && status.RemainingTime > 5) == true)
         {
-            brothHandled = true; brothRequested = false;
-            Status = "Bacon Broth confirmed; continuing desynthesis.";
-            bridge.LogAutomationDiagnostic("Bacon Broth status confirmed; continuing the same desynthesis run.");
+            buff.Handled = true; buff.Requested = false;
+            Status = $"{buff.Name} confirmed; continuing desynthesis.";
+            bridge.LogAutomationDiagnostic($"{buff.Name} status confirmed; continuing the same desynthesis run.");
             return true;
         }
-        if (brothRequested)
+        if (buff.Requested)
         {
-            if (now >= brothDeadline)
+            if (now >= buff.Deadline)
             {
-                var food = objects.LocalPlayer?.StatusList.FirstOrDefault(status => status.StatusId == 48);
-                bridge.LogAutomationDiagnostic($"Bacon Broth confirmation timed out: foodParam={food?.Param}, remaining={food?.RemainingTime}; no second food request sent.");
-                return AskToContinueWithoutBroth("Bacon Broth could not be confirmed. Check any in-game error before retrying.");
+                var active = objects.LocalPlayer?.StatusList.FirstOrDefault(status => status.StatusId == buff.StatusId);
+                bridge.LogAutomationDiagnostic($"{buff.Name} confirmation timed out: statusParam={active?.Param}, remaining={active?.RemainingTime}; no second {buff.Kind} request sent.");
+                return AskToContinueWithoutBuff(buff, $"{buff.Name} could not be confirmed. Check any in-game error before retrying.");
             }
             return false;
         }
-        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == 48 &&
-            status.Param % 10000 != 270 && status.RemainingTime > 0) == true)
-            return AskToContinueWithoutBroth("Another food buff is active. Continuing will keep your current food buff.");
+        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId &&
+            status.Param % 10000 != buff.FoodRow && status.RemainingTime > 0) == true)
+            return AskToContinueWithoutBuff(buff, $"Another {buff.Kind} buff is active. Continuing will keep your current {buff.Kind} buff.");
+        // A second consumable can follow immediately after the first; wait until the character can act.
+        if (condition[ConditionFlag.Occupied] || condition[ConditionFlag.Occupied39] || condition[ConditionFlag.Casting]
+            || ActionManager.Instance() == null || ActionManager.Instance()->AnimationLock > 0) return false;
 
         bool nq = false, hq = false;
         foreach (var type in Bags)
@@ -183,18 +213,18 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
             for (int i = 0; i < bag->Size; i++)
             {
                 var item = bag->GetInventorySlot(i);
-                if (item == null || item->IsEmpty() || item->GetBaseItemId() != 9335) continue;
+                if (item == null || item->IsEmpty() || item->GetBaseItemId() != buff.ItemId) continue;
                 if (item->IsHighQuality()) hq = true; else nq = true;
             }
         }
         if (!hq && !nq)
-            return AskToContinueWithoutBroth("Neither HQ nor NQ Bacon Broth was found in carried inventory.");
+            return AskToContinueWithoutBuff(buff, $"Neither HQ nor NQ {buff.Name} was found in carried inventory.");
         // The native return value can be false even when item use is queued/consumed.
-        // Submit once, then verify the actual food status instead of stopping or eating twice.
-        brothRequested = true; brothDeadline = now.AddSeconds(15);
-        var accepted = ActionManager.Instance()->UseAction(ActionType.Item, hq ? 1009335u : 9335u, 0xE0000000, 65535);
-        bridge.LogAutomationDiagnostic($"Bacon Broth requested: HQ={hq}, nativeAccepted={accepted}; waiting for food status 48/270 before desynthesis.");
-        Status = hq ? "Using HQ Bacon Broth..." : "Using NQ Bacon Broth...";
+        // Submit once, then verify the actual status instead of stopping or consuming twice.
+        buff.Requested = true; buff.Deadline = now.AddSeconds(15);
+        var accepted = ActionManager.Instance()->UseAction(ActionType.Item, hq ? buff.ItemId + 1000000 : buff.ItemId, 0xE0000000, 65535);
+        bridge.LogAutomationDiagnostic($"{buff.Name} requested: HQ={hq}, nativeAccepted={accepted}; waiting for {buff.Kind} status {buff.StatusId}/{buff.FoodRow} before desynthesis.");
+        Status = $"Using {(hq ? "HQ" : "NQ")} {buff.Name}...";
         return false;
     }
     public IReadOnlyList<uint> Snapshot(bool saddlebag, out string message)
@@ -226,7 +256,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                 : " Use Add to include an item in your list.");
         return ids.OrderBy(id => data.GetExcelSheet<Item>().GetRow(id).Name.ToString()).ToArray();
     }
-    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; transfer = null; extractionItem = null; pending = null; WaitingForBroth = false; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = false; Status = reason; }
+    public void Stop(string reason = "Desynthesis stopped.") { IsRunning = false; transfer = null; extractionItem = null; pending = null; review = null; WaitingForMateria = false; materiaItem = null; retrieveApproved = retrievalSent = retrievalMenuOpened = false; Status = reason; }
     public void Start()
     {
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
@@ -238,7 +268,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         extractionItem = null;
         transfer = null;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
-        brothHandled = brothRequested = WaitingForBroth = false;
+        ResetConsumables();
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
     }
     private void UpdateMateria(InventoryManager* inventory, DateTimeOffset now)
@@ -307,7 +337,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         var inventory = InventoryManager.Instance();
         if (inventory == null) { Stop("Inventory unavailable."); return; }
         // Resolve a pending food request even while its inventory slot/UI is changing.
-        if (brothRequested && !EnsureBroth(inventory, now)) return;
+        if (consumables.Any(buff => buff.Requested) && !EnsureBuffs(inventory, now)) return;
         if (transfer is { } moving)
         {
             var source = inventory->GetInventoryContainer(moving.Source);
@@ -491,7 +521,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
                     Status = $"Materia found on {MateriaItemName}. Choose Retrieve materia or Skip item.";
                     return;
                 }
-                if (!EnsureBroth(inventory, now)) return;
+                if (!EnsureBuffs(inventory, now)) return;
                 var agent = AgentSalvage.Instance();
                 if (agent == null) { Stop("Desynthesis agent unavailable."); return; }
                 pending = (type, i, id, slot->GetQuantity()); deadline = now.AddSeconds(15);

@@ -28,6 +28,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public double SniperMinimumRoiPercent { get; set; } = 0;
     public bool MarkDesynthesisItems { get; set; }
     public bool UseBaconBroth { get; set; }
+    public bool UseTinkersCalm { get; set; }
     public List<uint> DesynthesisItemIds { get; set; } = [];
     public int Version { get; set; } = 16;
     public bool AskBeforeSplittingLargeStacks { get; set; } = true;

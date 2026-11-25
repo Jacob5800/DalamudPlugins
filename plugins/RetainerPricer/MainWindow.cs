@@ -392,15 +392,15 @@ internal sealed class MainWindow : Window
             if (!desynthesis.WaitingForMateria) ImGui.CloseCurrentPopup();
             ImGui.EndPopup();
         }
-        const string brothReviewPopup = "Bacon Broth unavailable";
-        if (desynthesis.WaitingForBroth) ImGui.OpenPopup(brothReviewPopup);
-        if (ImGui.BeginPopupModal(brothReviewPopup, ImGuiWindowFlags.AlwaysAutoResize))
+        const string buffReviewPopup = "Desynthesis buff unavailable";
+        if (desynthesis.WaitingForBuff) ImGui.OpenPopup(buffReviewPopup);
+        if (ImGui.BeginPopupModal(buffReviewPopup, ImGuiWindowFlags.AlwaysAutoResize))
         {
-            ImGui.TextWrapped(desynthesis.BrothReviewReason);
-            if (ImGui.Button("Continue without Bacon Broth")) { desynthesis.ContinueWithoutBroth(); ImGui.CloseCurrentPopup(); }
+            ImGui.TextWrapped(desynthesis.BuffReviewReason);
+            if (ImGui.Button($"Continue without {desynthesis.BuffName}")) { desynthesis.ContinueWithoutBuff(); ImGui.CloseCurrentPopup(); }
             ImGui.SameLine();
             if (ImGui.Button("Stop")) { desynthesis.Stop(); ImGui.CloseCurrentPopup(); }
-            if (!desynthesis.WaitingForBroth) ImGui.CloseCurrentPopup();
+            if (!desynthesis.WaitingForBuff) ImGui.CloseCurrentPopup();
             ImGui.EndPopup();
         }
         if (ImGui.BeginPopupModal(EmptyBatchListPopup, ImGuiWindowFlags.AlwaysAutoResize))
@@ -2152,6 +2152,11 @@ internal sealed class MainWindow : Window
         if (ImGui.Checkbox("Use Bacon Broth", ref useBroth)) { config.UseBaconBroth = useBroth; save(); }
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Bacon Broth before desynthesis. Prefer HQ over NQ; an existing Bacon Broth food buff is reused. If another food buff is active or Bacon Broth cannot be used, choose Continue or Stop.");
+        var useCalm = config.UseTinkersCalm;
+        ImGui.BeginDisabled(desynthesis.IsRunning);
+        if (ImGui.Checkbox("Use Tinker's Calm", ref useCalm)) { config.UseTinkersCalm = useCalm; save(); }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Tinker's Calm (medicine, 10 minutes) once per run before desynthesis. Prefer HQ over NQ; an active Tinker's Calm is reused. If another medicine buff is active or Tinker's Calm cannot be used, choose Continue or Stop.");
         ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
         if (ImGui.Button("Grab carried inventory"))
             dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(false, out desynthesisSnapshotStatus));
