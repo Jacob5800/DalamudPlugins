@@ -1,3 +1,7 @@
+## 0.5.1.88
+
+- Desynthesis has a new Use Tinker's Calm option, which can be combined with Bacon Broth. It is used once per run, HQ before NQ.
+
 ## 0.5.1.87
 
 - Settings and Help now always show a wider scrollbar. Long automation summaries scroll separately so the tabs stay accessible.
