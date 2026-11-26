@@ -38,6 +38,17 @@ Check(!ShiftStopPolicy.ShouldStop(false,true,true,true,true), "toggle respected"
 Check(!ShiftStopPolicy.ShouldStop(true,false,true,true,true), "requires shift");
 Check(!ShiftStopPolicy.ShouldStop(true,true,false,true,true), "bell scope");
 Check(!ShiftStopPolicy.ShouldStop(true,true,true,false,false), "idle ignored");
+var teleportRetry = new TeleportRetry();
+var tripClock = DateTimeOffset.UnixEpoch.AddHours(1);
+Check(!teleportRetry.Waiting(tripClock) && !teleportRetry.Exhausted, "first teleport is immediate");
+teleportRetry.Requested(tripClock);
+Check(teleportRetry.Waiting(tripClock.AddSeconds(4)) && !teleportRetry.Waiting(tripClock.AddSeconds(5)), "teleport retried after quiet period");
+teleportRetry.Busy(tripClock.AddSeconds(20));
+Check(teleportRetry.Waiting(tripClock.AddSeconds(24)), "casting or loading restarts the wait");
+teleportRetry.Requested(tripClock.AddSeconds(30)); teleportRetry.Requested(tripClock.AddSeconds(40));
+Check(teleportRetry.Exhausted && teleportRetry.Waiting(tripClock.AddSeconds(41)), "last attempt still gets time to finish");
+teleportRetry.Reset();
+Check(!teleportRetry.Exhausted && !teleportRetry.Waiting(tripClock), "new trip resets attempts");
 var rejected = new ListingRunRejections();
 rejected.Record(42,false,new PriceProposal(1,0,1,"one gil",Rejection: PriceRejection.CannotUndercutOneGil));
 Check(rejected.Contains(42,false) && !rejected.Contains(42,true), "one-gil rejection shared across retainers but quality separate");

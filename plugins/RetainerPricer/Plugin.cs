@@ -158,6 +158,7 @@ public sealed class Plugin : IDalamudPlugin
             catch (Exception ex)
             {
                 log.Error(ex, "Retainer Pricer operation failed");
+                StopTripsAfterError();
                 desynthesis.Stop("Desynthesis stopped after an unexpected error.");
                 automation.Cancel("Full sequence stopped after an unexpected error.");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
@@ -241,12 +242,20 @@ public sealed class Plugin : IDalamudPlugin
         catch (Exception ex)
         {
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
+            StopTripsAfterError();
             desynthesis.Stop("Desynthesis stopped after an unexpected error.");
             automation.Cancel("Full sequence stopped after an unexpected error.");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
             vendor.Cancel("Retainer selling stopped after an unexpected error. Check the retainer inventory before continuing.");
             ventures.Cancel("Venture cycle stopped after an unexpected error. Check the current retainer window before continuing.");
         }
+    }
+
+    // Only stop running trips, so an unrelated error does not overwrite an idle or completed status.
+    private void StopTripsAfterError()
+    {
+        if (ttCards.IsRunning) ttCards.Stop("TT card selling stopped after an unexpected error.");
+        if (jobPurchase.IsRunning) jobPurchase.Stop("Modern Vocation purchase stopped after an unexpected error. Check NPC dialogue and inventory.");
     }
 
     private bool IsAutoRetainerLoaded() => pluginInterface.InstalledPlugins.Any(plugin =>

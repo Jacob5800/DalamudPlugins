@@ -135,8 +135,12 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private static string Melds(InventoryItem* slot) => string.Join(",", Enumerable.Range(0,5).Select(i => $"{slot->Materia[i]}:{slot->MateriaGrades[i]}"));
 
     // Optional one-per-run buffs. FoodRow is the ItemFood row reported in the status parameter (+10000 for HQ).
-    private sealed class Consumable(string name, uint itemId, uint statusId, int foodRow, string kind, Func<bool> enabled)
+    private sealed class Consumable(string name, uint itemId, uint statusId, int foodRow, string kind, Func<bool> enabled,
+        Func<bool>? renew = null)
     {
+        public readonly Func<bool> Renew = renew ?? (() => false);
+        // Set only once the buff was confirmed, so declining a buff is never undone by renewal.
+        public bool Applied;
         public readonly string Name = name, Kind = kind;
         public readonly uint ItemId = itemId, StatusId = statusId;
         public readonly int FoodRow = foodRow;
@@ -148,7 +152,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private readonly Consumable[] consumables =
     [
         new("Bacon Broth", 9335, 48, 270, "food", () => config.UseBaconBroth),
-        new("Tinker's Calm", 10086, 49, 271, "medicine", () => config.UseTinkersCalm),
+        new("Tinker's Calm", 10086, 49, 271, "medicine", () => config.UseTinkersCalm, () => config.RenewTinkersCalm),
     ];
     private Consumable? review;
     public bool WaitingForBuff => review != null;
@@ -161,7 +165,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private void ResetConsumables()
     {
         review = null;
-        foreach (var buff in consumables) buff.Handled = buff.Requested = buff.Replace = false;
+        foreach (var buff in consumables) buff.Handled = buff.Requested = buff.Replace = buff.Applied = false;
     }
     private bool AskToContinueWithoutBuff(Consumable buff, string reason, bool canReplace = false)
     {
@@ -183,12 +187,19 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
 
     private bool EnsureBuff(Consumable buff, InventoryManager* inventory, DateTimeOffset now)
     {
-        if (!buff.Enabled() || buff.Handled) return true;
-        if (review != null) return false;
-        if (objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId
-            && status.Param % 10000 == buff.FoodRow && status.RemainingTime > 5) == true)
+        if (!buff.Enabled()) return true;
+        bool IsActive() => objects.LocalPlayer?.StatusList.Any(status => status.StatusId == buff.StatusId
+            && status.Param % 10000 == buff.FoodRow && status.RemainingTime > 5) == true;
+        if (buff.Handled)
         {
-            buff.Handled = true; buff.Requested = false;
+            if (!buff.Applied || !buff.Renew() || objects.LocalPlayer == null || IsActive()) return true;
+            buff.Handled = buff.Applied = false;
+            bridge.LogAutomationDiagnostic($"{buff.Name} ran out; renewing before the next item.");
+        }
+        if (review != null) return false;
+        if (IsActive())
+        {
+            buff.Handled = buff.Applied = true; buff.Requested = false;
             Status = $"{buff.Name} confirmed; continuing desynthesis.";
             bridge.LogAutomationDiagnostic($"{buff.Name} status confirmed; continuing the same desynthesis run.");
             return true;

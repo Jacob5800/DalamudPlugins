@@ -1,3 +1,5 @@
-## 0.5.1.89
+## 0.5.1.90
 
-- When another food buff is active, desynthesis can now replace it with Bacon Broth, continue without it, or stop.
+- Added an optional Renew Tinker's Calm when it runs out setting for long desynthesis runs.
+- Interrupted teleports during TT card selling and the Modern Vocation purchase are now retried.
+- Unexpected errors now also stop TT card selling and the Modern Vocation purchase.

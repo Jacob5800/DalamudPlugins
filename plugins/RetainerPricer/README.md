@@ -163,7 +163,7 @@ The Desynthesis tab also offers **Grab carried inventory** and **Grab chocobo sa
 
 **Use Bacon Broth** in Desynthesis is off by default. When enabled, an existing Bacon Broth food buff is reused; otherwise the run uses HQ from carried bags before falling back to NQ and waits for the buff. If another food buff is active, a popup offers **Replace food** (uses Bacon Broth over it), **Continue without Bacon Broth** or **Stop**. If none is found, a popup offers **Continue without Bacon Broth** for that run or **Stop**. The preference is saved and included in settings backups.
 
-**Use Tinker's Calm** is a separate option, also off by default, and can be combined with Bacon Broth. It uses the medicine in the same way: an active Tinker's Calm is reused, otherwise HQ then NQ from carried bags, with the same Continue/Stop choice if it is missing, cannot be confirmed, or another medicine buff is active. It is applied once per run and is not renewed when its 10 minutes expire.
+**Use Tinker's Calm** is a separate option, also off by default, and can be combined with Bacon Broth. It uses the medicine in the same way: an active Tinker's Calm is reused, otherwise HQ then NQ from carried bags, with the same Continue/Stop choice if it is missing, cannot be confirmed, or another medicine buff is active. It is applied once per run unless **Renew Tinker's Calm when it runs out** (off by default) is enabled; then another is used before the next item once its 10 minutes expire. Choosing Continue without it stops renewal for that run.
 
 ### Selected-item Sniper scans
 

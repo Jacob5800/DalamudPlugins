@@ -22,7 +22,8 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
     public string Status { get; private set; } = "TT card selling is idle.";
     private DateTimeOffset next, deadline, operationDeadline;
     private ulong owner;
-    private bool teleported, navigationOwned, interacted, waitingDialog, awaitingSale;
+    private bool navigationOwned, interacted, waitingDialog, awaitingSale;
+    private readonly TeleportRetry teleport = new();
     private uint selectedItem, beforeCount, selectedQuantity;
     private int selectedRow, sold;
     public void Start()
@@ -39,7 +40,7 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
             { Status = "Another vnavmesh path is running; stop it before selling cards."; return; }
         }
         catch { Status = "Install and enable vnavmesh before selling TT cards."; return; }
-        owner=player.ContentId; sold=0; teleported=navigationOwned=interacted=waitingDialog=awaitingSale=false;
+        owner=player.ContentId; sold=0; navigationOwned=interacted=waitingDialog=awaitingSale=false; teleport.Reset();
         IsRunning=true; next=DateTimeOffset.MinValue; deadline=DateTimeOffset.UtcNow.AddMinutes(4);
         Status="Starting TT card sale trip to the Gold Saucer...";
     }
@@ -76,7 +77,7 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
         if(!client.IsLoggedIn || player.ContentId!=owner || otherBusy() || condition[ConditionFlag.InCombat] || condition[ConditionFlag.BoundByDuty])
         { Stop("TT card sale stopped: character, combat, duty or controller changed."); return; }
         if(now>deadline) { Stop("TT card sale timed out. Check travel and NPC windows."); return; }
-        if(condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting]) return;
+        if(condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting]) { teleport.Busy(now); return; }
         try { Tick(now); } catch(Exception ex) { Stop("TT card sale stopped: " + ex.Message); }
     }
     private void Tick(DateTimeOffset now)
@@ -89,13 +90,17 @@ internal sealed unsafe class TtCardSaleController(IDalamudPluginInterface pi, IG
         if(condition[ConditionFlag.OccupiedSummoningBell]) return;
         if(client.TerritoryType!=144)
         {
-            if(teleported) return;
+            if(teleport.Waiting(now)) return;
+            if(teleport.Exhausted) { Stop($"Gold Saucer teleport did not complete after {TeleportRetry.MaxAttempts} attempts. No cards were sold."); return; }
             var telepo=Telepo.Instance(); if(telepo==null) { Stop("Teleport is unavailable."); return; }
             telepo->UpdateAetheryteList();
             var destination=telepo->TeleportList.ToArray().FirstOrDefault(x=>x.TerritoryId==144);
-            if(destination.AetheryteId==0 || !telepo->Teleport(destination.AetheryteId,destination.SubIndex))
-            { Stop("Gold Saucer teleport unavailable or rejected. No cards were sold."); return; }
-            teleported=true; Status="Teleporting to the Gold Saucer..."; return;
+            if(destination.AetheryteId==0) { Stop("Gold Saucer teleport unavailable. No cards were sold."); return; }
+            // A rejected request (for example while moving) counts as an attempt and is retried.
+            var accepted=telepo->Teleport(destination.AetheryteId,destination.SubIndex);
+            teleport.Requested(now);
+            Status=accepted ? $"Teleporting to the Gold Saucer (attempt {teleport.Attempts})..." : "Teleport rejected; retrying shortly...";
+            return;
         }
         if(Vector3.Distance(local.Position,VendorPosition)>4)
         {

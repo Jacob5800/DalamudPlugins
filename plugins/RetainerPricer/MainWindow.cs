@@ -1487,7 +1487,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Existing listing price increases ask for confirmation by default. Remember Yes or No to allow or skip future increases; restore prompts in Settings. Optional listing-selector debugging records opening attempts in the Dalamud log.");
         ImGui.TextWrapped("Optional blue desynthesis-list fill is available in Settings and Desynthesis. It marks list membership in bags, saddlebags and armoury chest; item protections still apply.");
         ImGui.TextWrapped("Desynthesis: add items through the inventory right-click menu or Desynthesis tab, then use the blue Run Desynthesis button. Matching copies in carried bags and armoury chest are processed. Eligible armoury items move into a free carried slot first; Exceptions, saved gear sets and collectables stay protected. Melded items ask before automatically retrieving materia; choose Yes, Skip or Stop. Stop Desynthesis cancels further requests.");
-        ImGui.TextWrapped("Optional Use Bacon Broth and Use Tinker's Calm in Desynthesis apply each buff once per run, HQ before NQ, and reuse an active one. Tinker's Calm lasts 10 minutes and is not renewed. If a buff is unavailable, choose Continue without it or Stop. With another food active, Replace food eats Bacon Broth over it.");
+        ImGui.TextWrapped("Optional Use Bacon Broth and Use Tinker's Calm in Desynthesis apply each buff once per run, HQ before NQ, and reuse an active one. Tinker's Calm lasts 10 minutes; enable Renew Tinker's Calm when it runs out to use another during long runs. If a buff is unavailable, choose Continue without it or Stop. With another food active, Replace food eats Bacon Broth over it.");
         ImGui.TextWrapped("Quick guide: choose a pricing rule in Settings (match lowest, 1 gil, custom gil, or percentage with up to two decimal places), set your exclusions and optional batch sizes once, open a retainer's selling list, then choose the action you need.");
         ImGui.TextDisabled("Open this window with /retainerpricer, /retainer, or /rp.");
         ImGui.BulletText("Inventory right-click: green Add options for market lists, yellow Add options for vendor lists, and red Remove options manage Exceptions, Don't reprice, Batch selling, Retainer sale whitelist, and Don't vendor. Batch entries start at 10 per listing with no total limit; adjust them in Batch selling. Add options only appear when feasible for the selected stack; Remove remains available for saved entries. These lists apply to both HQ and NQ; Exceptions and saved gear-set protections still take priority.");
@@ -2162,7 +2162,12 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(desynthesis.IsRunning);
         if (ImGui.Checkbox("Use Tinker's Calm", ref useCalm)) { config.UseTinkersCalm = useCalm; save(); }
         ImGui.EndDisabled();
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Tinker's Calm (medicine, 10 minutes) once per run before desynthesis. Prefer HQ over NQ; an active Tinker's Calm is reused. If another medicine buff is active or Tinker's Calm cannot be used, choose Continue or Stop.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Use Tinker's Calm (medicine, 10 minutes) before desynthesis. Prefer HQ over NQ; an active Tinker's Calm is reused. If another medicine buff is active or Tinker's Calm cannot be used, choose Continue or Stop.");
+        var renewCalm = config.RenewTinkersCalm;
+        ImGui.BeginDisabled(desynthesis.IsRunning || !config.UseTinkersCalm);
+        if (ImGui.Checkbox("Renew Tinker's Calm when it runs out", ref renewCalm)) { config.RenewTinkersCalm = renewCalm; save(); }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Uses another Tinker's Calm before the next item once the buff runs out. Off: used once per run.");
         ImGui.BeginDisabled(UiBusy || vendor.IsRunning || ventures.IsRunning);
         if (ImGui.Button("Grab carried inventory"))
             dispatch(() => desynthesisSnapshot = desynthesis.Snapshot(false, out desynthesisSnapshotStatus));

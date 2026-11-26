@@ -25,7 +25,8 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
     public bool MissingNavigationPopup { get; set; }
     public string Status { get; private set; } = "Buy one Modern Vocation for 40 Ventures.";
     private DateTimeOffset next, deadline;
-    private bool navigationOwned, teleported, interacted, submitted;
+    private bool navigationOwned, interacted, submitted;
+    private readonly TeleportRetry teleport = new();
     private ulong owner;
     private string lastChoice = "";
     public void Start()
@@ -42,7 +43,7 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
         if(inv->GetInventoryItemCount(ventureId)<40) { Status="You need 40 Ventures."; return; }
         try { if(pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc()) { Status="Stop the current navigation path first.";return; } }
         catch { MissingNavigationPopup=true;Status="Install and enable vnavmesh first.";return; }
-        lastChoice="";owner=player.ContentId;navigationOwned=teleported=interacted=submitted=false;IsRunning=true;
+        lastChoice="";owner=player.ContentId;navigationOwned=interacted=submitted=false;teleport.Reset();IsRunning=true;
         next=DateTimeOffset.MinValue;deadline=DateTimeOffset.UtcNow.AddMinutes(4);Status="Travelling to Frydwyb in Limsa Lominsa...";
     }
     public void Stop(string reason="Modern Vocation purchase stopped.")
@@ -55,7 +56,7 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
         if(!IsRunning)return;var now=DateTimeOffset.UtcNow;if(now<next)return;next=now.AddMilliseconds(600);
         if(!client.IsLoggedIn || player.ContentId!=owner || otherBusy() || condition[ConditionFlag.InCombat] || condition[ConditionFlag.BoundByDuty]) { Stop("Purchase stopped: character or controller changed, combat or duty started.");return; }
         if(now>deadline){Stop("Purchase timed out. Check NPC dialogue and inventory.");return;}
-        if(condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting])return;
+        if(condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting]){teleport.Busy(now);return;}
         try{Tick();}catch(Exception ex){Stop("Purchase stopped: "+ex.Message);}
     }
     private void Tick()
@@ -66,10 +67,16 @@ internal sealed unsafe class RetainerJobPurchaseController(IDalamudPluginInterfa
         if(bridge.IsRetainerPickerVisible || bridge.IsRetainerSellListVisible || bridge.IsSellWindowVisible){Stop("Close retainer windows before starting this trip.");return;}
         if(client.TerritoryType!=129)
         {
-            if(teleported)return;var t=Telepo.Instance();if(t==null)return;t->UpdateAetheryteList();
+            var now=DateTimeOffset.UtcNow;if(teleport.Waiting(now))return;
+            if(teleport.Exhausted){Stop($"Limsa Lominsa teleport did not complete after {TeleportRetry.MaxAttempts} attempts. Nothing was purchased.");return;}
+            var t=Telepo.Instance();if(t==null)return;t->UpdateAetheryteList();
             var d=t->TeleportList.ToArray().FirstOrDefault(x=>x.TerritoryId==129);
-            if(d.AetheryteId==0 || !t->Teleport(d.AetheryteId,d.SubIndex)){Stop("Limsa Lominsa teleport unavailable.");return;}
-            teleported=true;return;
+            if(d.AetheryteId==0){Stop("Limsa Lominsa teleport unavailable.");return;}
+            // A rejected request (for example while moving) counts as an attempt and is retried.
+            var accepted=t->Teleport(d.AetheryteId,d.SubIndex);
+            teleport.Requested(now);
+            Status=accepted?$"Teleporting to Limsa Lominsa (attempt {teleport.Attempts})...":"Teleport rejected; retrying shortly...";
+            return;
         }
         var npc=objects.FirstOrDefault(x=>x.BaseId==npcId);var local=objects.LocalPlayer;
         if(npc==null || local==null){Status="Waiting for Frydwyb to load...";return;}
