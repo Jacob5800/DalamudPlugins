@@ -1,5 +1,4 @@
-## 0.5.1.90
+## 0.5.1.91
 
-- Added an optional Renew Tinker's Calm when it runs out setting for long desynthesis runs.
-- Interrupted teleports during TT card selling and the Modern Vocation purchase are now retried.
-- Unexpected errors now also stop TT card selling and the Modern Vocation purchase.
+- Desynthesis now waits until you stand still before using Bacon Broth or Tinker's Calm, so movement no longer wastes the attempt.
+- If a buff item is not used, desynthesis now tries again, up to three times, before asking what to do.

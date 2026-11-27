@@ -146,8 +146,12 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         public readonly int FoodRow = foodRow;
         public readonly Func<bool> Enabled = enabled;
         public bool Handled, Requested, Replace;
-        public DateTimeOffset Deadline;
+        public DateTimeOffset Deadline, RetryAt;
+        // Attempts that did not consume the item, and the carried count when the latest one was sent.
+        public int Attempts, CountBefore;
     }
+    private System.Numerics.Vector3? buffPosition;
+    private DateTimeOffset buffStillSince;
 
     private readonly Consumable[] consumables =
     [
@@ -165,11 +169,41 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     private void ResetConsumables()
     {
         review = null;
-        foreach (var buff in consumables) buff.Handled = buff.Requested = buff.Replace = buff.Applied = false;
+        buffPosition = null;
+        foreach (var buff in consumables)
+        {
+            buff.Handled = buff.Requested = buff.Replace = buff.Applied = false;
+            buff.Attempts = 0;
+        }
+    }
+    // True only after the character has held one position briefly; moving can interrupt item use.
+    private bool IsStandingStill(DateTimeOffset now)
+    {
+        if (objects.LocalPlayer is not { } player || condition[ConditionFlag.Jumping]) { buffPosition = null; return false; }
+        if (buffPosition is not { } last || System.Numerics.Vector3.DistanceSquared(last, player.Position) > 0.0001f)
+            buffStillSince = now;
+        buffPosition = player.Position;
+        return now >= buffStillSince.AddMilliseconds(500);
+    }
+    private static int CarriedCount(InventoryManager* inventory, uint itemId)
+    {
+        int count = 0;
+        foreach (var type in Bags)
+        {
+            var bag = inventory->GetInventoryContainer(type);
+            if (bag == null || !bag->IsLoaded) continue;
+            for (int i = 0; i < bag->Size; i++)
+            {
+                var item = bag->GetInventorySlot(i);
+                if (item != null && !item->IsEmpty() && item->GetBaseItemId() == itemId) count += (int)item->GetQuantity();
+            }
+        }
+        return count;
     }
     private bool AskToContinueWithoutBuff(Consumable buff, string reason, bool canReplace = false)
     {
         buff.Requested = false;
+        buff.Attempts = 0;
         review = buff;
         CanReplaceBuff = canReplace;
         BuffReviewReason = reason;
@@ -199,18 +233,27 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (review != null) return false;
         if (IsActive())
         {
-            buff.Handled = buff.Applied = true; buff.Requested = false;
+            buff.Handled = buff.Applied = true; buff.Requested = false; buff.Attempts = 0;
             Status = $"{buff.Name} confirmed; continuing desynthesis.";
             bridge.LogAutomationDiagnostic($"{buff.Name} status confirmed; continuing the same desynthesis run.");
             return true;
         }
         if (buff.Requested)
         {
+            // An unchanged item count after the use time means nothing happened (rejected or interrupted),
+            // so another request cannot consume a second item.
+            if (now >= buff.RetryAt && buff.Attempts < 3 && !condition[ConditionFlag.Casting]
+                && CarriedCount(inventory, buff.ItemId) == buff.CountBefore)
+            {
+                buff.Requested = false;
+                bridge.LogAutomationDiagnostic($"{buff.Name} was not consumed after attempt {buff.Attempts}; retrying.");
+                return false;
+            }
             if (now >= buff.Deadline)
             {
                 var active = objects.LocalPlayer?.StatusList.FirstOrDefault(status => status.StatusId == buff.StatusId);
-                bridge.LogAutomationDiagnostic($"{buff.Name} confirmation timed out: statusParam={active?.Param}, remaining={active?.RemainingTime}; no second {buff.Kind} request sent.");
-                return AskToContinueWithoutBuff(buff, $"{buff.Name} could not be confirmed. Check any in-game error before retrying.");
+                bridge.LogAutomationDiagnostic($"{buff.Name} confirmation timed out: statusParam={active?.Param}, remaining={active?.RemainingTime}, attempts={buff.Attempts}.");
+                return AskToContinueWithoutBuff(buff, $"{buff.Name} could not be confirmed. Check any in-game error (such as the item still recharging) before retrying.");
             }
             return false;
         }
@@ -236,11 +279,19 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         }
         if (!hq && !nq)
             return AskToContinueWithoutBuff(buff, $"Neither HQ nor NQ {buff.Name} was found in carried inventory.");
+        var useTime = data.GetExcelSheet<Item>().GetRow(buff.ItemId).CastTimeSeconds;
+        if (condition[ConditionFlag.Mounted])
+            return AskToContinueWithoutBuff(buff, $"{buff.Name} cannot be used while mounted. Dismount and start again to use it.");
+        if (!IsStandingStill(now)) { Status = $"Stand still to use {buff.Name}..."; return false; }
         // The native return value can be false even when item use is queued/consumed.
-        // Submit once, then verify the actual status instead of stopping or consuming twice.
+        // Verify the actual status, and resubmit only while the item has not been consumed.
+        var rawId = hq ? buff.ItemId + 1000000 : buff.ItemId;
         buff.Requested = true; buff.Deadline = now.AddSeconds(15);
-        var accepted = ActionManager.Instance()->UseAction(ActionType.Item, hq ? buff.ItemId + 1000000 : buff.ItemId, 0xE0000000, 65535);
-        bridge.LogAutomationDiagnostic($"{buff.Name} requested: HQ={hq}, nativeAccepted={accepted}; waiting for {buff.Kind} status {buff.StatusId}/{buff.FoodRow} before desynthesis.");
+        buff.RetryAt = now.AddSeconds(Math.Max((int)useTime, 3) + 3); buff.Attempts++;
+        buff.CountBefore = CarriedCount(inventory, buff.ItemId);
+        var actionStatus = ActionManager.Instance()->GetActionStatus(ActionType.Item, rawId);
+        var accepted = ActionManager.Instance()->UseAction(ActionType.Item, rawId, 0xE0000000, 65535);
+        bridge.LogAutomationDiagnostic($"{buff.Name} requested: HQ={hq}, attempt={buff.Attempts}, actionStatus={actionStatus}, nativeAccepted={accepted}; waiting for {buff.Kind} status {buff.StatusId}/{buff.FoodRow} before desynthesis.");
         Status = $"Using {(hq ? "HQ" : "NQ")} {buff.Name}...";
         return false;
     }
