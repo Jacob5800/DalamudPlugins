@@ -147,6 +147,8 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         public readonly Func<bool> Enabled = enabled;
         public bool Handled, Requested, Replace;
         public DateTimeOffset Deadline, RetryAt;
+        // How long to keep waiting for the game to report the item as usable.
+        public DateTimeOffset? ReadyDeadline;
         // Attempts that did not consume the item, and the carried count when the latest one was sent.
         public int Attempts, CountBefore;
     }
@@ -174,6 +176,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         {
             buff.Handled = buff.Requested = buff.Replace = buff.Applied = false;
             buff.Attempts = 0;
+            buff.ReadyDeadline = null;
         }
     }
     // True only after the character has held one position briefly; moving can interrupt item use.
@@ -204,6 +207,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     {
         buff.Requested = false;
         buff.Attempts = 0;
+        buff.ReadyDeadline = null;
         review = buff;
         CanReplaceBuff = canReplace;
         BuffReviewReason = reason;
@@ -233,7 +237,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         if (review != null) return false;
         if (IsActive())
         {
-            buff.Handled = buff.Applied = true; buff.Requested = false; buff.Attempts = 0;
+            buff.Handled = buff.Applied = true; buff.Requested = false; buff.Attempts = 0; buff.ReadyDeadline = null;
             Status = $"{buff.Name} confirmed; continuing desynthesis.";
             bridge.LogAutomationDiagnostic($"{buff.Name} status confirmed; continuing the same desynthesis run.");
             return true;
@@ -286,10 +290,18 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         // The native return value can be false even when item use is queued/consumed.
         // Verify the actual status, and resubmit only while the item has not been consumed.
         var rawId = hq ? buff.ItemId + 1000000 : buff.ItemId;
+        // The game can briefly refuse item use, e.g. right after a buff prompt closes. Wait for it, but
+        // send anyway after a while so a lasting refusal (item still recharging) reaches the prompt.
+        var actionStatus = ActionManager.Instance()->GetActionStatus(ActionType.Item, rawId);
+        if (actionStatus != 0)
+        {
+            buff.ReadyDeadline ??= now.AddSeconds(10);
+            if (now < buff.ReadyDeadline) { Status = $"Waiting to use {buff.Name}..."; return false; }
+        }
+        buff.ReadyDeadline = null;
         buff.Requested = true; buff.Deadline = now.AddSeconds(15);
         buff.RetryAt = now.AddSeconds(Math.Max((int)useTime, 3) + 3); buff.Attempts++;
         buff.CountBefore = CarriedCount(inventory, buff.ItemId);
-        var actionStatus = ActionManager.Instance()->GetActionStatus(ActionType.Item, rawId);
         var accepted = ActionManager.Instance()->UseAction(ActionType.Item, rawId, 0xE0000000, 65535);
         bridge.LogAutomationDiagnostic($"{buff.Name} requested: HQ={hq}, attempt={buff.Attempts}, actionStatus={actionStatus}, nativeAccepted={accepted}; waiting for {buff.Kind} status {buff.StatusId}/{buff.FoodRow} before desynthesis.");
         Status = $"Using {(hq ? "HQ" : "NQ")} {buff.Name}...";

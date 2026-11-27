@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.91",
+  "AssemblyVersion": "0.5.1.92",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.91\n\n- Desynthesis now waits until you stand still before using Bacon Broth or Tinker's Calm, so movement no longer wastes the attempt.\n- If a buff item is not used, desynthesis now tries again, up to three times, before asking what to do.",
+  "Changelog": "## 0.5.1.92\n\n- Desynthesis now waits for Bacon Broth or Tinker's Calm to become usable, for example right after choosing Continue without a buff, instead of wasting the first attempt.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
