@@ -28,6 +28,8 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi)
 {
     private const uint PanelNameRow = 2005274, ManagementTalkRow = 721343;
+    // A voyage covers up to 5 sectors and each can give two different items, so up to 10 new stacks.
+    private const uint FreeSlotsToCollect = 10;
     private enum Stage { Idle, Travel, OpenPanel, ChooseSubmarines, PickVessel, Finalize, AfterFinalize, VesselMenu, Repair, Report, Confirm, Verify, Leave }
 
     private Stage stage;
@@ -193,6 +195,15 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
                     return;
                 }
                 handled.Add(due.Index);
+                // Checked before the report is opened: collecting into a full inventory leaves the window stuck.
+                var inventory = InventoryManager.Instance();
+                var free = inventory == null ? 0 : inventory->GetEmptySlotsInBag();
+                if (due.Returns is not null && free < FreeSlotsToCollect)
+                {
+                    problems.Add($"{due.Name} was not collected: inventory is full ({free} free slot(s), {FreeSlotsToCollect} needed)");
+                    Move(Stage.PickVessel, now, $"Inventory too full to collect {due.Name}.");
+                    return;
+                }
                 unrepairedApproved = unrepairedSkip = false;
                 if (!Select(text => text.StartsWith(due.Name + ".", StringComparison.Ordinal)))
                 { Stop($"Could not pick {due.Name} from the list."); return; }

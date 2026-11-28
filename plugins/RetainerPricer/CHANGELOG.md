@@ -1,3 +1,7 @@
+## 0.5.3
+
+- Submarines now checks for free inventory space before collecting a finished voyage, and tells you when your inventory is full.
+
 ## 0.5.2
 
 - Submarines: the trip to the workshop no longer stops at the loading screen, and a lost submersible selection after finalizing is retried.
