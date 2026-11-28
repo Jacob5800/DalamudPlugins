@@ -37,6 +37,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TtCardSaleController ttCards;
     private readonly RetainerJobPurchaseController jobPurchase;
     private int observedFullSequences;
+    private readonly MultiCharacterHost multiCharacterHost;
+    private readonly MultiCharacterRun multiCharacters;
     private readonly InventoryListMenu inventoryMenus;
     private readonly UndercutNotifier undercuts;
     private readonly ICondition condition;
@@ -109,12 +111,15 @@ public sealed class Plugin : IDalamudPlugin
             .ToDictionary(item => item.RowId, item =>
                 (!item.IsUntradable && item.ItemSearchCategory.RowId != 0, item.PriceLow > 0)));
         ttCards = new TtCardSaleController(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
-            config, bridge, () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis?.IsRunning == true);
+            config, bridge, () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis?.IsRunning == true || multiCharacters?.IsRunning == true);
         desynthesis = new DesynthesisController(config, bridge, data, condition, objects, gameGui,
-            () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || ttCards.IsRunning);
+            () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || ttCards.IsRunning || multiCharacters?.IsRunning == true);
         inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         jobPurchase = new RetainerJobPurchaseController(pluginInterface, gameGui, data, objects, targets, clientState, player, condition, bridge,
-            () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning);
+            () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || multiCharacters?.IsRunning == true);
+        multiCharacterHost = new MultiCharacterHost(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
+            config, bridge, automation, () => controller.Busy || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning);
+        multiCharacters = new MultiCharacterRun(multiCharacterHost);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
@@ -128,6 +133,7 @@ public sealed class Plugin : IDalamudPlugin
         if (bridge.ItemSelectorAvailabilityError is { } selectorCompatibilityError)
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
         window.OperationHistory = statusHistory;
+        window.MultiCharacters = multiCharacters;
         window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
@@ -159,6 +165,7 @@ public sealed class Plugin : IDalamudPlugin
             {
                 log.Error(ex, "Retainer Pricer operation failed");
                 StopTripsAfterError();
+                multiCharacters.Stop("Multi-character run stopped after an unexpected error.");
                 desynthesis.Stop("Desynthesis stopped after an unexpected error.");
                 automation.Cancel("Full sequence stopped after an unexpected error.");
                 controller.Cancel("The operation failed. No further prices will be submitted; see Dalamud's log.");
@@ -173,6 +180,13 @@ public sealed class Plugin : IDalamudPlugin
         if (disposed) return;
         try
         {
+            // A multi-character run spans logins and loading screens, so Shift stops it anywhere.
+            if (multiCharacters.IsRunning && config.ShiftStopsAutomation &&
+                (keyState[VirtualKey.SHIFT] || keyState[VirtualKey.LSHIFT] || keyState[VirtualKey.RSHIFT]))
+            {
+                multiCharacters.Stop("Multi-character run stopped: Shift held.");
+                ventureVisitHandled = true;
+            }
             // Check before any controller can submit its next action. Do not consume Shift.
             if (ShiftStopPolicy.ShouldStop(config.ShiftStopsAutomation,
                 keyState[VirtualKey.SHIFT] || keyState[VirtualKey.LSHIFT] || keyState[VirtualKey.RSHIFT],
@@ -190,7 +204,8 @@ public sealed class Plugin : IDalamudPlugin
             if (observedFullSequences != automation.CompletedRuns)
             {
                 observedFullSequences = automation.CompletedRuns;
-                if (config.AutoSellTTCards) ttCards.Start();
+                // The TT card trip teleports away, which would strand the character from its bell.
+                if (config.AutoSellTTCards && !multiCharacters.IsRunning) ttCards.Start();
             }
             jobPurchase.Update();
             ttCards.Update();
@@ -202,6 +217,9 @@ public sealed class Plugin : IDalamudPlugin
             vendor.Update();
             ventures.Update();
             UpdateAutomaticVentures();
+            if (config.MultiCharacterEnabled && multiCharacterHost.RememberCurrentCharacter()) Save();
+            multiCharacters.Update(DateTimeOffset.UtcNow);
+            statusHistory.Observe("Multi-character", multiCharacters.Status);
             statusHistory.Observe("Automation", automation.Status);
             statusHistory.Observe("Pricing", controller.Status, controller.Progress);
             statusHistory.Observe("Retainer sales", vendor.Status);
@@ -243,6 +261,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             log.Error(ex, "Retainer Pricer stopped after an unexpected error");
             StopTripsAfterError();
+            multiCharacters.Stop("Multi-character run stopped after an unexpected error.");
             desynthesis.Stop("Desynthesis stopped after an unexpected error.");
             automation.Cancel("Full sequence stopped after an unexpected error.");
             controller.Cancel("Pricing stopped after an unexpected error. Reopen the plugin to check its status.");
@@ -264,6 +283,8 @@ public sealed class Plugin : IDalamudPlugin
     private void UpdateAutomaticVentures()
     {
         if (ttCards.IsRunning || jobPurchase.IsRunning) return;
+        // The multi-character run starts each sequence itself.
+        if (multiCharacters.IsRunning) { ventureVisitHandled = true; venturePickerReadyAt = null; return; }
         // Child addon transitions can briefly hide every retainer window. Only
         // ending the bell interaction can re-arm a completed automatic visit.
         var interactionVisible = bridge.IsRetainerPickerVisible || bridge.IsRetainerMenuVisible ||
@@ -512,6 +533,7 @@ public sealed class Plugin : IDalamudPlugin
             ("Retainer command", () => commands.RemoveHandler("/retainer")),
             ("RP command", () => { if (rpAliasRegistered) commands.RemoveHandler("/rp"); }),
             ("Server bar", () => { serverInfoBarEntry.OnClick = null; serverInfoBarEntry.Remove(); }),
+            ("Multi-character run", () => multiCharacters.Stop()),
             ("TT cards", () => ttCards.Stop()),
             ("Modern Vocation", () => jobPurchase.Stop()),
             ("Desynthesis", () => desynthesis.Stop()),

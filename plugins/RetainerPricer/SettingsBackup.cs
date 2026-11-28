@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace RetainerPricer;
 internal static class SettingsBackup
 {
-    private static readonly HashSet<string> Omitted = [nameof(PluginConfig.UniversalisRetainerListings), nameof(PluginConfig.UniversalisPendingItemIds), nameof(PluginConfig.UniversalisLastBoardSearchAt), nameof(PluginConfig.Version), nameof(PluginConfig.SettingsProfiles), nameof(PluginConfig.ActiveSettingsProfile)];
+    private static readonly HashSet<string> Omitted = [nameof(PluginConfig.UniversalisRetainerListings), nameof(PluginConfig.UniversalisPendingItemIds), nameof(PluginConfig.UniversalisLastBoardSearchAt), nameof(PluginConfig.Version), nameof(PluginConfig.SettingsProfiles), nameof(PluginConfig.ActiveSettingsProfile), nameof(PluginConfig.MultiCharacterEnabled), nameof(PluginConfig.MultiCharacterTeleport), nameof(PluginConfig.MultiCharacterCity), nameof(PluginConfig.MultiCharacters)];
     internal static JsonObject Export(PluginConfig config)
     {
         var settings = new JsonObject();

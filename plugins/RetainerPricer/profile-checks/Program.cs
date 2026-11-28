@@ -234,6 +234,72 @@ Check(recoverySummary.SkipReasons["Lookup failed"] == 1 && recoverySummary.Skipp
 recoverySummary.ResolveLookup(hqKey);
 Check(!recoverySummary.SkipReasons.ContainsKey("Lookup failed") && recoverySummary.SkippedItems.Count == 1,
     "last recovered lookup removes its grouped reason");
+// Multi-character run: order of steps, against a scripted host.
+{
+    MultiCharacter Pick(ulong id, bool included = true) => new() { ContentId = id, Name = $"C{id}", World = "Zodiark", Included = included };
+    DateTimeOffset at = DateTimeOffset.UnixEpoch;
+    void Step(MultiCharacterRun run, int seconds = 6) { at = at.AddSeconds(seconds); run.Update(at); }
+
+    var host = new FakeHost { ContentId = 2 };
+    var run = new MultiCharacterRun(host);
+    run.Start([Pick(1), Pick(2), Pick(3, false)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(!run.IsRunning && string.Join(",", host.Sequences) == "2,1", "current character runs first, unticked one is left out");
+    Check(host.Switches == 1 && run.Status.Contains("2 of 2"), "only one relog is needed and both complete");
+
+    host = new FakeHost { ContentId = 1, NoBell = 1 };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1), Pick(2)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(string.Join(",", host.Sequences) == "2" && run.Status.Contains("no summoning bell"), "a character without a bell is skipped");
+
+    host = new FakeHost { ContentId = 1, NoBell = 1, TravelEnabled = true };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(host.Trips == 1 && string.Join(",", host.Sequences) == "1", "travel reaches a bell and the sequence runs");
+
+    host = new FakeHost { ContentId = 1, NoBell = 1, TravelEnabled = true, TravelOutcome = "vnavmesh is not installed or enabled" };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1), Pick(2)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(string.Join(",", host.Sequences) == "2" && run.Status.Contains("vnavmesh"), "failed travel skips only that character");
+
+    host = new FakeHost { ContentId = 1, NoBell = 1, TravelEnabled = true, TravelOutcome = null };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run, 60);
+    Check(!run.IsRunning && run.Status.Contains("took too long"), "travel that never arrives is skipped");
+
+    host = new FakeHost { ContentId = 1, FailSequence = true };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1), Pick(2)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(!run.IsRunning && host.Switches == 0 && run.Status.Contains("Stopped on C1"), "a failed sequence ends the run before switching");
+
+    host = new FakeHost { ContentId = 1, LoginAs = 9 };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(2)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run);
+    Check(!run.IsRunning && host.Sequences.Count == 0 && run.Status.Contains("different character"), "an unexpected character stops the run");
+
+    host = new FakeHost { ContentId = 1, LoginAs = 0 };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(2)], at);
+    for (var i = 0; i < 40 && run.IsRunning; i++) Step(run, 30);
+    Check(!run.IsRunning && run.Status.Contains("without logging in"), "a login that never arrives stops the run");
+
+    host = new FakeHost { Missing = true };
+    run = new MultiCharacterRun(host);
+    run.Start([Pick(1)], at);
+    Check(!run.IsRunning && run.Status.Contains("Lifestream"), "missing Lifestream blocks the start");
+
+    var config = new PluginConfig { MultiCharacterEnabled = true, MultiCharacters = [Pick(1), Pick(1), Pick(0)] };
+    config.Normalize();
+    Check(config.MultiCharacters.Count == 1, "invalid and duplicate characters are dropped");
+    Check(!SettingsBackup.Export(config)["Settings"]!.AsObject().ContainsKey("MultiCharacters"), "characters stay out of backups and profiles");
+    Check(!new PluginConfig().MultiCharacterEnabled, "multi-character runs are off by default");
+}
 Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");
 
 // Regression: live ordinary Silver Piece listings must undercut across stack sizes;
@@ -251,4 +317,32 @@ Console.WriteLine($"PASS: {checks} profile/persistence/Shift/listing checks");
     Check(proposal.CanApply && proposal.LowestPrice == 500 && proposal.SuggestedPrice == 499 && proposal.MatchingListings == 3,
         "ordinary live listings undercut regardless of stack size while set-only offers remain excluded");
     Console.WriteLine("Silver Piece pricing regression passed.");
+}
+
+sealed class FakeHost : RetainerPricer.IMultiCharacterHost
+{
+    public ulong ContentId { get; set; }
+    public ulong? LoginAs;
+    public ulong NoBell;
+    public bool FailSequence, Missing;
+    public int Switches;
+    public List<ulong> Sequences = [];
+    public bool CharacterReady => ContentId != 0;
+    public bool LifestreamBusy => Missing ? throw new InvalidOperationException() : false;
+    public int ChangeCharacter(string name, string world) { Switches++; ContentId = LoginAs ?? ulong.Parse(name[1..]); return 0; }
+    public string? BlockedReason => null;
+    public bool RetainerPickerOpen { get; private set; }
+    public bool BellInteraction => RetainerPickerOpen;
+    public bool TryUseBell() { if (ContentId == NoBell) return false; RetainerPickerOpen = true; return true; }
+    public void ClosePicker() => RetainerPickerOpen = false;
+    public bool TravelEnabled { get; set; }
+    public string? TravelOutcome = "";
+    public int Trips;
+    public string? Travel(DateTimeOffset now) { Trips++; if (TravelOutcome == "") { NoBell = 0; RetainerPickerOpen = true; } return TravelOutcome; }
+    public void StopTravel() { }
+    public void StartSequence() { Sequences.Add(ContentId); if (!FailSequence) CompletedSequences++; }
+    public bool SequenceRunning => false;
+    public int CompletedSequences { get; private set; }
+    public string SequenceStatus => "failed";
+    public void CancelSequence(string reason) { }
 }

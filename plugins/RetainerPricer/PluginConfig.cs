@@ -2,8 +2,25 @@ using Dalamud.Configuration;
 
 namespace RetainerPricer;
 
+public enum MultiCharacterCity { Uldah, Gridania, LimsaLominsa }
+
+public sealed class MultiCharacter
+{
+    public ulong ContentId { get; set; }
+    public string Name { get; set; } = "";
+    public string World { get; set; } = "";
+    public bool Included { get; set; }
+    internal string Label => $"{Name}@{World}";
+}
+
 public sealed class PluginConfig : IPluginConfiguration
 {
+    // Kept outside settings profiles and backups: it identifies the player's own characters.
+    public bool MultiCharacterEnabled { get; set; }
+    public bool MultiCharacterTeleport { get; set; }
+    public MultiCharacterCity MultiCharacterCity { get; set; }
+    public List<MultiCharacter> MultiCharacters { get; set; } = [];
+
     public Dictionary<string, string> SettingsProfiles { get; set; } = [];
     public string ActiveSettingsProfile { get; set; } = "";
 
@@ -104,6 +121,8 @@ public sealed class PluginConfig : IPluginConfiguration
 
     public void Normalize()
     {
+        MultiCharacters = (MultiCharacters ?? []).Where(character => character is { ContentId: not 0 })
+            .DistinctBy(character => character.ContentId).ToList();
         DesynthesisItemIds = (DesynthesisItemIds ?? []).Where(id => id != 0).Distinct().ToList();
         if (!Enum.IsDefined(Source)) Source = PriceSource.Universalis;
         if (!Enum.IsDefined(PriceStrategy)) PriceStrategy = PriceStrategy.UndercutByOne;

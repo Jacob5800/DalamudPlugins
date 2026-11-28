@@ -32,7 +32,8 @@ internal sealed class MainWindow : Window
     private string desynthesisSearch = "";
     private IReadOnlyList<uint> desynthesisSnapshot = [];
     private string desynthesisSnapshotStatus = "";
-    private bool UiBusy => controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
+    internal MultiCharacterRun? MultiCharacters { get; set; }
+    private bool UiBusy => MultiCharacters?.IsRunning == true || controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
@@ -1150,6 +1151,44 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Changing character, world, or active retainer stops a batch. Each price submission rechecks the exact item window first. Stop prevents further submissions; completed price changes stay applied.");
     }
 
+    private void DrawMultiCharacters()
+    {
+        if (MultiCharacters is not { } run) return;
+        var enabled = config.MultiCharacterEnabled;
+        ImGui.BeginDisabled(run.IsRunning);
+        if (ImGui.Checkbox("Multi-character runs (needs Lifestream)", ref enabled)) { config.MultiCharacterEnabled = enabled; save(); }
+        ImGui.EndDisabled();
+        if (!config.MultiCharacterEnabled && !run.IsRunning) return;
+        ImGui.TextWrapped("Log into each character once to list it, then tick the ones to include. Without the teleport option below, park each one within reach of a summoning bell; a character without a bell in reach is skipped. Each runs your selected automation steps, or all of them if none are selected. TT card selling is not run. Shift or Stop ends the run, but a login Lifestream has already started still finishes. Unattended character switching is easy to recognise as automation; use it at your own risk.");
+        ImGui.BeginDisabled(run.IsRunning);
+        var travel = config.MultiCharacterTeleport;
+        if (ImGui.Checkbox("Teleport to a city bell when none is in reach", ref travel)) { config.MultiCharacterTeleport = travel; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off by default. A bell within about 30 yalms is walked to first. Otherwise it costs the normal teleport fee, needs that city's aetheryte and aethernet unlocked, and uses vnavmesh to walk. Ul'dah and Gridania also use Lifestream for the aethernet hop.");
+        if (config.MultiCharacterTeleport)
+        {
+            var city = (int)config.MultiCharacterCity;
+            string[] cities = ["Ul'dah", "Gridania", "Limsa Lominsa"];
+            ImGui.SetNextItemWidth(180);
+            if (ImGui.Combo("City##MultiCharacter", ref city, cities, cities.Length)) { config.MultiCharacterCity = (MultiCharacterCity)city; save(); }
+            DrawNavigationRequirement();
+        }
+        MultiCharacter? remove = null;
+        foreach (var character in config.MultiCharacters)
+        {
+            var included = character.Included;
+            if (ImGui.Checkbox($"{character.Name}@{character.World}##multi{character.ContentId}", ref included)) { character.Included = included; save(); }
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"Remove##multi{character.ContentId}")) remove = character;
+        }
+        if (remove is not null) { config.MultiCharacters.Remove(remove); save(); }
+        ImGui.EndDisabled();
+        ImGui.BeginDisabled(!run.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
+        if (ImGui.Button(run.IsRunning ? "Stop##MultiCharacter" : "Start##MultiCharacter"))
+            dispatch(() => { if (run.IsRunning) run.Stop(); else run.Start(config.MultiCharacters.ToList(), DateTimeOffset.UtcNow); });
+        ImGui.EndDisabled();
+        ImGui.TextWrapped(run.Status);
+    }
+
     private void DrawAutomation()
     {
         ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Hold Shift during a bell interaction to stop the current sequence or venture cycle; automatic runs stay stopped until you leave the bell. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
@@ -1178,6 +1217,8 @@ internal sealed class MainWindow : Window
             ImGui.TextWrapped("Blocked: AutoRetainer is loaded. Unload it before using Retainer Pricer automation to prevent both plugins controlling the retainer UI.");
         ImGui.TextWrapped("Runs once per picker visit. Stop cancels the remaining sequence; submitted changes stay applied. Close and reopen the picker for another automatic attempt.");
         ImGui.TextWrapped(automation.Status);
+        ImGui.Separator();
+        DrawMultiCharacters();
         ImGui.Separator();
         var sellCards = config.AutoSellTTCards;
         if (ImGui.Checkbox("Auto sell TT cards", ref sellCards)) { config.AutoSellTTCards = sellCards; save(); }
