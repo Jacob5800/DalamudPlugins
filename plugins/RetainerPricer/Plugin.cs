@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TtCardSaleController ttCards;
     private readonly RetainerJobPurchaseController jobPurchase;
     private int observedFullSequences;
+    private readonly SubmarineController submarines;
     private readonly IMarketBoard marketBoard;
     private readonly MultiCharacterHost multiCharacterHost;
     private readonly MultiCharacterRun multiCharacters;
@@ -125,6 +126,8 @@ public sealed class Plugin : IDalamudPlugin
             config, bridge, automation, () => controller.Busy || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning);
         multiCharacters = new MultiCharacterRun(multiCharacterHost);
         automation.Desynthesis = new DesynthesisStep(new DesynthesisHost(desynthesis, multiCharacterHost));
+        submarines = new SubmarineController(gameGui, data, objects, targets, condition, bridge, () => controller.Busy || automation.IsRunning ||
+            vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning || multiCharacters.IsRunning);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
@@ -139,6 +142,7 @@ public sealed class Plugin : IDalamudPlugin
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
         window.OperationHistory = statusHistory;
         window.MultiCharacters = multiCharacters;
+        window.Submarines = submarines;
         window.LifestreamLoaded = () => pluginInterface.InstalledPlugins.Any(plugin => plugin.IsLoaded &&
             string.Equals(plugin.InternalName, "Lifestream", StringComparison.OrdinalIgnoreCase));
         window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
@@ -230,6 +234,11 @@ public sealed class Plugin : IDalamudPlugin
                 if (config.AutoSellTTCards && !multiCharacters.IsRunning) ttCards.Start();
             }
             jobPurchase.Update();
+            if (submarines.IsRunning && (keyState[VirtualKey.SHIFT] || keyState[VirtualKey.LSHIFT] || keyState[VirtualKey.RSHIFT]) && config.ShiftStopsAutomation)
+                submarines.Stop("Submarine redeploy stopped: Shift held.");
+            submarines.Update();
+            if (submarines.MaterialsQuestion is not null) window.IsOpen = true;
+            statusHistory.Observe("Submarines", submarines.Status);
             ttCards.Update();
             statusHistory.Observe("TT card sales", ttCards.Status);
             if (IsAutoRetainerLoaded() && config.AutoRunVentures && ventures.IsRunning)
@@ -296,6 +305,7 @@ public sealed class Plugin : IDalamudPlugin
     private void StopTripsAfterError()
     {
         if (ttCards.IsRunning) ttCards.Stop("TT card selling stopped after an unexpected error.");
+        if (submarines.IsRunning) submarines.Stop("Submarine redeploy stopped after an unexpected error.");
         if (jobPurchase.IsRunning) jobPurchase.Stop("Modern Vocation purchase stopped after an unexpected error. Check NPC dialogue and inventory.");
     }
 
@@ -557,6 +567,7 @@ public sealed class Plugin : IDalamudPlugin
             ("RP command", () => { if (rpAliasRegistered) commands.RemoveHandler("/rp"); }),
             ("Server bar", () => { serverInfoBarEntry.OnClick = null; serverInfoBarEntry.Remove(); }),
             ("Multi-character run", () => multiCharacters.Stop()),
+            ("Submarines", () => submarines.Stop()),
             ("TT cards", () => ttCards.Stop()),
             ("Modern Vocation", () => jobPurchase.Stop()),
             ("Desynthesis", () => desynthesis.Stop()),

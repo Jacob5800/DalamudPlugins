@@ -234,6 +234,12 @@ Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)
     Check(!step.Succeeded && !step.IsRunning && !fake.Log.Contains("bell"), "a failed desynthesis stops the sequence");
     Check(!new PluginConfig().AutoDesynthesis, "automatic desynthesis is off by default");
 }
+{
+    var broken = new[] { new BrokenPart(0, 6), new BrokenPart(2, 6) };
+    Check(SubmarineRepairPlan.Shortfall(broken, 12) == 0, "exactly enough repair materials is enough");
+    Check(SubmarineRepairPlan.Shortfall(broken, 7) == 5, "the missing materials are counted");
+    Check(SubmarineRepairPlan.Shortfall([], 0) == 0, "nothing broken needs nothing");
+}
 var runCache = new RunPriceCache();
 var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
 runCache.Remember(runKey,historyOnly);

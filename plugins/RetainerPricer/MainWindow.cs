@@ -34,7 +34,8 @@ internal sealed class MainWindow : Window
     private string desynthesisSnapshotStatus = "";
     internal MultiCharacterRun? MultiCharacters { get; set; }
     internal Func<bool>? LifestreamLoaded { get; set; }
-    private bool UiBusy => MultiCharacters?.IsRunning == true || controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
+    internal SubmarineController? Submarines { get; set; }
+    private bool UiBusy => Submarines?.IsRunning == true || MultiCharacters?.IsRunning == true || controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
     private readonly Func<bool> undercutsPaused;
@@ -210,6 +211,21 @@ internal sealed class MainWindow : Window
                 if (ImGui.Button("Stop listing")) { controller.Cancel("Listing stopped at large-stack review."); ImGui.CloseCurrentPopup(); }
             }
             ImGui.EndPopup();
+        }
+        if (Submarines?.MaterialsQuestion is { } question)
+        {
+            ImGui.OpenPopup("Repair materials");
+            if (ImGui.BeginPopupModal("Repair materials", ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.TextUnformatted(question);
+                ImGui.TextUnformatted("Continue anyway redeploys without repairing; the game may refuse a submersible with a broken part.");
+                if (ImGui.Button("Skip submarine")) { dispatch(() => Submarines.AnswerMaterials(false)); ImGui.CloseCurrentPopup(); }
+                ImGui.SameLine();
+                if (ImGui.Button("Continue anyway")) { dispatch(() => Submarines.AnswerMaterials(true)); ImGui.CloseCurrentPopup(); }
+                ImGui.SameLine();
+                if (ImGui.Button("Stop##Submarines")) { dispatch(() => Submarines.Stop()); ImGui.CloseCurrentPopup(); }
+                ImGui.EndPopup();
+            }
         }
         if (controller.BelowVendorItem is { } cheap)
         {
@@ -513,6 +529,7 @@ internal sealed class MainWindow : Window
             if (config.ShowRetainerSell && ImGui.BeginTabItem("Retainer sell")) { DrawTabContents(nameof(DrawAutoVendor), DrawAutoVendor); ImGui.EndTabItem(); }
             if (config.ShowAutomationList && BeginColoredTab("Automation", new Vector4(.65f, .12f, .12f, 1))) { DrawTabContents(nameof(DrawAutomation), DrawAutomation); ImGui.EndTabItem(); }
             if (BeginColoredTab("Ventures", new Vector4(.72f, .57f, .06f, 1))) { DrawTabContents(nameof(DrawVentures), DrawVentures); ImGui.EndTabItem(); }
+            if (config.ShowSubmarines && ImGui.BeginTabItem("Submarines")) { DrawTabContents(nameof(DrawSubmarines), DrawSubmarines); ImGui.EndTabItem(); }
             if (config.ShowDebugStatus && ImGui.BeginTabItem("Status")) { DrawTabContents(nameof(DrawStatusHistory), DrawStatusHistory); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Profiles")) { DrawTabContents(nameof(DrawProfiles), DrawProfiles); ImGui.EndTabItem(); }
             if (ImGui.BeginTabItem("Settings")) { DrawTabContents(nameof(DrawSettings), DrawSettings); ImGui.EndTabItem(); }
@@ -1023,6 +1040,7 @@ internal sealed class MainWindow : Window
         Feature("Show Don't reprice", config.ShowDontReprice, v => config.ShowDontReprice = v);
         Feature("Show Batch selling", config.ShowBatchSelling, v => config.ShowBatchSelling = v);
         Feature("Show Retainer sell", config.ShowRetainerSell, v => config.ShowRetainerSell = v);
+        Feature("Show Submarines", config.ShowSubmarines, v => config.ShowSubmarines = v);
         Feature("Show debug status", config.ShowDebugStatus, v => config.ShowDebugStatus = v);
         Feature("Show Desynthesis list", config.ShowDesynthesisList, v => config.ShowDesynthesisList = v);
         Feature("Show sniper", config.ShowSniper, v => {
@@ -1160,6 +1178,26 @@ internal sealed class MainWindow : Window
         ImGui.Separator();
         ImGui.TextWrapped("Prices are per item, before tax. If the selected pricing rule would go below your minimum, or no matching competitor is available, that item is left unchanged.");
         ImGui.TextWrapped("Changing character, world, or active retainer stops a batch. Each price submission rechecks the exact item window first. Stop prevents further submissions; completed price changes stay applied.");
+    }
+
+    private void DrawSubmarines()
+    {
+        if (Submarines is not { } submarines) return;
+        ImGui.TextWrapped("Stand next to the voyage control panel in your free company workshop. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
+        var states = submarines.Read();
+        if (states.Count == 0) ImGui.TextWrapped("Submersible data appears while you are in the workshop; open the panel once if the list stays empty.");
+        foreach (var sub in states)
+        {
+            var state = sub.Returns is not { } at ? "not deployed"
+                : at <= DateTimeOffset.UtcNow ? "voyage complete"
+                : $"returns {at.ToLocalTime():dd/MM HH:mm}";
+            ImGui.BulletText($"{sub.Name}: {state}{(sub.NeedsRepair ? " - needs repair" : "")}");
+        }
+        ImGui.BeginDisabled(!submarines.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
+        if (ImGui.Button(submarines.IsRunning ? "Stop##Submarines" : "Redeploy submarines"))
+            dispatch(() => { if (submarines.IsRunning) submarines.Stop(); else submarines.Start(); });
+        ImGui.EndDisabled();
+        ImGui.TextWrapped(submarines.Status);
     }
 
     private void DrawMultiCharacterButton(MultiCharacterRun run, string id)

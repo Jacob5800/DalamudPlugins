@@ -19,5 +19,6 @@
     <Compile Include="../MultiCharacterRun.cs" Link="MultiCharacterRun.cs" />
     <Compile Include="../GameSaleHistory.cs" Link="GameSaleHistory.cs" />
     <Compile Include="../DesynthesisStep.cs" Link="DesynthesisStep.cs" />
+    <Compile Include="../SubmarineRepairPlan.cs" Link="SubmarineRepairPlan.cs" />
   </ItemGroup>
 </Project>
