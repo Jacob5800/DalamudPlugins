@@ -1,4 +1,3 @@
-## 0.5.3.1
+## 0.5.3.2
 
-- Multi-character workshop travel uses the same door walking.
-- Submarines now walks you into your free company workshop itself, so no Lifestream house path is needed, and it no longer teleports when you are already at your free company house.
+- Workshop travel now walks to the house door: it aims at the nearest walkable spot instead of the door itself, and gives up with a reason if the character does not move.

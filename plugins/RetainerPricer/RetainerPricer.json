@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.3.1",
+  "AssemblyVersion": "0.5.3.2",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.3.1\n\n- Multi-character workshop travel uses the same door walking.\n- Submarines now walks you into your free company workshop itself, so no Lifestream house path is needed, and it no longer teleports when you are already at your free company house.",
+  "Changelog": "## 0.5.3.2\n\n- Workshop travel now walks to the house door: it aims at the nearest walkable spot instead of the door itself, and gives up with a reason if the character does not move.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

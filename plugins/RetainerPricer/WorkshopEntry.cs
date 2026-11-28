@@ -26,6 +26,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     private bool commandSent;
     private DateTimeOffset? progressAt;
     private DateTimeOffset walkStartedAt, next;
+    private System.Numerics.Vector3 lastPosition;
 
     public bool Walking { get; private set; }
     public string Status { get; private set; } = "";
@@ -103,19 +104,32 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     {
         failure = null;
         if (objects.LocalPlayer is not { } local) return false;
-        if (System.Numerics.Vector3.Distance(local.Position, target.Position) <= 3.5f)
+        // Doors and panels sit just off the walkable mesh, so the path aims at the nearest point on it.
+        var destination = pi.GetIpcSubscriber<System.Numerics.Vector3, float, float, System.Numerics.Vector3?>("vnavmesh.Query.Mesh.NearestPoint")
+            .InvokeFunc(target.Position, 5, 5) ?? target.Position;
+        if (System.Numerics.Vector3.Distance(local.Position, target.Position) <= 3.5f ||
+            System.Numerics.Vector3.Distance(local.Position, destination) <= 1f &&
+            System.Numerics.Vector3.Distance(local.Position, target.Position) <= 6f)
         {
             if (Walking) { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); Walking = false; }
             return true;
         }
+        // Only actual movement counts as progress; asking for the same path again does not.
+        if (progressAt is null || System.Numerics.Vector3.Distance(local.Position, lastPosition) > 1f)
+        {
+            lastPosition = local.Position;
+            progressAt = now;
+        }
+        else if (now - progressAt.Value > TimeSpan.FromSeconds(25))
+        { failure = $"the character did not move while {status.TrimEnd('.').ToLowerInvariant()}"; return false; }
         // A path that ended short is asked for again after a while.
         if (Walking && now - walkStartedAt < TimeSpan.FromSeconds(10)) return false;
         if (!pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady").InvokeFunc()) { Note("Waiting for the navigation mesh..."); return false; }
-        if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(target.Position, false))
+        if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(destination, false))
         { failure = "no walking path was found"; return false; }
+        bridge.LogAutomationDiagnostic($"Workshop travel: path from {local.Position} to {destination} (target {target.Position}).");
         Walking = true;
         walkStartedAt = now;
-        progressAt = now;
         Note(status);
         return false;
     }
