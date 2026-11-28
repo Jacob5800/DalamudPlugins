@@ -79,32 +79,43 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
             Fire((AtkUnitBase*)question, 0);
             return Progress(now, "Entering the estate hall...");
         }
-        if (Nearest(ChambersDoorRow) is { } chambers) return UseDoor(chambers, now, "Walking to the additional chambers door...");
-
-        // Outside: only this character's own free company door, never a neighbour's. Lifestream lands on the estate's
-        // own aetheryte, so after its teleport the nearest entrance is that house's.
+        // A door already in reach is used at once: that is where Lifestream's registered paths stop.
+        var chambers = Nearest(ChambersDoorRow);
+        if (chambers != null && InReach(local, chambers)) return UseDoor(chambers, now, "Opening the additional chambers door...");
         var nearestDoor = Nearest(EntranceRow);
         var onOwnPlot = OnOwnPlot();
-        var doorDistance = nearestDoor == null ? -1 : System.Numerics.Vector3.Distance(local.Position, nearestDoor.Position);
-        if (nearestDoor != null && (onOwnPlot || commandSent && doorDistance <= 60))
-            return UseDoor(nearestDoor, now, "Walking to your free company house door...");
-        Note($"Looking for your free company house door (territory {client.TerritoryType}, own plot {onOwnPlot}, nearest entrance {(doorDistance < 0 ? "none" : $"{doorDistance:0} yalms")})...");
+        if (nearestDoor != null && InReach(local, nearestDoor) && (onOwnPlot || commandSent))
+            return UseDoor(nearestDoor, now, "Opening your free company house door...");
 
-        // Lifestream already landed here: its teleport is not repeated.
-        if (!commandSent && !onOwnPlot)
+        // Lifestream first: with the house paths registered it walks to each door, which vnavmesh cannot.
+        // It is asked once; afterwards it is asked again only when the character is back outside the house.
+        if (!commandSent)
         {
-            // With a house path registered in Lifestream it walks in itself; without one it only teleports,
-            // and the doors below take over once it is idle.
             pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("ws");
             commandSent = true;
             next = now.AddSeconds(5);
             progressAt = now;
             return Note("Asking Lifestream to take you to your free company workshop...");
         }
+
+        // Lifestream is done and no door is in reach: walk there ourselves as a last resort.
+        if (chambers != null) return UseDoor(chambers, now, "Walking to the additional chambers door...");
+        var doorDistance = nearestDoor == null ? -1 : System.Numerics.Vector3.Distance(local.Position, nearestDoor.Position);
+        if (nearestDoor != null && (onOwnPlot || doorDistance <= 60))
+        {
+            var failure = UseDoor(nearestDoor, now, "Walking to your free company house door...");
+            return failure is null ? null
+                : $"{failure}; register Path to house and Path to workshop for this character in Lifestream (House Registration > Free Company House)";
+        }
+        Note($"Looking for your free company house door (territory {client.TerritoryType}, own plot {onOwnPlot}, nearest entrance {(doorDistance < 0 ? "none" : $"{doorDistance:0} yalms")})...");
         return progressAt is { } last && now - last > TimeSpan.FromSeconds(45)
             ? "no way into the workshop was found; check that this character's free company has a house with a workshop"
             : null;
     }
+
+    private static bool InReach(IGameObject local, IGameObject door) =>
+        new System.Numerics.Vector2(local.Position.X - door.Position.X, local.Position.Z - door.Position.Z).Length() <= 4.5f &&
+        Math.Abs(local.Position.Y - door.Position.Y) <= 3f;
 
     /// <summary>Walks until within reach of the target. True once there; used for the panel or bell inside, too.</summary>
     public bool WalkTowards(IGameObject target, DateTimeOffset now, string status, out string? failure)

@@ -91,6 +91,7 @@ public sealed class PluginConfig : IPluginConfiguration
         return true;
     }
     public bool ShowSubmarines { get; set; }
+    public bool SubmarineTravel { get; set; }
     public bool AutoListNewItems { get; set; }
     public bool AutoReassignVentures { get; set; }
     public bool ShiftStopsAutomation { get; set; } = true;

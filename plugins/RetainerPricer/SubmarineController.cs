@@ -25,7 +25,7 @@ internal sealed record SubmarineState(int Index, string Name, DateTimeOffset? Re
 /// </summary>
 internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data, IObjectTable objects,
     ITargetManager targets, ICondition condition, NativeMarketBridge bridge, Func<bool> otherBusy,
-    Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi, WorkshopEntry workshop)
+    Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi, WorkshopEntry workshop, Func<bool> travelEnabled)
 {
     private const uint PanelNameRow = 2005274, ManagementTalkRow = 721343;
     // A voyage covers up to 5 sectors and each can give two different items, so up to 10 new stacks.
@@ -95,6 +95,8 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
         if (bridge.IsClientStateUnavailable) { Status = "Log in first."; return; }
         var atPanel = PanelInReach();
+        if (!atPanel && !travelEnabled())
+        { Status = "Stand next to the voyage control panel in your free company workshop, or enable Travel to the workshop."; return; }
         if (!atPanel)
         {
             // Getting there needs both: Lifestream enters the workshop, vnavmesh walks to the panel.

@@ -1193,14 +1193,46 @@ internal sealed class MainWindow : Window
     private void DrawSubmarines()
     {
         if (Submarines is not { } submarines) return;
-        ImGui.TextWrapped("Away from the voyage control panel, you are taken to your free company house (Lifestream teleports if you are not already at its door) and vnavmesh walks you through the doors to the panel. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
+        ImGui.TextWrapped("Stand next to the voyage control panel in your free company workshop, or turn on travel below. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
         var blocked = submarines.AutoRetainerLoaded;
         ImGui.TextColored(blocked ? new Vector4(1, .3f, .3f, 1) : new Vector4(.3f, .85f, .4f, 1),
             blocked ? "AutoRetainer is enabled - disable it to redeploy submarines" : "AutoRetainer - not enabled");
-        var lifestream = LifestreamLoaded?.Invoke() == true;
-        ImGui.TextColored(lifestream ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
-            lifestream ? "Lifestream - enabled (for travel)" : "Lifestream - missing or disabled (needed for travel)");
-        DrawNavigationRequirement();
+        var travel = config.SubmarineTravel;
+        ImGui.BeginDisabled(submarines.IsRunning);
+        if (ImGui.Checkbox("Travel to the workshop (advanced)", ref travel))
+        {
+            // Turning it on asks first; turning it off never does.
+            if (travel) ImGui.OpenPopup("Travel to the workshop?");
+            else { config.SubmarineTravel = false; save(); }
+        }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip("Leave this off unless you have registered your free company house paths in Lifestream.\nWithout them, travel teleports you to your estate and stops outside.");
+        if (ImGui.BeginPopupModal("Travel to the workshop?", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted("Most players should leave this off and start next to the voyage control panel.");
+            ImGui.Spacing();
+            ImGui.TextUnformatted("Travel only works if, for every character that uses it, you have registered in Lifestream:");
+            ImGui.BulletText("House Registration > Free Company House");
+            ImGui.BulletText("Path to house: from the plot entrance to the front door");
+            ImGui.BulletText("Path to workshop: from inside the front door to the additional chambers door");
+            ImGui.Spacing();
+            ImGui.TextUnformatted("Without these, you are teleported to your estate and the run stops outside.");
+            ImGui.TextUnformatted("It also needs Lifestream and vnavmesh, and costs the normal teleport fee.");
+            ImGui.Spacing();
+            if (ImGui.Button("Still continue")) { config.SubmarineTravel = true; save(); ImGui.CloseCurrentPopup(); }
+            ImGui.SameLine();
+            if (ImGui.Button("No, keep it off")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+        if (config.SubmarineTravel)
+        {
+            var lifestream = LifestreamLoaded?.Invoke() == true;
+            ImGui.TextColored(lifestream ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
+                lifestream ? "Requires Lifestream - enabled" : "Requires Lifestream - missing or disabled");
+            DrawNavigationRequirement();
+            ImGui.TextWrapped("Register a free company house path for each character in Lifestream: Path to house (plot entrance to front door) and Path to workshop (inside to the additional chambers door).");
+        }
         var states = submarines.Read();
         if (states.Count == 0) ImGui.TextWrapped("Submersible data appears while you are in the workshop; open the panel once if the list stays empty.");
         foreach (var sub in states)

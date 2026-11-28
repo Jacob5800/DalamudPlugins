@@ -130,7 +130,7 @@ public sealed class Plugin : IDalamudPlugin
         automation.Desynthesis = new DesynthesisStep(new DesynthesisHost(desynthesis, multiCharacterHost));
         submarines = new SubmarineController(gameGui, data, objects, targets, condition, bridge, () => controller.Busy || automation.IsRunning ||
             vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning || multiCharacters.IsRunning, IsAutoRetainerLoaded, pluginInterface,
-            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge));
+            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge), () => config.SubmarineTravel);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
