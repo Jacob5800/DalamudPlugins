@@ -31,9 +31,15 @@ if (-not (Test-Path -LiteralPath $resolvedFeedPath -PathType Leaf)) {
 }
 
 $feed = Get-Content -LiteralPath $resolvedFeedPath -Raw | ConvertFrom-Json
+# A short tag such as 0.5.3 is packaged as assembly version 0.5.3.0, so compare four parts.
+function Get-FullVersion([string]$Text) {
+    $parts = @($Text.Split('.'))
+    while ($parts.Count -lt 4) { $parts += '0' }
+    $parts -join '.'
+}
 $entries = @($feed | Where-Object {
     $_.InternalName -eq $internalName -and
-    $_.AssemblyVersion -eq $version
+    (Get-FullVersion $_.AssemblyVersion) -eq (Get-FullVersion $version)
 })
 if ($entries.Count -ne 1) {
     throw "Expected exactly one feed entry for release tag '$ReleaseTag'; found $($entries.Count)."
