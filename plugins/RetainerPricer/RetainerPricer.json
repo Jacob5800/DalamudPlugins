@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.3.7",
+  "AssemblyVersion": "0.5.3.8",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.3.7\n\n- Added an Amber option to workshop travel: characters in the Amber free company use a built-in path to its house and workshop, with nothing to register in Lifestream.",
+  "Changelog": "## 0.5.3.8\n\n- Workshop travel now opens the house entrance when the Amber path or a Lifestream path ends in front of it, instead of stopping there.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

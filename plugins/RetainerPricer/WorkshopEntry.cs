@@ -93,7 +93,8 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         if (chambers != null && InReach(local, chambers)) return UseDoor(chambers, now, "Opening the additional chambers door...");
         var nearestDoor = Nearest(EntranceRow);
         var onOwnPlot = OnOwnPlot();
-        if (nearestDoor != null && InReach(local, nearestDoor) && (onOwnPlot || commandSent))
+        // The end of the Amber path is that house's own door.
+        if (nearestDoor != null && InReach(local, nearestDoor) && (onOwnPlot || commandSent || pathSent == "entrance"))
             return UseDoor(nearestDoor, now, "Opening your free company house door...");
 
         if (useAmberPath()) return AmberStep(local, chambers, now);
@@ -164,7 +165,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     }
 
     private static bool InReach(IGameObject local, IGameObject door) =>
-        new System.Numerics.Vector2(local.Position.X - door.Position.X, local.Position.Z - door.Position.Z).Length() <= 4.5f &&
+        new System.Numerics.Vector2(local.Position.X - door.Position.X, local.Position.Z - door.Position.Z).Length() <= 5f &&
         Math.Abs(local.Position.Y - door.Position.Y) <= 3f;
 
     /// <summary>Walks until within reach of the target. True once there; used for the panel or bell inside, too.</summary>
@@ -173,12 +174,15 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         failure = null;
         if (objects.LocalPlayer is not { } local) return false;
         // Doors and panels sit just off the walkable mesh, so the path aims at the nearest point on it.
+        // Already close enough: nothing needs to be looked up. Doors stand on a step, so this is measured along the ground.
+        if (InReach(local, target))
+        {
+            if (Walking) { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); Walking = false; }
+            return true;
+        }
         var destination = Approach(local.Position, target.Position);
         if (destination is null) { failure = "no walkable spot was found near the entrance"; return false; }
-        // Measured along the ground: doors stand on a step, and Lifestream's paths stop a few yalms short of them.
-        var across = new System.Numerics.Vector2(local.Position.X - target.Position.X, local.Position.Z - target.Position.Z).Length();
-        if (across <= 4.5f && Math.Abs(local.Position.Y - target.Position.Y) <= 3f ||
-            System.Numerics.Vector3.Distance(local.Position, destination.Value) <= 1f &&
+        if (System.Numerics.Vector3.Distance(local.Position, destination.Value) <= 1f &&
             System.Numerics.Vector3.Distance(local.Position, target.Position) <= 6f)
         {
             if (Walking) { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); Walking = false; }

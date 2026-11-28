@@ -1,3 +1,3 @@
-## 0.5.3.7
+## 0.5.3.8
 
-- Added an Amber option to workshop travel: characters in the Amber free company use a built-in path to its house and workshop, with nothing to register in Lifestream.
+- Workshop travel now opens the house entrance when the Amber path or a Lifestream path ends in front of it, instead of stopping there.
