@@ -240,6 +240,13 @@ Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)
     Check(SubmarineRepairPlan.Shortfall(broken, 7) == 5, "the missing materials are counted");
     Check(SubmarineRepairPlan.Shortfall([], 0) == 0, "nothing broken needs nothing");
 }
+{
+    var seeded = new PluginConfig { DontVendorItemIds = [22500] };
+    Check(seeded.SeedSalvageWhitelist() && seeded.RetainerSaleWhitelistItemIds.Count == 7 && !seeded.RetainerSaleWhitelistItemIds.Contains(22500),
+        "salvage items are added once, except ones already protected from vendoring");
+    seeded.RetainerSaleWhitelistItemIds.Clear();
+    Check(!seeded.SeedSalvageWhitelist() && seeded.RetainerSaleWhitelistItemIds.Count == 0, "removed salvage items stay removed");
+}
 var runCache = new RunPriceCache();
 var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
 runCache.Remember(runKey,historyOnly);

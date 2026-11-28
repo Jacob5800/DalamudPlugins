@@ -4,13 +4,15 @@ namespace RetainerPricer;
 internal sealed class AutomationController(NativeMarketBridge bridge, PricingController pricing,
     VentureController ventures, AutoVendorController vendor, PluginConfig config, Func<bool> autoRetainerLoaded)
 {
-    private enum Stage { Idle, Collect, Assign, Desynthesize, List, Reprice }
+    private enum Stage { Idle, Collect, Assign, Desynthesize, List, Reprice, Vendor }
     private Stage stage;
     private bool collectEnabled, repriceEnabled, listEnabled, assignEnabled;
     private ulong contentId;
     private uint worldId;
     public AutomationRunSummary? LastSummary { get; private set; }
     public int CompletedRuns { get; private set; }
+    /// <summary>Gil from whitelist selling in the latest completed run.</summary>
+    public long WhitelistGil { get; private set; }
     public bool IsRunning => stage != Stage.Idle;
     /// <summary>Set by the plugin once desynthesis exists.</summary>
     public DesynthesisStep? Desynthesis { get; set; }
@@ -99,9 +101,20 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             if (!pricing.Busy) Fail(pricing.Status);
             return;
         }
-        CompleteSummary("Completed", "Selected automation steps complete.");
+        // Last, so listing has had its chance first. Only items the player put on the whitelist are sold.
+        if (previous < Stage.Vendor && config.AutoSellWhitelist && vendor.HasWhitelistedItems())
+        {
+            LastSummary?.BeginPhase("Sell whitelisted items");
+            stage = Stage.Vendor; pricing.SellWhitelistThroughRetainer(vendor); Status = "Selling whitelisted items to the NPC...";
+            if (!pricing.Busy) Fail(pricing.Status);
+            return;
+        }
+        var sold = previous == Stage.Vendor && vendor.StacksSold > 0
+            ? $" Sold {vendor.StacksSold} whitelisted stack(s) to the NPC for {vendor.GilEarned:N0} gil." : "";
+        WhitelistGil = previous == Stage.Vendor ? vendor.GilEarned : 0;
+        CompleteSummary("Completed", "Selected automation steps complete." + sold);
         pricing.EndAutomationPriceSession();
-        stage = Stage.Idle; CompletedRuns++; Status = "Selected automation steps complete.";
+        stage = Stage.Idle; CompletedRuns++; Status = "Selected automation steps complete." + sold;
     }
 
     private bool AllVenturesStillAway(DateTimeOffset now)
@@ -128,7 +141,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
                 if (!ventures.LastRunSucceeded) { Fail(ventures.Status); return; }
                 Advance();
                 break;
-            case Stage.Reprice or Stage.List when !pricing.Busy:
+            case Stage.Reprice or Stage.List or Stage.Vendor when !pricing.Busy:
                 if (!pricing.LastTraversalSucceeded) { Fail(pricing.Status); return; }
                 Advance();
                 break;
@@ -155,6 +168,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         if (IsRunning) CompleteSummary("Stopped", $"{message} {pricing.Progress}");
         stage = Stage.Idle;
         Desynthesis?.Cancel(message);
+        if (vendor.IsRunning) vendor.Cancel(message);
         pricing.Cancel();
         ventures.Cancel();
         Status = message;

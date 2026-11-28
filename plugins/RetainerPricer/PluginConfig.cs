@@ -76,6 +76,20 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool AutoRunVentures { get; set; } = false;
     public bool AutoUpdateExistingListings { get; set; }
     public bool AutoDesynthesis { get; set; }
+    public bool AutoSellWhitelist { get; set; } = true;
+    public bool SalvageWhitelistSeeded { get; set; }
+    // Salvaged and Extravagant Salvaged rings, bracelets, earrings and necklaces: submarine loot meant for NPCs.
+    internal static readonly uint[] SalvageItemIds = [22500, 22501, 22502, 22503, 22504, 22505, 22506, 22507];
+
+    /// <summary>Adds the salvage items once, so removing them later sticks. True when settings changed.</summary>
+    internal bool SeedSalvageWhitelist()
+    {
+        if (SalvageWhitelistSeeded) return false;
+        SalvageWhitelistSeeded = true;
+        foreach (var id in SalvageItemIds)
+            if (!RetainerSaleWhitelistItemIds.Contains(id) && !DontVendorItemIds.Contains(id)) RetainerSaleWhitelistItemIds.Add(id);
+        return true;
+    }
     public bool ShowSubmarines { get; set; }
     public bool AutoListNewItems { get; set; }
     public bool AutoReassignVentures { get; set; }

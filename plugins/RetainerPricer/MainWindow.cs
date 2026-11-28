@@ -401,6 +401,16 @@ internal sealed class MainWindow : Window
             ImGui.SameLine();
             DrawMultiCharacterButton(multi, "##topMultiCharacter");
         }
+        if (config.ShowSubmarines && Submarines is { } submarines)
+        {
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!submarines.IsRunning && (submarines.AutoRetainerLoaded || UiBusy || ventures.IsRunning || vendor.IsRunning));
+            if (ImGui.Button(submarines.IsRunning ? "Stop submarines##top" : "Redeploy submarines##top"))
+                dispatch(() => { if (submarines.IsRunning) submarines.Stop(); else submarines.Start(); });
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(submarines.AutoRetainerLoaded ? "Disable AutoRetainer to redeploy submarines." : submarines.Status);
+        }
         if (desynthesis.IsRunning)
         {
             ImGui.SameLine();
@@ -1262,6 +1272,9 @@ internal sealed class MainWindow : Window
         var autoDesynthesis = config.AutoDesynthesis;
         if (ImGui.Checkbox("Auto Desynthesis", ref autoDesynthesis)) { config.AutoDesynthesis = autoDesynthesis; save(); }
         ImGui.TextWrapped("Off by default and not part of the full sequence unless ticked. After the venture steps and before listing, leaves the bell, desynthesizes the items on your desynthesis list using its settings, then opens the same bell again.");
+        var sellWhitelist = config.AutoSellWhitelist;
+        if (ImGui.Checkbox("Sell whitelisted items at the end of a sequence", ref sellWhitelist)) { config.AutoSellWhitelist = sellWhitelist; save(); }
+        ImGui.TextWrapped("Sells carried items on your retainer sale whitelist to the NPC through one retainer and reports the gil. Salvaged and Extravagant Salvaged accessories are on the whitelist by default. NPC sales cannot be undone.");
         var autoVentures = config.AutoRunVentures;
         if (ImGui.Checkbox("Auto collect venture rewards", ref autoVentures))
         { config.AutoRunVentures = autoVentures; save(); }

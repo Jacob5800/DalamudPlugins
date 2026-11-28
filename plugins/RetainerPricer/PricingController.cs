@@ -41,7 +41,7 @@ internal sealed class PricingController : IDisposable
         Start, Opening, WaitingToCompare, Quote, Closing,
         ExistingWaitingToCompare, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
         ClosingListingCompare, ListingRetryClosingCompare, ClosingSkippedCompare,
-        ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
+        ClosingSkippedSell, Confirming, VendorSweeping, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
     }
     private readonly NativeMarketBridge bridge;
@@ -1063,12 +1063,23 @@ internal sealed class PricingController : IDisposable
 
     public void AutoUpdateAllRetainers() => StartRetainerPriceUpdate(runVenturesAfter: false);
 
+    private AutoVendorController? sweepVendor;
+
+    /// <summary>Opens one retainer's selling list, sells the carried whitelisted items there, then returns to the picker.</summary>
+    public void SellWhitelistThroughRetainer(AutoVendorController vendor)
+    {
+        if (Busy) return;
+        StartRetainerPriceUpdate(runVenturesAfter: false);
+        if (work == Work.AutoUpdateAllRetainers) sweepVendor = vendor;
+    }
+
     private void StartRetainerPriceUpdate(bool runVenturesAfter)
     {
         if (Busy) return;
         LastTraversalSucceeded = false;
         StartStandalonePriceSession();
         listingTraversal = false;
+        sweepVendor = null;
         listingPriceRejections.Clear();
         largeStackPlans.Clear();
         skipMateriaWarningsThisRun = false;
@@ -1438,6 +1449,13 @@ internal sealed class PricingController : IDisposable
                         $"{operation} stopped because the open selling list did not match the queued retainer. No other retainer was changed.");
                     return;
                 }
+                if (sweepVendor is { } selling)
+                {
+                    selling.StartWhitelistOnly();
+                    if (!selling.IsRunning) { Cancel($"Whitelist selling did not start: {selling.Status}"); return; }
+                    step = Step.VendorSweeping;
+                    return;
+                }
                 if (listingTraversal)
                 {
                     work = Work.Idle;
@@ -1487,6 +1505,16 @@ internal sealed class PricingController : IDisposable
                 }
                 return;
             }
+            case Step.VendorSweeping:
+                if (sweepVendor is not { } vendorRun) { Cancel("Whitelist selling was lost."); return; }
+                if (vendorRun.IsRunning) { Status = vendorRun.Status; return; }
+                if (!vendorRun.LastRunSucceeded) { Cancel($"Whitelist selling stopped: {vendorRun.Status}"); return; }
+                // One retainer is enough: carried inventory is shared.
+                if (vendorRun.StacksSold > 0 && session is { } soldThrough)
+                    vendorSalesAwaitingDeparture[soldThrough.RetainerId] = soldThrough;
+                step = Step.AutoCloseSellList;
+                deadline = now.AddSeconds(10);
+                return;
             case Step.AutoCloseSellList:
                 if (session is null || session.RetainerId != autoRetainers[autoRetainerIndex].RetainerId ||
                     !bridge.TryCloseRetainerSellList(session, out error))
@@ -1569,6 +1597,8 @@ internal sealed class PricingController : IDisposable
                     vendorSalesAwaitingDeparture.Remove(autoRetainers[autoRetainerIndex].RetainerId);
                     bridge.ClearApprovedVendorDeparture();
                     autoRetainerIndex++;
+                    // The sweep ends after the first retainer it actually opened.
+                    if (sweepVendor is not null) autoRetainerIndex = autoRetainers.Count;
                     if (autoRetainerIndex >= autoRetainers.Count) { FinishRetainerTraversal(); return; }
                     step = Step.AutoSelectRetainer;
                     return;
@@ -1599,7 +1629,7 @@ internal sealed class PricingController : IDisposable
                 if (!IsSnapshotTraversal && bridge.TryGetPickerMarketItemCount(target, out var marketItemCount))
                 {
                     var skipFull = listingTraversal && marketItemCount == NativeMarketBridge.RetainerMarketSlotLimit;
-                    var skipEmpty = !listingTraversal && marketItemCount == 0;
+                    var skipEmpty = !listingTraversal && sweepVendor is null && marketItemCount == 0;
                     if (skipFull || skipEmpty)
                     {
                         RunSummary?.Skip(skipFull ? "Retainer has 20 listings" : "Retainer has no listings", target.Name);
@@ -1705,6 +1735,7 @@ internal sealed class PricingController : IDisposable
         approvedIncrease = null;
         listingTraversal = false;
         LastTraversalSucceeded = true;
+        sweepVendor = null;
         Rows.Clear();
         Rows.AddRange(completedRetainerRows);
         completedRetainerRows.Clear();

@@ -135,9 +135,27 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         next = now.AddMilliseconds(700);
         // The player may take any time to answer.
         if (MaterialsQuestion is not null) { deadline = now.AddSeconds(30); return; }
+        // The trip to the workshop goes through loading screens, which are expected there.
+        if (stage == Stage.Travel && (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) &&
+            !condition[ConditionFlag.LoggingOut] && !condition[ConditionFlag.SystemError])
+        {
+            walking = false;
+            if (workshopRequestedAt is not null) workshopRequestedAt = now;
+            deadline = now.AddSeconds(30);
+            if (now > travelDeadline) Stop("The trip to the workshop took too long.");
+            return;
+        }
         if (bridge.IsClientStateUnavailable || condition[ConditionFlag.InCombat] || condition[ConditionFlag.BoundByDuty])
         { Stop("Submarine redeploy stopped: character unavailable."); return; }
-        if (now > deadline) { Stop($"Submarine redeploy stopped: the game did not respond while '{Status}'. Check the open window."); return; }
+        if (now > deadline)
+        {
+            // Says what was on screen, so a stall can be diagnosed from the log.
+            var open = string.Join(", ", new[] { "SelectString", "SelectYesno", "Talk", "AirShipExplorationResult", "AirShipExplorationDetail", "CompanyCraftSupply" }
+                .Where(name => Addon(name) != null));
+            bridge.LogAutomationDiagnostic($"Submarines stalled in {stage}: open=[{open}], menu=[{string.Join(" | ", MenuEntries())}]");
+            Stop($"Submarine redeploy stopped: the game did not respond while '{Status}'. Check the open window.");
+            return;
+        }
         if (AutoRetainerLoaded) { Stop("Submarine redeploy stopped: AutoRetainer was enabled."); return; }
         try { if (!SkipCutscene(now)) Tick(now); }
         catch (Exception ex) { Stop("Submarine redeploy stopped: " + ex.Message); }
@@ -203,7 +221,13 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
 
             case Stage.VesselMenu:
                 // The vessel's own menu offers a deployment, and the previous log only when it has one.
-                if (!MenuContains(Dialogue(8))) return;
+                if (!MenuContains(Dialogue(8)))
+                {
+                    // A selection made while the list was still appearing is lost; choose the submersible again.
+                    if (MenuContains(Dialogue(6)) && Select(text => text.StartsWith(vessel!.Name + ".", StringComparison.Ordinal)))
+                        next = now.AddSeconds(3);
+                    return;
+                }
                 var current = Read().FirstOrDefault(sub => sub.Index == vessel!.Index);
                 if (current is null || !current.PartsKnown)
                 { Stop($"{vessel!.Name}'s parts could not be read, so it was not redeployed."); return; }

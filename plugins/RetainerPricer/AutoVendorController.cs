@@ -42,6 +42,31 @@ internal sealed class AutoVendorController : IDisposable
     }
 
     public bool IsRunning => step != Step.Idle;
+    private bool whitelistOnly;
+    public bool LastRunSucceeded { get; private set; }
+    /// <summary>NPC gil from the verified sales of the current or latest run.</summary>
+    public long GilEarned { get; private set; }
+    public int StacksSold { get; private set; }
+
+    /// <summary>True when something carried is on the retainer sale whitelist and not protected.</summary>
+    public bool HasWhitelistedItems()
+    {
+        if (config.RetainerSaleWhitelistItemIds.Count == 0 ||
+            !ItemProtection.TryGetExcludedItemIds(bridge, config, out var excluded, out _, out _)) return false;
+        excluded.UnionWith(config.DontVendorItemIds);
+        var whitelist = config.RetainerSaleWhitelistItemIds.ToHashSet();
+        return bridge.ReadCarriedInventory(marketableItemIds, excluded, out _, out _, out var error, whitelist, allowedBoundItemIds: whitelist)
+            .Any(item => whitelist.Contains(item.ItemId) && bridge.CanVendorItem(item.ItemId)) && error.Length == 0;
+    }
+
+    /// <summary>Sells only whitelisted stacks; nothing is price-checked.</summary>
+    public void StartWhitelistOnly()
+    {
+        if (IsRunning) return;
+        whitelistOnly = true;
+        Start();
+        whitelistOnly = false;
+    }
     public string Status { get; private set; } = "Retainer sell is stopped.";
     public int Progress => candidates.Count == 0 ? 0 : Math.Min(index + 1, candidates.Count);
     public int CandidateCount => candidates.Count;
@@ -64,6 +89,9 @@ internal sealed class AutoVendorController : IDisposable
     public void Start()
     {
         if (IsRunning) return;
+        LastRunSucceeded = false;
+        GilEarned = 0;
+        StacksSold = 0;
         world = bridge.GetHomeWorld();
         if (world is null)
         { Status = "Log in to start retainer selling."; return; }
@@ -87,6 +115,7 @@ internal sealed class AutoVendorController : IDisposable
             out var excluded, out var unmarketable, out var inventoryError, retainerSaleWhitelist, allowedBoundItemIds: retainerSaleWhitelist);
         if (inventoryError.Length != 0)
         { Status = inventoryError; candidates = []; return; }
+        if (whitelistOnly) candidates = candidates.Where(item => retainerSaleWhitelist.Contains(item.ItemId)).ToList();
         if (candidates.Count == 0)
         { Status = $"No eligible carried items to check. {excluded} excluded and {unmarketable} unmarketable stack(s) were skipped."; return; }
 
@@ -133,7 +162,8 @@ internal sealed class AutoVendorController : IDisposable
     {
         if (index >= candidates.Count)
         {
-            Finish($"Retainer sell complete. Checked {candidates.Count} carried stack(s). {priceThreshold:N0}-gil threshold; all qualifying items were sold or skipped safely.");
+            LastRunSucceeded = true;
+            Finish($"Retainer sell complete: {StacksSold} stack(s) for {GilEarned:N0} gil. Checked {candidates.Count} carried stack(s). {priceThreshold:N0}-gil threshold; all qualifying items were sold or skipped safely.");
             return;
         }
         if (world is null || bridge.GetHomeWorld()?.WorldId != world.WorldId)
@@ -265,6 +295,8 @@ internal sealed class AutoVendorController : IDisposable
         var expectedRemaining = quantityBefore - targetReduction;
         if (current == expectedRemaining)
         {
+            StacksSold++;
+            GilEarned += (long)bridge.VendorUnitPrice(item.ItemId, item.IsHq) * targetReduction;
             index++;
             candidate = null;
             step = Step.Begin;

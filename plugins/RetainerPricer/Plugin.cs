@@ -77,6 +77,7 @@ public sealed class Plugin : IDalamudPlugin
         if (config.Version < 16 && config.AutoRunVentures) config.AutoReassignVentures = true;
         if (migrateConfig) config.Version = 16;
         config.Normalize();
+        if (config.SeedSalvageWhitelist()) migrateConfig = true;
         if (SettingsProfiles.Initialize(config) || migrateConfig) pluginInterface.SavePluginConfig(config);
         serverInfoBarEntry = dtrBar.Get("Retainer Pricer", "RP");
         serverInfoBarEntry.Tooltip = "Click to open Retainer Pricer";
@@ -230,6 +231,9 @@ public sealed class Plugin : IDalamudPlugin
             if (observedFullSequences != automation.CompletedRuns)
             {
                 observedFullSequences = automation.CompletedRuns;
+                if (automation.WhitelistGil > 0)
+                    chat.Print(new XivChatEntry { Type = XivChatType.Echo,
+                        Message = new SeStringBuilder().AddText($"[Retainer Pricer] Whitelisted items sold to the NPC for {automation.WhitelistGil:N0} gil.").Build() });
                 // The TT card trip teleports away, which would strand the character from its bell.
                 if (config.AutoSellTTCards && !multiCharacters.IsRunning) ttCards.Start();
             }
