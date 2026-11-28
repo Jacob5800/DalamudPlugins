@@ -27,6 +27,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     private static readonly System.Numerics.Vector3[] AmberToChambers =
         [new(0.25f, 0f, 7.778382f), new(-5.6685643f, 0f, -10.720649f)];
     private string pathSent = "";
+    private bool pathEnded;
 
     private const uint EntranceRow = 2002737, ChambersDoorRow = 2004353, EnterHallWarpRow = 131148, WorkshopMenuRow = 11;
     private const string WorkshopMenuSheet = "custom/001/CmnDefHousingPersonalRoomEntrance_00178";
@@ -43,6 +44,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     {
         Walking = commandSent = false;
         pathSent = "";
+        pathEnded = false;
         progressAt = null;
         next = default;
         Status = "";
@@ -132,10 +134,18 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         {
             if (pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc()) { progressAt = now; return null; }
             Walking = false;
-            return $"the Amber path ended {pathSent switch { "entrance" => "short of the house entrance", _ => "short of the additional chambers door" }}";
+            pathEnded = true;
         }
-        if (chambers != null)
-            return pathSent == "chambers" ? null : FollowPath("chambers", AmberToChambers, now, "Walking the Amber path to the additional chambers door...");
+        // The path ended out of reach of its door: walk the last stretch to that door instead of giving up.
+        if (pathEnded)
+        {
+            var door = pathSent == "chambers" ? chambers : Nearest(EntranceRow);
+            if (door == null) return null;
+            var failure = UseDoor(door, now, pathSent == "chambers" ? "Walking the last stretch to the additional chambers door..." : "Walking the last stretch to the house entrance...");
+            return failure is null ? null : $"the Amber path ended short of the {(pathSent == "chambers" ? "additional chambers door" : "house entrance")} ({failure})";
+        }
+        if (chambers != null && pathSent != "chambers")
+            return FollowPath("chambers", AmberToChambers, now, "Walking the Amber path to the additional chambers door...");
         var start = AmberToEntrance[0];
         var nearStart = client.TerritoryType == GobletTerritory && System.Numerics.Vector3.Distance(local.Position, start) <= 40;
         if (nearStart && pathSent != "entrance")
@@ -157,6 +167,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     {
         pi.GetIpcSubscriber<List<System.Numerics.Vector3>, bool, object>("vnavmesh.Path.MoveTo").InvokeAction(points.ToList(), false);
         pathSent = segment;
+        pathEnded = false;
         Walking = true;
         walkStartedAt = now;
         progressAt = now;
@@ -164,7 +175,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         return Note(status);
     }
 
-    private static bool InReach(IGameObject local, IGameObject door) =>
+    internal static bool InReach(IGameObject local, IGameObject door) =>
         new System.Numerics.Vector2(local.Position.X - door.Position.X, local.Position.Z - door.Position.Z).Length() <= 5f &&
         Math.Abs(local.Position.Y - door.Position.Y) <= 3f;
 

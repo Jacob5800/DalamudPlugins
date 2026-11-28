@@ -467,8 +467,8 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
             .OrderBy(candidate => System.Numerics.Vector3.Distance(local.Position, candidate.Position)).FirstOrDefault();
     }
 
-    private bool PanelInReach() => objects.LocalPlayer is { } local && NearestPanel() is { } panel &&
-        System.Numerics.Vector3.Distance(local.Position, panel.Position) <= 4.6f;
+    // Same reach as the walk uses, so the walk never stops just outside it.
+    private bool PanelInReach() => objects.LocalPlayer is { } local && NearestPanel() is { } panel && WorkshopEntry.InReach(local, panel);
 
     private bool UsePanel()
     {
