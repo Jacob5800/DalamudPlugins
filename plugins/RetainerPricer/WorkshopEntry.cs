@@ -18,8 +18,16 @@ namespace RetainerPricer;
 /// Lifestream is asked for the workshop; it walks in only when a house path is registered, so the doors are also handled here.
 /// </summary>
 internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObjectTable objects, ITargetManager targets,
-    IClientState client, IDalamudPluginInterface pi, NativeMarketBridge bridge)
+    IClientState client, IDalamudPluginInterface pi, NativeMarketBridge bridge, Func<bool> useAmberPath)
 {
+    // The Amber free company house (The Goblet). Points are walked in a straight line, so no navmesh is needed.
+    private const uint GobletTerritory = 341;
+    private static readonly System.Numerics.Vector3[] AmberToEntrance =
+        [new(168.44034f, -40.0f, 48.699894f), new(187.56631f, -39.91544f, 53.32243f)];
+    private static readonly System.Numerics.Vector3[] AmberToChambers =
+        [new(0.25f, 0f, 7.778382f), new(-5.6685643f, 0f, -10.720649f)];
+    private string pathSent = "";
+
     private const uint EntranceRow = 2002737, ChambersDoorRow = 2004353, EnterHallWarpRow = 131148, WorkshopMenuRow = 11;
     private const string WorkshopMenuSheet = "custom/001/CmnDefHousingPersonalRoomEntrance_00178";
 
@@ -34,6 +42,7 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
     public void Reset()
     {
         Walking = commandSent = false;
+        pathSent = "";
         progressAt = null;
         next = default;
         Status = "";
@@ -87,6 +96,8 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         if (nearestDoor != null && InReach(local, nearestDoor) && (onOwnPlot || commandSent))
             return UseDoor(nearestDoor, now, "Opening your free company house door...");
 
+        if (useAmberPath()) return AmberStep(local, chambers, now);
+
         // Lifestream first: with the house paths registered it walks to each door, which vnavmesh cannot.
         // It is asked once; afterwards it is asked again only when the character is back outside the house.
         if (!commandSent)
@@ -111,6 +122,45 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         return progressAt is { } last && now - last > TimeSpan.FromSeconds(45)
             ? "no way into the workshop was found; check that this character's free company has a house with a workshop"
             : null;
+    }
+
+    // The built-in Amber path: Lifestream only teleports, the recorded points lead to each door.
+    private string? AmberStep(IGameObject local, IGameObject? chambers, DateTimeOffset now)
+    {
+        if (Walking)
+        {
+            if (pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc()) { progressAt = now; return null; }
+            Walking = false;
+            return $"the Amber path ended {pathSent switch { "entrance" => "short of the house entrance", _ => "short of the additional chambers door" }}";
+        }
+        if (chambers != null)
+            return pathSent == "chambers" ? null : FollowPath("chambers", AmberToChambers, now, "Walking the Amber path to the additional chambers door...");
+        var start = AmberToEntrance[0];
+        var nearStart = client.TerritoryType == GobletTerritory && System.Numerics.Vector3.Distance(local.Position, start) <= 40;
+        if (nearStart && pathSent != "entrance")
+            return FollowPath("entrance", AmberToEntrance, now, "Walking the Amber path to the house entrance...");
+        if (!commandSent && !nearStart)
+        {
+            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("fc");
+            commandSent = true;
+            next = now.AddSeconds(5);
+            progressAt = now;
+            return Note("Asking Lifestream to take you to the Amber free company house...");
+        }
+        return progressAt is { } last && now - last > TimeSpan.FromSeconds(45)
+            ? "the Amber house could not be reached; check that this character is in the Amber free company"
+            : null;
+    }
+
+    private string? FollowPath(string segment, System.Numerics.Vector3[] points, DateTimeOffset now, string status)
+    {
+        pi.GetIpcSubscriber<List<System.Numerics.Vector3>, bool, object>("vnavmesh.Path.MoveTo").InvokeAction(points.ToList(), false);
+        pathSent = segment;
+        Walking = true;
+        walkStartedAt = now;
+        progressAt = now;
+        next = now.AddSeconds(1);
+        return Note(status);
     }
 
     private static bool InReach(IGameObject local, IGameObject door) =>

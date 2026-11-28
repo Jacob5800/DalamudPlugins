@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.3.6",
+  "AssemblyVersion": "0.5.3.7",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.3.6\n\n- Workshop travel now always lets Lifestream walk your registered house paths first, also when you start on your own plot, and opens each door once you reach it.\n- Travelling to the workshop for submarines is now an option, off by default. Turn on Travel to the workshop after registering your free company house paths in Lifestream; otherwise start next to the voyage control panel.",
+  "Changelog": "## 0.5.3.7\n\n- Added an Amber option to workshop travel: characters in the Amber free company use a built-in path to its house and workshop, with nothing to register in Lifestream.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

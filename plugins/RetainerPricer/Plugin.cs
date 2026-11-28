@@ -125,12 +125,12 @@ public sealed class Plugin : IDalamudPlugin
             () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || multiCharacters?.IsRunning == true);
         multiCharacterHost = new MultiCharacterHost(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
             config, bridge, automation, () => controller.Busy || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning,
-            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge));
+            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge, () => config.UseAmberHousePath));
         multiCharacters = new MultiCharacterRun(multiCharacterHost);
         automation.Desynthesis = new DesynthesisStep(new DesynthesisHost(desynthesis, multiCharacterHost));
         submarines = new SubmarineController(gameGui, data, objects, targets, condition, bridge, () => controller.Busy || automation.IsRunning ||
             vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning || multiCharacters.IsRunning, IsAutoRetainerLoaded, pluginInterface,
-            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge), () => config.SubmarineTravel);
+            new WorkshopEntry(gameGui, data, objects, targets, clientState, pluginInterface, bridge, () => config.UseAmberHousePath), () => config.SubmarineTravel);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,

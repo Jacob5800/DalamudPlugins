@@ -1,3 +1,7 @@
+## 0.5.3.7
+
+- Added an Amber option to workshop travel: characters in the Amber free company use a built-in path to its house and workshop, with nothing to register in Lifestream.
+
 ## 0.5.3.6
 
 - Workshop travel now always lets Lifestream walk your registered house paths first, also when you start on your own plot, and opens each door once you reach it.

@@ -1231,7 +1231,11 @@ internal sealed class MainWindow : Window
             ImGui.TextColored(lifestream ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
                 lifestream ? "Requires Lifestream - enabled" : "Requires Lifestream - missing or disabled");
             DrawNavigationRequirement();
-            ImGui.TextWrapped("Register a free company house path for each character in Lifestream: Path to house (plot entrance to front door) and Path to workshop (inside to the additional chambers door).");
+            var amber = config.UseAmberHousePath;
+            if (ImGui.Checkbox("Amber", ref amber)) { config.UseAmberHousePath = amber; save(); }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("For characters in the Amber free company only. Uses the built-in path to the Amber house (The Goblet) and its workshop, so nothing has to be registered in Lifestream.");
+            if (!config.UseAmberHousePath)
+                ImGui.TextWrapped("Register a free company house path for each character in Lifestream: Path to house (plot entrance to front door) and Path to workshop (inside to the additional chambers door).");
         }
         var states = submarines.Read();
         if (states.Count == 0) ImGui.TextWrapped("Submersible data appears while you are in the workshop; open the panel once if the list stays empty.");

@@ -1,4 +1,3 @@
-## 0.5.3.6
+## 0.5.3.7
 
-- Workshop travel now always lets Lifestream walk your registered house paths first, also when you start on your own plot, and opens each door once you reach it.
-- Travelling to the workshop for submarines is now an option, off by default. Turn on Travel to the workshop after registering your free company house paths in Lifestream; otherwise start next to the voyage control panel.
+- Added an Amber option to workshop travel: characters in the Amber free company use a built-in path to its house and workshop, with nothing to register in Lifestream.
