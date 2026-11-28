@@ -9,6 +9,10 @@ public static class PriceCalculator
     public const int SaleHistoryDays = 45;
     public static readonly TimeSpan RequiredSaleHistoryWindow = TimeSpan.FromDays(SaleHistoryDays);
 
+    // A thinly listed item takes its price from whoever listed it, so it is compared with what actually sold.
+    public const int ThinMarketListings = 3;
+    public const uint UnverifiedHighPrice = 100_000;
+
     public static PriceProposal Calculate(
         PriceSnapshot snapshot,
         uint itemId,
@@ -21,7 +25,7 @@ public static class PriceCalculator
         string? dataCenterName = null,
         PriceStrategy strategy = PriceStrategy.UndercutByOne,
         int undercutGilAmount = 1, double undercutPercentage = 1,
-        bool requireRecentSale = true, bool allowSalesFallback = false)
+        bool requireRecentSale = true, bool allowSalesFallback = false, bool checkThinMarket = false)
     {
         static PriceProposal Fail(string message, uint lowest = 0, int count = 0, uint? salesMedian = null, PriceRejection rejection = PriceRejection.None)
             => new(lowest, 0, count, message, salesMedian, Rejection: rejection);
@@ -122,6 +126,19 @@ public static class PriceCalculator
                     ? "Recent sale history contains prices below 25% or above 5x its median. Approve a price or skip this item."
                     : "The proposed price is below 25% or above 5x the recent sales median. Approve a price or skip this item.",
                 salesMedian, usedSalesFallback, PriceRejection.UnusualHistoryPrice, matchingSales);
+        if (checkThinMarket && !usedSalesFallback && matches <= ThinMarketListings)
+        {
+            string? doubt = null;
+            if (matchingSales >= 3 && salesMedian is { } typical)
+            {
+                if ((ulong)suggested > (ulong)typical * 2)
+                    doubt = $"Only {matches} competing listing(s), and {suggested:N0} gil is over 200% of the {typical:N0} gil sales median. Approve a price or skip this item.";
+            }
+            else if (suggested >= UnverifiedHighPrice)
+                doubt = $"Only {matches} competing listing(s) and too few recent sales to confirm {suggested:N0} gil. Approve a price or skip this item.";
+            if (doubt is not null)
+                return new(lowest, suggested, matches, doubt, salesMedian, false, PriceRejection.FarAboveSales, matchingSales);
+        }
         return new(lowest, suggested, matches, null, salesMedian, usedSalesFallback, MatchingSales: matchingSales);
     }
 }

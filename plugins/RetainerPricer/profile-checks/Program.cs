@@ -186,6 +186,32 @@ Check(PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99)
     "other quality does not block history fallback");
 Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)] },42,74,false,ownIds,clock),
     "missing ownership cannot become empty-market fallback");
+// Thinly listed items are compared with real sales before a price is applied.
+{
+    var sold = new uint[] { 1000, 1100, 1200 }.Select(price => new MarketSale(false, price, 74, "Home", clock.AddDays(-1))).ToArray();
+    PriceProposal Thin(uint price, MarketSale[]? sales, int competitors = 1) => PriceCalculator.Calculate(
+        historyOnly with { Sales = sales, Listings = Enumerable.Range(0, competitors).Select(i => Listing(price, (ulong)(200 + i))).ToList() },
+        42, 74, false, ownIds, 1, clock, null, requireRecentSale: false, allowSalesFallback: true, checkThinMarket: true);
+    var bait = Thin(10_000_033, sold);
+    Check(!bait.CanApply && bait.Rejection == PriceRejection.FarAboveSales && bait.SuggestedPrice == 10_000_032 && bait.SaleHistoryMedian == 1100,
+        "a lone bait listing is held for review");
+    Check(Thin(2201, sold).CanApply, "exactly 200% of the median is allowed");
+    Check(Thin(2202, sold).Rejection == PriceRejection.FarAboveSales, "just over 200% is held");
+    Check(Thin(10_000_033, sold, 4).CanApply, "four competitors are not treated as a thin market");
+    Check(Thin(100_001, []).Rejection == PriceRejection.FarAboveSales, "100,000 gil without sales is held");
+    Check(Thin(100_000, []).CanApply, "99,999 gil without sales is allowed");
+    Check(PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,99)] },42,74,false,ownIds,clock, checkThinMarket: true),
+        "a thin market fetches sales history");
+}
+{
+    var history = new GameSaleHistory();
+    var sold = new[] { new MarketSale(false, 1100, 0, "Home", clock.AddDays(-1)) };
+    history.Record(42, sold, clock);
+    Check(history.TryGet(42, clock, out var seen) && seen.Count == 1, "game sale history for this request is used");
+    Check(!history.TryGet(42, clock.AddSeconds(1), out _) && !history.TryGet(43, clock, out _), "older or other-item history is ignored");
+    var attached = GameSaleHistory.Attach(Live(), sold);
+    Check(attached.Source == PriceSource.Local && attached.MostRecentSaleAt == clock.AddDays(-1), "game history attaches to live listings");
+}
 var runCache = new RunPriceCache();
 var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
 runCache.Remember(runKey,historyOnly);

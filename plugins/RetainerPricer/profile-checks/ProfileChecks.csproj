@@ -17,5 +17,6 @@
     <Compile Include="../BelowVendorPolicy.cs" Link="BelowVendorPolicy.cs" />
     <Compile Include="../ListingRefresh.cs" Link="ListingRefresh.cs" />
     <Compile Include="../MultiCharacterRun.cs" Link="MultiCharacterRun.cs" />
+    <Compile Include="../GameSaleHistory.cs" Link="GameSaleHistory.cs" />
   </ItemGroup>
 </Project>

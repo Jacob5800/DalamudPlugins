@@ -37,6 +37,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TtCardSaleController ttCards;
     private readonly RetainerJobPurchaseController jobPurchase;
     private int observedFullSequences;
+    private readonly IMarketBoard marketBoard;
     private readonly MultiCharacterHost multiCharacterHost;
     private readonly MultiCharacterRun multiCharacters;
     private readonly InventoryListMenu inventoryMenus;
@@ -57,7 +58,7 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin(IDalamudPluginInterface pluginInterface, ICommandManager commands, IFramework framework,
         IGameGui gameGui, IDataManager data, IPlayerState player, IClientState clientState,
         ICondition condition, IAddonLifecycle addons, IDtrBar dtrBar,
-        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets, IKeyState keyState)
+        IGameInteropProvider interop, ISigScanner sigScanner, IPluginLog log, IContextMenu contextMenu, IChatGui chat, IObjectTable objects, ITargetManager targets, IKeyState keyState, IMarketBoard marketBoard)
     {
         (this.pluginInterface, this.commands, this.framework, this.log) = (pluginInterface, commands, framework, log);
         this.keyState = keyState;
@@ -100,6 +101,8 @@ public sealed class Plugin : IDalamudPlugin
             .GroupBy(world => world.RowId)
             .ToDictionary(group => group.Key, group => group.First().Name.ToString());
         controller = new PricingController(bridge, universalis, config, marketableItemIds, Save);
+        this.marketBoard = marketBoard;
+        marketBoard.HistoryReceived += OnSaleHistory;
         universalis.DiagnosticLog = message => statusHistory.Add("Universalis", message);
         sniper = new SniperMonitor(universalis, config, marketableItemChoices, worldNames);
         vendor = new AutoVendorController(bridge, universalis, config, marketableItemIds);
@@ -153,6 +156,21 @@ public sealed class Plugin : IDalamudPlugin
         rpAliasRegistered = commands.AddHandler("/rp", new CommandInfo((_, _) => Toggle())
         { HelpMessage = "Open Retainer Pricer." });
         if (!rpAliasRegistered) log.Warning("The /rp command is already registered by another plugin. Use /retainerpricer or /retainer.");
+    }
+
+    private void OnSaleHistory(Dalamud.Game.Network.Structures.IMarketBoardHistory history)
+    {
+        if (disposed) return;
+        try
+        {
+            controller.GameHistory.Record(history.ItemId, history.HistoryListings
+                .Where(sale => !sale.OnMannequin && sale.SalePrice > 0)
+                .Select(sale => new MarketSale(sale.IsHq, sale.SalePrice, 0, "Home", new DateTimeOffset(
+                    sale.PurchaseTime.Kind == DateTimeKind.Local ? sale.PurchaseTime.ToUniversalTime()
+                        : DateTime.SpecifyKind(sale.PurchaseTime, DateTimeKind.Utc))))
+                .ToList(), DateTimeOffset.UtcNow);
+        }
+        catch (Exception ex) { log.Warning(ex, "Retainer Pricer could not read the marketboard sale history"); }
     }
 
     private void Dispatch(Action action)
@@ -518,6 +536,7 @@ public sealed class Plugin : IDalamudPlugin
         disposed = true;
         var failures = shutdown.Run(
             ("Framework update", () => framework.Update -= Update),
+            ("Sale history", () => marketBoard.HistoryReceived -= OnSaleHistory),
             ("Window drawing", () => pluginInterface.UiBuilder.Draw -= windows.Draw),
             ("Clipboard drawing", () => pluginInterface.UiBuilder.Draw -= DrawMarketboardClipboard),
             ("Venture button", () => pluginInterface.UiBuilder.Draw -= DrawRetainerVentureButton),

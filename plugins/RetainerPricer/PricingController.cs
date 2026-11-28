@@ -29,7 +29,8 @@ internal sealed class PriceReviewEntry(SellItem item, PriceProposal proposal, st
     public bool CanVendor { get; set; }
     public bool Decided { get; set; }
     public bool Finished { get; set; }
-    public int Price { get; set; } = (int)(proposal.SuggestedPrice > 0 ? proposal.SuggestedPrice : proposal.SaleHistoryMedian ?? item.CurrentPrice);
+    public int Price { get; set; } = (int)(proposal.Rejection == PriceRejection.FarAboveSales && proposal.SaleHistoryMedian is { } typical ? typical
+        : proposal.SuggestedPrice > 0 ? proposal.SuggestedPrice : proposal.SaleHistoryMedian ?? item.CurrentPrice);
 }
 
 internal sealed class PricingController : IDisposable
@@ -70,6 +71,9 @@ internal sealed class PricingController : IDisposable
     private readonly MarketComparisonRetry localRetry = new();
     private PriceSnapshot? pendingHistoryListings;
     private Task<PriceSnapshot>? historyTask;
+    internal GameSaleHistory GameHistory { get; } = new();
+    private (PriceSnapshot Live, DateTimeOffset Until)? awaitingGameHistory;
+    private DateTimeOffset localRequestedAt;
     private readonly List<PriceReviewEntry> priceReviews = [];
     public IReadOnlyList<PriceReviewEntry> PendingPriceReviews => priceReviews;
     public bool WaitingForPriceReviews { get; private set; }
@@ -87,7 +91,7 @@ internal sealed class PricingController : IDisposable
     private string PriceReviewReason(SellItem item, PriceProposal proposal)
     {
         List<string> reasons = [];
-        if (proposal.Rejection is PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice)
+        if (proposal.Rejection is PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice or PriceRejection.FarAboveSales)
             reasons.Add(proposal.Error ?? "Sale-history approval required");
         if (proposal.CanApply && proposal.SuggestedPrice != item.CurrentPrice)
         {
@@ -943,7 +947,7 @@ internal sealed class PricingController : IDisposable
 
     private bool AwaitHistoryReview(SellItem item, PriceProposal proposal, Action proceed, Action skip)
     {
-        if (proposal.Rejection is not (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice)) return false;
+        if (proposal.Rejection is not (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice or PriceRejection.FarAboveSales)) return false;
         HistoryReviewItem = item;
         HistoryReviewProposal = proposal;
         historyProceed = proceed;
@@ -2640,6 +2644,7 @@ internal sealed class PricingController : IDisposable
         {
             if (!bridge.RequestCompare(item, out error)) return false;
             localRequested = true;
+            localRequestedAt = DateTimeOffset.UtcNow.AddSeconds(-1);
         }
         return true;
     }
@@ -2649,6 +2654,27 @@ internal sealed class PricingController : IDisposable
     {
         snapshot = null;
         error = "";
+        if (awaitingGameHistory is { } waiting)
+        {
+            if (!bridge.TryReadSellItem(out var selling, out _) || !SameDialog(item, selling))
+            { awaitingGameHistory = null; error = "The selling item changed during history lookup. No price applied."; return true; }
+            if (GameHistory.TryGet(item.ItemId, localRequestedAt, out var seen))
+            {
+                awaitingGameHistory = null;
+                snapshot = GameSaleHistory.Attach(waiting.Live, seen);
+                RememberRunQuote(item, snapshot);
+                bridge.LogAutomationDiagnostic($"Game sale history item={item.ItemId}, HQ={item.IsHq}, sales={seen.Count}");
+                return true;
+            }
+            if (now < waiting.Until) return false;
+            // The game sent no history for this comparison; ask Universalis for the home world instead.
+            awaitingGameHistory = null;
+            pendingHistoryListings = waiting.Live;
+            historyTask = universalis.FetchAsync(item.Session.WorldId, item.ItemId, cancellation.Token, config.UniversalisCacheMinutes);
+            deadline = now.AddSeconds(25);
+            Status = $"{item.Name}: the game sent no sale history. Checking Universalis home-world sales...";
+            return false;
+        }
         if (historyTask is { } pending)
         {
             if (!pending.IsCompleted && now <= deadline) return false;
@@ -2688,13 +2714,12 @@ internal sealed class PricingController : IDisposable
         {
             localRequested = false;
             if (snapshot is not null && bridge.TryGetOwnRetainerIds(out var ownIds) && ownIds.Contains(item.Session.RetainerId) &&
-                PriceHistoryFallback.ShouldFetch(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds, now))
+                PriceHistoryFallback.ShouldFetch(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds, now, checkThinMarket: true))
             {
-                pendingHistoryListings = snapshot;
+                awaitingGameHistory = (snapshot, now.AddSeconds(2));
                 snapshot = null;
-                historyTask = universalis.FetchAsync(item.Session.WorldId, item.ItemId, cancellation.Token, config.UniversalisCacheMinutes);
                 deadline = now.AddSeconds(25);
-                Status = $"{item.Name}: no same-quality competitors. Checking Universalis home-world sales history...";
+                Status = $"{item.Name}: few or no same-quality competitors. Checking the marketboard sale history...";
                 return false;
             }
             if (snapshot is not null) RememberRunQuote(item, snapshot);
@@ -2719,7 +2744,8 @@ internal sealed class PricingController : IDisposable
         var proposal = Calculate(snapshot, item.ItemId, item.Session.WorldId, item.IsHq, ownIds,
             snapshot.Source == PriceSource.Universalis && (config.UseDataCenterPrices || config.UseRegionPrices)
                 ? item.Session.DataCenterName : null,
-            allowSalesFallback: !item.IsExisting || (snapshot.Source == PriceSource.Local && snapshot.Sales is not null));
+            allowSalesFallback: !item.IsExisting || (snapshot.Source == PriceSource.Local && snapshot.Sales is not null),
+            checkThinMarket: true);
         if (config.DebugListingSelector &&
             (!ReferenceEquals(lastDiagnosticSnapshot, snapshot) || lastDiagnosticDialog != item.DialogGeneration))
         {
@@ -2739,9 +2765,14 @@ internal sealed class PricingController : IDisposable
             }
             bridge.LogAutomationDiagnostic($"Price result item={item.ItemId} lowest={proposal.LowestPrice} suggested={proposal.SuggestedPrice} eligible={proposal.MatchingListings} historyFallback={proposal.UsedSalesFallback} matchingSales={proposal.MatchingSales} median={proposal.SaleHistoryMedian} rejection={proposal.Rejection} error={proposal.Error ?? "none"}");
         }
-        if (proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice) && approvedHistoryPrice is { } review &&
+        if (proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice or PriceRejection.FarAboveSales) && approvedHistoryPrice is { } review &&
             SameListing(item, review.Item) && workingItem is { } active && SameDialog(active, review.Item))
             return proposal with { SuggestedPrice = review.Price, Error = null, Rejection = PriceRejection.None };
+        // Only a raise needs checking on an existing listing; lowering towards a high lone competitor is harmless.
+        if (item.IsExisting && proposal.Rejection == PriceRejection.FarAboveSales && proposal.SuggestedPrice <= item.CurrentPrice)
+            return proposal with { Error = null, Rejection = PriceRejection.None };
+        if (item.IsExisting && proposal.Rejection == PriceRejection.FarAboveSales && config.AllowListingPriceIncreases is false)
+            return proposal with { Error = "Price increase disabled in Settings. Current price kept.", Rejection = PriceRejection.None };
         if (item.IsExisting && proposal.Rejection is (PriceRejection.InsufficientHistory or PriceRejection.UnusualHistoryPrice))
         {
             if (proposal.SaleHistoryMedian is not { } median)
@@ -2753,11 +2784,11 @@ internal sealed class PricingController : IDisposable
     }
 
     private PriceProposal Calculate(PriceSnapshot snapshot, uint itemId, uint worldId, bool isHq,
-        IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null, bool allowSalesFallback = false)
+        IReadOnlySet<ulong> ownRetainerIds, string? dataCenterName = null, bool allowSalesFallback = false, bool checkThinMarket = false)
         => PriceCalculator.Calculate(snapshot, itemId, worldId, isHq, ownRetainerIds, (uint)config.MinimumPrice,
             DateTimeOffset.UtcNow, config.UseMaximumPriceAge ? TimeSpan.FromMinutes(config.MaximumAgeMinutes) : null,
             dataCenterName, config.PriceStrategy, config.UndercutGilAmount, config.UndercutPercentage,
-            requireRecentSale: false, allowSalesFallback: allowSalesFallback);
+            requireRecentSale: false, allowSalesFallback: allowSalesFallback, checkThinMarket: checkThinMarket);
 
     private bool IsNoReprice(uint itemId) => config.NoRepriceItemIds.Contains(itemId);
 
@@ -2767,6 +2798,7 @@ internal sealed class PricingController : IDisposable
         cancellation.Dispose();
         cancellation = new CancellationTokenSource();
         quoteTask = null;
+        awaitingGameHistory = null;
         historyTask = null; pendingHistoryListings = null;
         historyLookupFailed = false;
         approvedHistoryPrice = null;

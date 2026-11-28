@@ -88,7 +88,7 @@ public sealed record PriceSnapshot(
     string? RegionName = null,
     IReadOnlyList<MarketSale>? Sales = null);
 
-public enum PriceRejection { None, CannotUndercutOneGil, BelowMinimum, InsufficientHistory, UnusualHistoryPrice }
+public enum PriceRejection { None, CannotUndercutOneGil, BelowMinimum, InsufficientHistory, UnusualHistoryPrice, FarAboveSales }
 
 public sealed record PriceProposal(uint LowestPrice, uint SuggestedPrice, int MatchingListings, string? Error,
     uint? SaleHistoryMedian = null, bool UsedSalesFallback = false, PriceRejection Rejection = PriceRejection.None, int MatchingSales = 0)

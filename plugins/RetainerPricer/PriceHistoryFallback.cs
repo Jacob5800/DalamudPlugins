@@ -3,9 +3,14 @@ namespace RetainerPricer;
 internal static class PriceHistoryFallback
 {
     public static bool ShouldFetch(PriceSnapshot live, uint itemId, uint worldId, bool isHq,
-        IReadOnlySet<ulong> ownIds, DateTimeOffset now) => live.Source == PriceSource.Local &&
-        PriceCalculator.Calculate(live, itemId, worldId, isHq, ownIds, 1, now, null,
-            requireRecentSale: false, allowSalesFallback: true).Rejection == PriceRejection.InsufficientHistory;
+        IReadOnlySet<ulong> ownIds, DateTimeOffset now, bool checkThinMarket = false)
+    {
+        if (live.Source != PriceSource.Local) return false;
+        var result = PriceCalculator.Calculate(live, itemId, worldId, isHq, ownIds, 1, now, null,
+            requireRecentSale: false, allowSalesFallback: true);
+        return result.Rejection == PriceRejection.InsufficientHistory ||
+            checkThinMarket && result.CanApply && result.MatchingListings is > 0 and <= PriceCalculator.ThinMarketListings;
+    }
 
     public static PriceSnapshot Attach(PriceSnapshot live, PriceSnapshot history)
     {
