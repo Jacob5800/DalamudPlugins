@@ -220,6 +220,20 @@ Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)
     declines.ForgetDeclined();
     Check(!declines.Declined(42, false), "a new run asks again");
 }
+{
+    var fake = new FakeDesynthesis();
+    var step = new DesynthesisStep(fake);
+    var at = DateTimeOffset.UnixEpoch;
+    step.Begin(at);
+    for (var i = 0; i < 20 && step.IsRunning; i++) step.Update(at = at.AddSeconds(4));
+    Check(step.Succeeded && string.Join(",", fake.Log) == "close,start,bell", "desynthesis leaves the bell, runs, then reopens it");
+    fake = new FakeDesynthesis { Fail = true };
+    step = new DesynthesisStep(fake);
+    step.Begin(at);
+    for (var i = 0; i < 20 && step.IsRunning; i++) step.Update(at = at.AddSeconds(4));
+    Check(!step.Succeeded && !step.IsRunning && !fake.Log.Contains("bell"), "a failed desynthesis stops the sequence");
+    Check(!new PluginConfig().AutoDesynthesis, "automatic desynthesis is off by default");
+}
 var runCache = new RunPriceCache();
 var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
 runCache.Remember(runKey,historyOnly);
@@ -380,4 +394,20 @@ sealed class FakeHost : RetainerPricer.IMultiCharacterHost
     public int CompletedSequences { get; private set; }
     public string SequenceStatus => "failed";
     public void CancelSequence(string reason) { }
+}
+
+sealed class FakeDesynthesis : RetainerPricer.IDesynthesisHost
+{
+    public bool Fail;
+    public List<string> Log = [];
+    public bool HasWork => true;
+    public bool PickerOpen { get; private set; } = true;
+    public bool AtBell => PickerOpen;
+    public void ClosePicker() { Log.Add("close"); PickerOpen = false; }
+    public bool TryUseBell() { Log.Add("bell"); PickerOpen = true; return true; }
+    public void Start() { Log.Add("start"); Succeeded = !Fail; }
+    public bool Running => false;
+    public bool Succeeded { get; private set; }
+    public string Status => "failed";
+    public void Stop(string reason) { }
 }

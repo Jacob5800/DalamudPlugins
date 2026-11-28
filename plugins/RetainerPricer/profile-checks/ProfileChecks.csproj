@@ -18,5 +18,6 @@
     <Compile Include="../ListingRefresh.cs" Link="ListingRefresh.cs" />
     <Compile Include="../MultiCharacterRun.cs" Link="MultiCharacterRun.cs" />
     <Compile Include="../GameSaleHistory.cs" Link="GameSaleHistory.cs" />
+    <Compile Include="../DesynthesisStep.cs" Link="DesynthesisStep.cs" />
   </ItemGroup>
 </Project>

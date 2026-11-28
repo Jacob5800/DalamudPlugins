@@ -79,6 +79,28 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
     }
 
     public bool IsRunning { get; private set; }
+    public bool LastRunSucceeded { get; private set; }
+
+    /// <summary>True when a listed, unprotected item the character can desynthesize is carried or in the armoury chest.</summary>
+    public bool HasWork()
+    {
+        var inventory = InventoryManager.Instance();
+        if (bridge.IsClientStateUnavailable || inventory == null || !QuestManager.IsQuestComplete(65688) ||
+            config.DesynthesisItemIds.Count == 0 || !TryGetProtections(out var protectedIds, out _)) return false;
+        foreach (var type in Bags.Concat(Armoury))
+        {
+            var bag = inventory->GetInventoryContainer(type);
+            if (bag == null || !bag->IsLoaded) continue;
+            for (int i = 0; i < bag->Size; i++)
+            {
+                var slot = bag->GetInventorySlot(i);
+                if (slot == null || slot->IsEmpty() || slot->IsCollectable()) continue;
+                uint id = slot->GetBaseItemId();
+                if (config.DesynthesisItemIds.Contains(id) && !protectedIds.Contains(id) && CanDesynthesize(id)) return true;
+            }
+        }
+        return false;
+    }
     public string Status { get; private set; } = "Ready.";
     private DateTimeOffset next, deadline;
     private (InventoryType Bag, int Slot, uint Id, uint Quantity)? pending;
@@ -349,6 +371,7 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         transfer = null;
         completed = 0; pending = null; next = DateTimeOffset.MinValue;
         ResetConsumables();
+        LastRunSucceeded = false;
         IsRunning = true; Status = "Desynthesis started. Close retainer and other interaction windows.";
     }
     private void UpdateMateria(InventoryManager* inventory, DateTimeOffset now)
@@ -617,5 +640,6 @@ internal sealed unsafe class DesynthesisController(PluginConfig config, NativeMa
         }
         if (PullArmouryItem(inventory, protectedIds, now)) return;
         Stop($"Desynthesis complete: {completed} item(s). Protected, declined and ineligible items skipped.");
+        LastRunSucceeded = true;
     }
 }

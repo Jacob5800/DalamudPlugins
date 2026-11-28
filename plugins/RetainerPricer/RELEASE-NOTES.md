@@ -1,3 +1,4 @@
-## 0.5.1.97
+## 0.5.1.98
 
-- An item you skip during a run is no longer offered again on each following retainer. It is asked about again on your next run.
+- Added Auto Desynthesis in Automation, off by default: after the venture steps and before listing, it leaves the bell, desynthesizes your listed items and opens the same bell again.
+- Multi-character runs now show whether Lifestream is enabled, in green or red.

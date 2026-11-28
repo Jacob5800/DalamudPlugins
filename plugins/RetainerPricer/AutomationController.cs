@@ -4,7 +4,7 @@ namespace RetainerPricer;
 internal sealed class AutomationController(NativeMarketBridge bridge, PricingController pricing,
     VentureController ventures, AutoVendorController vendor, PluginConfig config, Func<bool> autoRetainerLoaded)
 {
-    private enum Stage { Idle, Collect, Assign, List, Reprice }
+    private enum Stage { Idle, Collect, Assign, Desynthesize, List, Reprice }
     private Stage stage;
     private bool collectEnabled, repriceEnabled, listEnabled, assignEnabled;
     private ulong contentId;
@@ -12,6 +12,9 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
     public AutomationRunSummary? LastSummary { get; private set; }
     public int CompletedRuns { get; private set; }
     public bool IsRunning => stage != Stage.Idle;
+    /// <summary>Set by the plugin once desynthesis exists.</summary>
+    public DesynthesisStep? Desynthesis { get; set; }
+    public bool IsDesynthesizing => stage == Stage.Desynthesize;
     public bool AutoRetainerLoaded => autoRetainerLoaded();
     public string Status { get; private set; } = "Full sequence is idle.";
 
@@ -72,6 +75,16 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
             if (!ventures.IsRunning && !ventures.LastRunSucceeded) Fail(ventures.Status);
             return;
         }
+        // After the ventures, so rewards just collected are included, and before listing so they are not sold first.
+        // Opt-in only: running the full sequence never implies breaking items down.
+        if (previous < Stage.Desynthesize && config.AutoDesynthesis && Desynthesis is { HasWork: true } desynthesisStep)
+        {
+            LastSummary?.BeginPhase("Desynthesis");
+            stage = Stage.Desynthesize;
+            desynthesisStep.Begin(DateTimeOffset.UtcNow);
+            Status = desynthesisStep.Status;
+            return;
+        }
         if (previous < Stage.List && listEnabled)
         {
             LastSummary?.BeginPhase("New listings");
@@ -104,6 +117,13 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
         { Cancel("Automation stopped: AutoRetainer loaded, disconnected, or character/world changed."); return; }
         switch (stage)
         {
+            case Stage.Desynthesize when Desynthesis is { } desynthesisStep:
+                desynthesisStep.Update(DateTimeOffset.UtcNow);
+                Status = desynthesisStep.Status;
+                if (desynthesisStep.IsRunning) return;
+                if (!desynthesisStep.Succeeded) { Fail(desynthesisStep.Status); return; }
+                Advance();
+                break;
             case Stage.Collect or Stage.Assign when !ventures.IsRunning:
                 if (!ventures.LastRunSucceeded) { Fail(ventures.Status); return; }
                 Advance();
@@ -134,6 +154,7 @@ internal sealed class AutomationController(NativeMarketBridge bridge, PricingCon
     {
         if (IsRunning) CompleteSummary("Stopped", $"{message} {pricing.Progress}");
         stage = Stage.Idle;
+        Desynthesis?.Cancel(message);
         pricing.Cancel();
         ventures.Cancel();
         Status = message;

@@ -116,13 +116,15 @@ public sealed class Plugin : IDalamudPlugin
         ttCards = new TtCardSaleController(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
             config, bridge, () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis?.IsRunning == true || multiCharacters?.IsRunning == true);
         desynthesis = new DesynthesisController(config, bridge, data, condition, objects, gameGui,
-            () => jobPurchase?.IsRunning == true || controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || ttCards.IsRunning || multiCharacters?.IsRunning == true);
+            () => jobPurchase?.IsRunning == true || controller.Busy || vendor.IsRunning || ventures.IsRunning || ttCards.IsRunning ||
+                !automation.IsDesynthesizing && (automation.IsRunning || multiCharacters?.IsRunning == true));
         inventoryMenus.DesynthesizableItemIds = itemSheet.Where(item => item.Desynth > 0).Select(item => item.RowId).ToHashSet();
         jobPurchase = new RetainerJobPurchaseController(pluginInterface, gameGui, data, objects, targets, clientState, player, condition, bridge,
             () => controller.Busy || automation.IsRunning || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || multiCharacters?.IsRunning == true);
         multiCharacterHost = new MultiCharacterHost(pluginInterface, gameGui, data, objects, targets, clientState, player, condition,
             config, bridge, automation, () => controller.Busy || vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning);
         multiCharacters = new MultiCharacterRun(multiCharacterHost);
+        automation.Desynthesis = new DesynthesisStep(new DesynthesisHost(desynthesis, multiCharacterHost));
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
@@ -137,6 +139,8 @@ public sealed class Plugin : IDalamudPlugin
             log.Warning("Retainer Pricer: {Error}", selectorCompatibilityError);
         window.OperationHistory = statusHistory;
         window.MultiCharacters = multiCharacters;
+        window.LifestreamLoaded = () => pluginInterface.InstalledPlugins.Any(plugin => plugin.IsLoaded &&
+            string.Equals(plugin.InternalName, "Lifestream", StringComparison.OrdinalIgnoreCase));
         window.MarketboardRoiDiagnostics = () => marketboardRoi.Diagnostics;
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.Draw += DrawMarketboardClipboard;
@@ -208,7 +212,7 @@ public sealed class Plugin : IDalamudPlugin
             // Check before any controller can submit its next action. Do not consume Shift.
             if (ShiftStopPolicy.ShouldStop(config.ShiftStopsAutomation,
                 keyState[VirtualKey.SHIFT] || keyState[VirtualKey.LSHIFT] || keyState[VirtualKey.RSHIFT],
-                condition[ConditionFlag.OccupiedSummoningBell], automation.IsRunning, ventures.IsRunning))
+                condition[ConditionFlag.OccupiedSummoningBell] || automation.IsDesynthesizing, automation.IsRunning, ventures.IsRunning))
             {
                 if (automation.IsRunning) automation.Cancel("Automation stopped for this run: Shift held at the summoning bell.");
                 else ventures.Cancel("Venture cycle stopped for this run: Shift held at the summoning bell.");

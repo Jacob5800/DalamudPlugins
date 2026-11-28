@@ -33,6 +33,7 @@ internal sealed class MainWindow : Window
     private IReadOnlyList<uint> desynthesisSnapshot = [];
     private string desynthesisSnapshotStatus = "";
     internal MultiCharacterRun? MultiCharacters { get; set; }
+    internal Func<bool>? LifestreamLoaded { get; set; }
     private bool UiBusy => MultiCharacters?.IsRunning == true || controller.Busy || automation.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning;
     private readonly bool isTesting;
     private readonly UndercutNotifier undercuts;
@@ -1156,8 +1157,11 @@ internal sealed class MainWindow : Window
         if (MultiCharacters is not { } run) return;
         var enabled = config.MultiCharacterEnabled;
         ImGui.BeginDisabled(run.IsRunning);
-        if (ImGui.Checkbox("Multi-character runs (needs Lifestream)", ref enabled)) { config.MultiCharacterEnabled = enabled; save(); }
+        if (ImGui.Checkbox("Multi-character runs", ref enabled)) { config.MultiCharacterEnabled = enabled; save(); }
         ImGui.EndDisabled();
+        var lifestream = LifestreamLoaded?.Invoke() == true;
+        ImGui.TextColored(lifestream ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
+            lifestream ? "Requires Lifestream - enabled" : "Requires Lifestream - missing or disabled");
         if (!config.MultiCharacterEnabled && !run.IsRunning) return;
         ImGui.TextWrapped("Log into each character once to list it, then tick the ones to include. Without the teleport option below, park each one within reach of a summoning bell; a character without a bell in reach is skipped. Each runs your selected automation steps, or all of them if none are selected. TT card selling is not run. Shift or Stop ends the run, but a login Lifestream has already started still finishes. Unattended character switching is easy to recognise as automation; use it at your own risk.");
         ImGui.BeginDisabled(run.IsRunning);
@@ -1194,6 +1198,9 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Optional automatic steps at an idle retainer picker. Selected steps run in the order shown. Hold Shift during a bell interaction to stop the current sequence or venture cycle; automatic runs stay stopped until you leave the bell. Manual pricing and listing take priority; no automatic run takes over a busy controller.");
         var busy = UiBusy || ventures.IsRunning || vendor.IsRunning;
         ImGui.BeginDisabled(busy);
+        var autoDesynthesis = config.AutoDesynthesis;
+        if (ImGui.Checkbox("Auto Desynthesis", ref autoDesynthesis)) { config.AutoDesynthesis = autoDesynthesis; save(); }
+        ImGui.TextWrapped("Off by default and not part of the full sequence unless ticked. After the venture steps and before listing, leaves the bell, desynthesizes the items on your desynthesis list using its settings, then opens the same bell again.");
         var autoVentures = config.AutoRunVentures;
         if (ImGui.Checkbox("Auto collect venture rewards", ref autoVentures))
         { config.AutoRunVentures = autoVentures; save(); }

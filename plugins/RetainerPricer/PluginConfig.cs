@@ -75,6 +75,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool RunVentures { get; set; }
     public bool AutoRunVentures { get; set; } = false;
     public bool AutoUpdateExistingListings { get; set; }
+    public bool AutoDesynthesis { get; set; }
     public bool AutoListNewItems { get; set; }
     public bool AutoReassignVentures { get; set; }
     public bool ShiftStopsAutomation { get; set; } = true;
