@@ -1,3 +1,3 @@
-## 0.5.3.3
+## 0.5.3.4
 
-- Workshop travel now finds your free company house door after the teleport, instead of giving up at the estate's aetheryte.
+- Workshop travel now finds a walkable spot in front of the house entrance, so it walks up to the door instead of failing to find a path.

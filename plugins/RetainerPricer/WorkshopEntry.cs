@@ -110,10 +110,10 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         failure = null;
         if (objects.LocalPlayer is not { } local) return false;
         // Doors and panels sit just off the walkable mesh, so the path aims at the nearest point on it.
-        var destination = pi.GetIpcSubscriber<System.Numerics.Vector3, float, float, System.Numerics.Vector3?>("vnavmesh.Query.Mesh.NearestPoint")
-            .InvokeFunc(target.Position, 5, 5) ?? target.Position;
+        var destination = Approach(local.Position, target.Position);
+        if (destination is null) { failure = "no walkable spot was found near the entrance"; return false; }
         if (System.Numerics.Vector3.Distance(local.Position, target.Position) <= 3.5f ||
-            System.Numerics.Vector3.Distance(local.Position, destination) <= 1f &&
+            System.Numerics.Vector3.Distance(local.Position, destination.Value) <= 1f &&
             System.Numerics.Vector3.Distance(local.Position, target.Position) <= 6f)
         {
             if (Walking) { pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction(); Walking = false; }
@@ -130,13 +130,25 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         // A path that ended short is asked for again after a while.
         if (Walking && now - walkStartedAt < TimeSpan.FromSeconds(10)) return false;
         if (!pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady").InvokeFunc()) { Note("Waiting for the navigation mesh..."); return false; }
-        if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(destination, false))
+        if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(destination.Value, false))
         { failure = "no walking path was found"; return false; }
         bridge.LogAutomationDiagnostic($"Workshop travel: path from {local.Position} to {destination} (target {target.Position}).");
         Walking = true;
         walkStartedAt = now;
         Note(status);
         return false;
+    }
+
+    // The door's own point is off the mesh. Try spots in front of it, on the character's side, then wider searches.
+    private System.Numerics.Vector3? Approach(System.Numerics.Vector3 from, System.Numerics.Vector3 target)
+    {
+        var nearest = pi.GetIpcSubscriber<System.Numerics.Vector3, float, float, System.Numerics.Vector3?>("vnavmesh.Query.Mesh.NearestPoint");
+        var flat = new System.Numerics.Vector3(from.X - target.X, 0, from.Z - target.Z);
+        var toward = flat.LengthSquared() > 0.01f ? System.Numerics.Vector3.Normalize(flat) : System.Numerics.Vector3.UnitZ;
+        foreach (var step in new[] { 2f, 3.5f, 5f })
+            if (nearest.InvokeFunc(target + toward * step, 2, 6) is { } spot && System.Numerics.Vector3.Distance(spot, target) <= 6f)
+                return spot;
+        return nearest.InvokeFunc(target, 6, 10);
     }
 
     private string? UseDoor(IGameObject door, DateTimeOffset now, string status)
