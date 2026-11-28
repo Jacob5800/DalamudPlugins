@@ -81,12 +81,17 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         }
         if (Nearest(ChambersDoorRow) is { } chambers) return UseDoor(chambers, now, "Walking to the additional chambers door...");
 
-        // Outside: only this character's own free company door, or the one just teleported to, never a neighbour's.
-        if (Nearest(EntranceRow) is { } door && (OnOwnPlot() ||
-                commandSent && System.Numerics.Vector3.Distance(local.Position, door.Position) <= 20))
-            return UseDoor(door, now, "Walking to your free company house door...");
+        // Outside: only this character's own free company door, never a neighbour's. Lifestream lands on the estate's
+        // own aetheryte, so after its teleport the nearest entrance is that house's.
+        var nearestDoor = Nearest(EntranceRow);
+        var onOwnPlot = OnOwnPlot();
+        var doorDistance = nearestDoor == null ? -1 : System.Numerics.Vector3.Distance(local.Position, nearestDoor.Position);
+        if (nearestDoor != null && (onOwnPlot || commandSent && doorDistance <= 60))
+            return UseDoor(nearestDoor, now, "Walking to your free company house door...");
+        Note($"Looking for your free company house door (territory {client.TerritoryType}, own plot {onOwnPlot}, nearest entrance {(doorDistance < 0 ? "none" : $"{doorDistance:0} yalms")})...");
 
-        if (!commandSent)
+        // Lifestream already landed here: its teleport is not repeated.
+        if (!commandSent && !onOwnPlot)
         {
             pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("fc");
             commandSent = true;
