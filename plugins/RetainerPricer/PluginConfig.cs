@@ -2,7 +2,7 @@ using Dalamud.Configuration;
 
 namespace RetainerPricer;
 
-public enum MultiCharacterCity { Uldah, Gridania, LimsaLominsa }
+public enum MultiCharacterCity { Uldah, Gridania, LimsaLominsa, OwnEstate }
 
 public sealed class MultiCharacter
 {

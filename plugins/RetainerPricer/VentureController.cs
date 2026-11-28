@@ -259,6 +259,14 @@ internal sealed class VentureController(NativeMarketBridge bridge, PluginConfig 
         { Cancel("Venture cycle stopped because the retainer picker closed unexpectedly."); return; }
 
         var target = retainers[retainerIndex];
+        // Without a class a retainer's menu has no venture option at all, so there is nothing to open it for.
+        if (target.ClassJobId == 0)
+        {
+            skipped++;
+            retainerIndex++;
+            Status = $"Skipped {target.Name}: no retainer class assigned.";
+            return;
+        }
         if (bridge.IsRetainerStillOnVenture(target, now))
         {
             skipped++;

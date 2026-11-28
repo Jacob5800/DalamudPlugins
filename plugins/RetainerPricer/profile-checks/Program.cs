@@ -340,6 +340,7 @@ sealed class FakeHost : RetainerPricer.IMultiCharacterHost
     public int Trips;
     public string? Travel(DateTimeOffset now) { Trips++; if (TravelOutcome == "") { NoBell = 0; RetainerPickerOpen = true; } return TravelOutcome; }
     public void StopTravel() { }
+    public string TravelStatus => "walking";
     public void StartSequence() { Sequences.Add(ContentId); if (!FailSequence) CompletedSequences++; }
     public bool SequenceRunning => false;
     public int CompletedSequences { get; private set; }

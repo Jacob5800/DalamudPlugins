@@ -20,6 +20,8 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     private DateTimeOffset aethernetRetryAt;
     private DateTimeOffset? nearbyUntil;
     private bool nearbyGivenUp;
+    private DateTimeOffset? homeRequestedAt;
+    public string TravelStatus { get; private set; } = "";
 
     public ulong ContentId => client.IsLoggedIn ? player.ContentId : 0;
     public bool CharacterReady => ContentId != 0 && objects.LocalPlayer != null &&
@@ -78,6 +80,8 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             // A zone change ends any path.
             if (!condition[ConditionFlag.Casting]) walking = false;
             teleport.Busy(now);
+            if (homeRequestedAt is not null) homeRequestedAt = now;
+            Note(condition[ConditionFlag.Casting] ? "casting" : "changing areas");
             return null;
         }
         if (!CharacterReady || teleport.Waiting(now)) return null;
@@ -86,19 +90,28 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             // Check vnavmesh before spending gil on a teleport it could not follow up.
             var pathRunning = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc();
             if (pathRunning && !walking) return "another vnavmesh path is running";
-            if (LifestreamBusy) return null;
+            if (LifestreamBusy)
+            {
+                if (homeRequestedAt is not null) homeRequestedAt = now;
+                Note("waiting for Lifestream to finish");
+                return null;
+            }
             var city = City;
             var bell = NearestBell();
-            // A bell a short walk away is tried before spending a teleport; one that cannot be reached falls back to the city.
-            if (!nearbyGivenUp && teleport.Attempts == 0 && bell != null &&
-                System.Numerics.Vector3.Distance(objects.LocalPlayer!.Position, bell.Position) <= 30)
+            // Any bell the game has loaded around the character is tried before spending a teleport; one that cannot
+            // be reached falls back to the destination. The game only loads objects within roughly a hundred yalms.
+            if (!nearbyGivenUp && teleport.Attempts == 0)
+                Note(bell == null ? "no summoning bell in sight"
+                    : walking ? TravelStatus : $"nearest summoning bell is {System.Numerics.Vector3.Distance(objects.LocalPlayer!.Position, bell.Position):0} yalms away");
+            if (!nearbyGivenUp && teleport.Attempts == 0 && bell != null)
             {
                 if (TryUseBell()) return Arrived();
-                nearbyUntil ??= now.AddSeconds(20);
+                nearbyUntil ??= now.AddSeconds(45);
                 if (now < nearbyUntil && WalkTo(bell.Position) is null) return null;
                 StopWalking();
                 nearbyGivenUp = true;
             }
+            if (config.MultiCharacterCity == MultiCharacterCity.OwnEstate) return TravelHome(now, bell);
             if (client.TerritoryType == city.BellZone && bell != null)
                 return TryUseBell() ? Arrived() : WalkTo(bell.Position);
             // The bell zone can take a moment to load its objects after the aethernet hop.
@@ -120,13 +133,41 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             var shard = data.GetExcelSheet<Aetheryte>().GetRowOrDefault(city.Shard)?.AethernetName.ValueNullable?.Name.ToString();
             if (string.IsNullOrEmpty(shard)) return "the aethernet destination is unknown";
             var accepted = pi.GetIpcSubscriber<string, bool>("Lifestream.AethernetTeleport").InvokeFunc(shard);
+            Note(accepted ? $"taking the aethernet to {shard}" : $"Lifestream did not accept the aethernet hop to {shard}; retrying");
             aethernetRetryAt = now.AddSeconds(accepted ? 20 : 3);
             return null;
         }
         catch (Dalamud.Plugin.Ipc.Exceptions.IpcNotReadyError) { return "vnavmesh or Lifestream is not installed or enabled"; }
     }
 
+    // Lifestream knows where the player's own house is; the bell is then walked to like any other.
+    private string? TravelHome(DateTimeOffset now, Dalamud.Game.ClientState.Objects.Types.IGameObject? bell)
+    {
+        if (homeRequestedAt is null)
+        {
+            StopWalking();
+            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("home");
+            homeRequestedAt = now;
+            Note("asking Lifestream to go to your estate");
+            return null;
+        }
+        var idle = now - homeRequestedAt.Value;
+        if (idle < TimeSpan.FromSeconds(5)) return null;
+        if (bell != null) return TryUseBell() ? Arrived() : WalkTo(bell.Position);
+        if (idle > TimeSpan.FromSeconds(30)) return "no summoning bell was found at your estate";
+        Note("looking for a summoning bell at your estate");
+        return null;
+    }
+
     private string Arrived() { StopTravel(); return ""; }
+
+    // Shown in the run status and logged once per change, so a trip that stalls says where.
+    private void Note(string step)
+    {
+        if (step == TravelStatus) return;
+        TravelStatus = step;
+        bridge.LogAutomationDiagnostic($"Multi-character travel: {step} (territory {client.TerritoryType})");
+    }
 
     private string? WalkTo(System.Numerics.Vector3 destination)
     {
@@ -134,6 +175,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(destination, false))
             return "no walking path was found";
         walking = true;
+        Note("walking with vnavmesh");
         return null;
     }
 
@@ -147,8 +189,9 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         if (destination.AetheryteId == 0) return $"the {city.Name} aetheryte is not unlocked";
         StopWalking();
         // A rejected request still counts as an attempt and is retried.
-        telepo->Teleport(destination.AetheryteId, destination.SubIndex);
+        var accepted = telepo->Teleport(destination.AetheryteId, destination.SubIndex);
         teleport.Requested(now);
+        Note($"teleport to {city.Name} {(accepted ? "requested" : "rejected by the game")}, attempt {teleport.Attempts}");
         return null;
     }
 
@@ -163,6 +206,12 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     public void StopTravel()
     {
         StopWalking();
+        // A trip home that is still under way is ours to cancel.
+        if (homeRequestedAt is not null)
+            try { if (LifestreamBusy) pi.GetIpcSubscriber<object>("Lifestream.Abort").InvokeAction(); }
+            catch (Exception ex) { bridge.LogAutomationDiagnostic($"Lifestream could not be stopped: {ex.Message}"); }
+        homeRequestedAt = null;
+        TravelStatus = "";
         teleport.Reset();
         aethernetRetryAt = default;
         nearbyUntil = null;

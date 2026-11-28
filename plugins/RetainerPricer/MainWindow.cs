@@ -1162,14 +1162,14 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Log into each character once to list it, then tick the ones to include. Without the teleport option below, park each one within reach of a summoning bell; a character without a bell in reach is skipped. Each runs your selected automation steps, or all of them if none are selected. TT card selling is not run. Shift or Stop ends the run, but a login Lifestream has already started still finishes. Unattended character switching is easy to recognise as automation; use it at your own risk.");
         ImGui.BeginDisabled(run.IsRunning);
         var travel = config.MultiCharacterTeleport;
-        if (ImGui.Checkbox("Teleport to a city bell when none is in reach", ref travel)) { config.MultiCharacterTeleport = travel; save(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off by default. A bell within about 30 yalms is walked to first. Otherwise it costs the normal teleport fee, needs that city's aetheryte and aethernet unlocked, and uses vnavmesh to walk. Ul'dah and Gridania also use Lifestream for the aethernet hop.");
+        if (ImGui.Checkbox("Teleport to a bell when none is in reach", ref travel)) { config.MultiCharacterTeleport = travel; save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off by default. A bell visible nearby is walked to first. Otherwise it costs the normal teleport fee, needs that city's aetheryte and aethernet unlocked, and uses vnavmesh to walk. Ul'dah and Gridania also use Lifestream for the aethernet hop. My own estate asks Lifestream to go to your personal house.");
         if (config.MultiCharacterTeleport)
         {
             var city = (int)config.MultiCharacterCity;
-            string[] cities = ["Ul'dah", "Gridania", "Limsa Lominsa"];
+            string[] cities = ["Ul'dah", "Gridania", "Limsa Lominsa", "My own estate"];
             ImGui.SetNextItemWidth(180);
-            if (ImGui.Combo("City##MultiCharacter", ref city, cities, cities.Length)) { config.MultiCharacterCity = (MultiCharacterCity)city; save(); }
+            if (ImGui.Combo("Destination##MultiCharacter", ref city, cities, cities.Length)) { config.MultiCharacterCity = (MultiCharacterCity)city; save(); }
             DrawNavigationRequirement();
         }
         MultiCharacter? remove = null;

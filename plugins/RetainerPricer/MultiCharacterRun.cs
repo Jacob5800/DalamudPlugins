@@ -18,6 +18,8 @@ internal interface IMultiCharacterHost
     bool TravelEnabled { get; }
     /// <summary>One step towards a city bell. Null while under way, empty once the bell was used, otherwise why it cannot be.</summary>
     string? Travel(DateTimeOffset now);
+    /// <summary>What the trip is doing now.</summary>
+    string TravelStatus { get; }
     /// <summary>Stops any walking this host started and forgets the trip.</summary>
     void StopTravel();
     void ClosePicker();
@@ -126,7 +128,7 @@ internal sealed class MultiCharacterRun(IMultiCharacterHost host)
                     host.StopTravel();
                     stage = Stage.Travelling;
                     deadline = now.AddMinutes(3);
-                    Status = $"Taking {current.Label} to a city summoning bell...";
+                    Status = $"Taking {current.Label} to a summoning bell...";
                 }
                 else Skip("no summoning bell within reach");
                 break;
@@ -134,10 +136,10 @@ internal sealed class MultiCharacterRun(IMultiCharacterHost host)
             case Stage.Travelling:
                 if (host.BlockedReason is { } interrupted) { Stop(interrupted); return; }
                 var outcome = host.Travel(now);
-                if (outcome is null && now <= deadline) return;
+                if (outcome is null && now <= deadline) { Status = $"Travelling on {current.Label}: {host.TravelStatus}"; return; }
                 host.StopTravel();
                 if (outcome is "") { stage = Stage.OpeningBell; deadline = now.AddSeconds(20); }
-                else Skip(outcome ?? "the trip to the summoning bell took too long");
+                else Skip(outcome ?? $"the trip to the summoning bell took too long while {host.TravelStatus}");
                 break;
 
             case Stage.OpeningBell:
