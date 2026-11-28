@@ -212,6 +212,14 @@ Check(!PriceHistoryFallback.ShouldFetch(Live() with { Listings = [Listing(100,0)
     var attached = GameSaleHistory.Attach(Live(), sold);
     Check(attached.Source == PriceSource.Local && attached.MostRecentSaleAt == clock.AddDays(-1), "game history attaches to live listings");
 }
+{
+    var declines = new ListingRunRejections();
+    declines.Decline(42, false);
+    declines.Clear();
+    Check(declines.Declined(42, false) && !declines.Declined(42, true), "a declined item stays skipped between phases, per quality");
+    declines.ForgetDeclined();
+    Check(!declines.Declined(42, false), "a new run asks again");
+}
 var runCache = new RunPriceCache();
 var runKey = new PriceCacheKey(1,74,42,false,PriceSource.Local,"world");
 runCache.Remember(runKey,historyOnly);

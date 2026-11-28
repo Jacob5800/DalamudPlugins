@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.96",
+  "AssemblyVersion": "0.5.1.97",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.96\n\n- With three or fewer competing listings, a price over 200% of recent sales is now held for review before listing or raising it. Without enough sales to compare, prices of 100,000 gil or more are held.\n- Sale history now comes from the marketboard itself, with Universalis used only when the game sends none.",
+  "Changelog": "## 0.5.1.97\n\n- An item you skip during a run is no longer offered again on each following retainer. It is asked about again on your next run.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }

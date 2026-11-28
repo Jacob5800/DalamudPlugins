@@ -130,6 +130,10 @@ internal sealed class PricingController : IDisposable
             entry.Selected &= !skipAll;
             if (!entry.Selected)
             {
+                // Another entry for the same item may have been approved; that one still goes ahead.
+                if (!priceReviews.Any(other => other != entry && (other.Selected && !skipAll) &&
+                        other.Item.ItemId == entry.Item.ItemId && other.Item.IsHq == entry.Item.IsHq))
+                    listingPriceRejections.Decline(entry.Item.ItemId, entry.Item.IsHq);
                 entry.Finished = true;
                 if (entry.Candidate is not null)
                 {
@@ -171,6 +175,7 @@ internal sealed class PricingController : IDisposable
     {
         RunSummary = summary;
         runPrices.Clear();
+        listingPriceRejections.ForgetDeclined();
         automationPriceSession = true;
     }
 
@@ -183,7 +188,9 @@ internal sealed class PricingController : IDisposable
 
     private void StartStandalonePriceSession()
     {
-        if (!automationPriceSession) runPrices.Clear();
+        if (automationPriceSession) return;
+        runPrices.Clear();
+        listingPriceRejections.ForgetDeclined();
     }
 
     private PriceCacheKey RunPriceKey(SellItem item)
@@ -1579,6 +1586,7 @@ internal sealed class PricingController : IDisposable
                     { Cancel($"Listing traversal stopped while checking remaining inventory: {snapshotError}"); return; }
                     var remaining = InventoryCandidates.Count(item =>
                         !listingPriceRejections.Contains(item.ItemId, item.IsHq) &&
+                        !listingPriceRejections.Declined(item.ItemId, item.IsHq) &&
                         (!largeStackPlans.TryGetValue((item.ItemId, item.IsHq), out var plan) || plan.Remaining > 0));
                     if (remaining == 0)
                     {
@@ -1915,6 +1923,13 @@ internal sealed class PricingController : IDisposable
             return;
         }
         var row = Rows[index];
+        if (step == Step.Start && !applyingPriceReviews && listingPriceRejections.Declined(row.Item.ItemId, row.Item.IsHq))
+        {
+            row.Status = "Skipped by you earlier in this run";
+            AdvanceScanIndex(row);
+            ResetRequest();
+            return;
+        }
         if (step == Step.Start)
         {
             if (!ItemProtection.TryGetExcludedItemIds(bridge, config, out var currentExcludedItemIds, out var currentSavedGearsetItemIds, out var protectionError))
@@ -2096,6 +2111,13 @@ internal sealed class PricingController : IDisposable
     {
         if (step == Step.Start)
         {
+            // Items the player already declined in this run are not offered again on the next retainer.
+            while (!applyingPriceReviews && index < batchCandidates.Count && listingPriceRejections.Declined(batchCandidates[index].ItemId, batchCandidates[index].IsHq))
+            {
+                RunSummary?.Skip("Skipped by you earlier in this run", batchCandidates[index].Name);
+                listingSkipped++;
+                index++;
+            }
             // Skip all remembered item/quality copies before opening any listing UI.
             while (index < batchCandidates.Count && listingPriceRejections.Contains(batchCandidates[index].ItemId, batchCandidates[index].IsHq))
             {
@@ -2243,7 +2265,7 @@ internal sealed class PricingController : IDisposable
                 !bridge.TrySetNewListingQuantity(opened, requestedListingQuantity, out opened, out var quantityError))
             { Cancel($"Automatic listing stopped before pricing {opened.Name}: {quantityError}"); return; }
 
-            if (AwaitMateriaDecision(opened, () => deadline = DateTimeOffset.UtcNow.AddSeconds(8), () => SkipBatchItem($"Skipped {opened.Name}: materia warning declined."))) return;
+            if (AwaitMateriaDecision(opened, () => deadline = DateTimeOffset.UtcNow.AddSeconds(8), () => { listingPriceRejections.Decline(opened.ItemId, opened.IsHq); SkipBatchItem($"Skipped {opened.Name}: materia warning declined."); })) return;
             workingItem = opened;
             if (!StartRequest(opened, now, out var requestError))
             {
