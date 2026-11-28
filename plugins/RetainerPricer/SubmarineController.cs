@@ -23,7 +23,8 @@ internal sealed record SubmarineState(int Index, string Name, DateTimeOffset? Re
 /// at 0% are repaired, and nothing is bought or re-routed; anything unexpected stops it.
 /// </summary>
 internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data, IObjectTable objects,
-    ITargetManager targets, ICondition condition, NativeMarketBridge bridge, Func<bool> otherBusy)
+    ITargetManager targets, ICondition condition, NativeMarketBridge bridge, Func<bool> otherBusy,
+    Func<bool> autoRetainerLoaded)
 {
     private const uint PanelNameRow = 2005274, ManagementTalkRow = 721343;
     private enum Stage { Idle, OpenPanel, ChooseSubmarines, PickVessel, Finalize, AfterFinalize, VesselMenu, Repair, Report, Confirm, Verify, Leave }
@@ -53,6 +54,7 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     private bool unrepairedSkip;
 
     public bool IsRunning => stage != Stage.Idle;
+    public bool AutoRetainerLoaded => autoRetainerLoaded();
     public string Status { get; private set; } = "Submarines are idle.";
 
     public IReadOnlyList<SubmarineState> Read()
@@ -84,6 +86,8 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     public void Start()
     {
         if (IsRunning) return;
+        // AutoRetainer drives the same panel on its own; two plugins answering the same windows is unsafe.
+        if (AutoRetainerLoaded) { Status = "Disable AutoRetainer before redeploying submarines; it controls the same voyage control panel."; return; }
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
         var housing = HousingManager.Instance();
         if (housing == null || housing->WorkshopTerritory == null)
@@ -115,6 +119,7 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         if (bridge.IsClientStateUnavailable || condition[ConditionFlag.InCombat] || condition[ConditionFlag.BoundByDuty])
         { Stop("Submarine redeploy stopped: character unavailable."); return; }
         if (now > deadline) { Stop($"Submarine redeploy stopped: the game did not respond while '{Status}'. Check the open window."); return; }
+        if (AutoRetainerLoaded) { Stop("Submarine redeploy stopped: AutoRetainer was enabled."); return; }
         try { Tick(now); }
         catch (Exception ex) { Stop("Submarine redeploy stopped: " + ex.Message); }
     }

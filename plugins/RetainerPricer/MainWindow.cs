@@ -1184,6 +1184,9 @@ internal sealed class MainWindow : Window
     {
         if (Submarines is not { } submarines) return;
         ImGui.TextWrapped("Stand next to the voyage control panel in your free company workshop. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
+        var blocked = submarines.AutoRetainerLoaded;
+        ImGui.TextColored(blocked ? new Vector4(1, .3f, .3f, 1) : new Vector4(.3f, .85f, .4f, 1),
+            blocked ? "AutoRetainer is enabled - disable it to redeploy submarines" : "AutoRetainer - not enabled");
         var states = submarines.Read();
         if (states.Count == 0) ImGui.TextWrapped("Submersible data appears while you are in the workshop; open the panel once if the list stays empty.");
         foreach (var sub in states)
@@ -1193,7 +1196,7 @@ internal sealed class MainWindow : Window
                 : $"returns {at.ToLocalTime():dd/MM HH:mm}";
             ImGui.BulletText($"{sub.Name}: {state}{(sub.NeedsRepair ? " - needs repair" : "")}");
         }
-        ImGui.BeginDisabled(!submarines.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
+        ImGui.BeginDisabled(!submarines.IsRunning && (blocked || UiBusy || ventures.IsRunning || vendor.IsRunning));
         if (ImGui.Button(submarines.IsRunning ? "Stop##Submarines" : "Redeploy submarines"))
             dispatch(() => { if (submarines.IsRunning) submarines.Stop(); else submarines.Start(); });
         ImGui.EndDisabled();
