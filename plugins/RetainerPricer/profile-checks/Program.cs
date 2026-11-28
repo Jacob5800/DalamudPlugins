@@ -70,7 +70,10 @@ var match = PriceCalculator.Calculate(Quote(1),42,74,false,new HashSet<ulong>(),
 Check(match.CanApply && match.Rejection == PriceRejection.None, "allowed matching one-gil not rejected");
 Check(BelowVendorPolicy.RequiresReview(false,0,799,1000), "new listing warns below vendor example");
 Check(BelowVendorPolicy.RequiresReview(false,0,800,1000), "matching below-vendor price warns");
-Check(!BelowVendorPolicy.RequiresReview(false,0,1000,1000), "equal vendor price allowed");
+Check(BelowVendorPolicy.RequiresReview(false,0,1000,1000), "equal vendor price nets less after tax");
+Check(BelowVendorPolicy.RequiresReview(false,0,133,126), "Piety Materia VI example nets no more than NPC");
+Check(!BelowVendorPolicy.RequiresReview(false,0,134,126), "first price netting more than NPC allowed");
+Check(BelowVendorPolicy.NetAfterTax(999_999_999) == 949_999_999, "maximum price tax does not overflow");
 Check(!BelowVendorPolicy.RequiresReview(false,0,1100,1000), "above vendor price allowed");
 Check(!BelowVendorPolicy.RequiresReview(false,0,1,0), "no NPC sale value does not warn");
 Check(BelowVendorPolicy.RequiresReview(true,1200,799,1000), "existing reduction still warns");
@@ -123,7 +126,9 @@ Check(!retry.TrySchedule(1, clock) && retry.Attempts == 0, "unknown market error
 Check(retry.TrySchedule(0x70000003, clock) && !retry.IsReady(clock.AddMilliseconds(499)), "market retry waits at least half a second");
 Check(retry.IsReady(clock.AddMilliseconds(500)), "market retry ready after half a second");
 Check(retry.TrySchedule(0x70000003, clock.AddSeconds(1)) && !retry.IsReady(clock.AddMilliseconds(1999)), "second rejection gets a longer cooldown");
-Check(retry.IsReady(clock.AddMilliseconds(2000)) && !retry.TrySchedule(0x70000003, clock.AddMilliseconds(2000)), "second retry is ready after 1000 ms and remains the last attempt");
+Check(retry.IsReady(clock.AddMilliseconds(2000)), "second retry is ready after 1000 ms");
+Check(retry.TrySchedule(0x70000003, clock.AddSeconds(2)) && retry.DelayMilliseconds == 2000, "third retry waits two seconds");
+Check(!retry.TrySchedule(0x70000003, clock.AddSeconds(5)), "third retry is the last attempt");
 retry.Reset();
 Check(retry.Attempts == 0 && retry.IsReady(clock), "next listing gets a fresh bounded retry allowance");
 Check(!new PluginConfig().ShowAutomationList, "Automation tab hidden by default");

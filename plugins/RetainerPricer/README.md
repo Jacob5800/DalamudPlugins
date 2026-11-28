@@ -211,7 +211,7 @@ During a new-item listing pass, a 1-gil price that cannot be undercut or a propo
 
 The materia listing prompt’s **Don’t ask again during this run (all retainers)** choice applies after choosing Proceed for the whole current listing pass, including later retainers in a full sequence. It is not saved to settings or profiles and resets for a new run.
 
-New-item listing, batch selling, automatic single-item listing and manual price filling also pause for **Below NPC sale value** review before submitting/filling a below-vendor price. Choose Approve this price, Skip or Vendor item instead. The comparison uses the quality-adjusted per-item NPC value, before market tax. Vendoring a new listing requires the approved quantity to match an exact carried stack; changed or partial stacks are not sold. A verified NPC sale continues the current listing sequence.
+New-item listing, batch selling, automatic single-item listing and manual price filling also pause for **Below NPC sale value** review before submitting/filling a price that nets no more than the NPC value after market tax. Choose Approve this price, Skip or Vendor item instead. The comparison takes 5% tax off the price, rounds down, and compares that with the quality-adjusted per-item NPC value. Vendoring a new listing requires the approved quantity to match an exact carried stack; changed or partial stacks are not sold. A verified NPC sale continues the current listing sequence.
 
 **Mark saved gearset items red in armoury chest** in Settings adds translucent red slot fills for items referenced by saved in-game gearsets. NQ/HQ are distinguished; identical copies receive the same marker. Disabled by default.
 

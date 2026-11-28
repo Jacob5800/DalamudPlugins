@@ -39,7 +39,7 @@ internal sealed class PricingController : IDisposable
     {
         Start, Opening, WaitingToCompare, Quote, Closing,
         ExistingWaitingToCompare, ExistingRetryClosingCompare, ExistingClosingCompare, ExistingClosingSell,
-        ClosingListingCompare, ClosingSkippedCompare,
+        ClosingListingCompare, ListingRetryClosingCompare, ClosingSkippedCompare,
         ClosingSkippedSell, Confirming, AutoStartRetainer, AutoCloseSellList, AutoWaitRetainerMenu,
         AutoWaitPicker, AutoSelectRetainer, AutoWaitTargetMenu, AutoSelectSellMenu, AutoWaitSellList
     }
@@ -93,7 +93,7 @@ internal sealed class PricingController : IDisposable
         {
             var vendorValue = bridge.VendorUnitPrice(item.ItemId, item.IsHq);
             if (BelowVendorPolicy.RequiresReview(item.IsExisting, item.CurrentPrice, proposal.SuggestedPrice, vendorValue))
-                reasons.Add($"Below NPC value ({vendorValue:N0} gil)");
+                reasons.Add($"Below NPC value after tax (NPC {vendorValue:N0} gil, market nets {BelowVendorPolicy.NetAfterTax(proposal.SuggestedPrice):N0})");
             if (item.IsExisting && proposal.SuggestedPrice > item.CurrentPrice && config.AllowListingPriceIncreases is null)
                 reasons.Add("Price increase");
             if (item.IsExisting && (decimal)proposal.SuggestedPrice * 100 <
@@ -2181,6 +2181,7 @@ internal sealed class PricingController : IDisposable
             if (!batchSellingOnly && largeStackPlans.TryGetValue((candidate.ItemId, candidate.IsHq), out var approvedPlan) && approvedPlan.Remaining == 0)
             { RunSummary?.Skip("Approved quantity reached", candidate.Name); index++; Status = $"Approved quantity reached for {candidate.Name}; remaining inventory is unchanged."; return; }
             listingCandidate = candidate;
+            localRetry.Reset();
             var perListing = config.BatchSaleQuantities.TryGetValue(candidate.ItemId, out var batchSize)
                 ? Math.Min(batchSize, candidate.Quantity)
                 : candidate.Quantity;
@@ -2257,6 +2258,19 @@ internal sealed class PricingController : IDisposable
             return;
         }
 
+        if (step == Step.ListingRetryClosingCompare)
+        {
+            if (bridge.IsComparisonVisible || bridge.IsLocalSearchBusy)
+            {
+                if (now > deadline) Cancel("Automatic listing stopped because the rejected market comparison did not close. No sale was submitted.");
+                return;
+            }
+            if (!localRetry.IsReady(now)) return;
+            step = Step.WaitingToCompare;
+            deadline = now.AddSeconds(20);
+            return;
+        }
+
         if (step == Step.WaitingToCompare)
         {
             if (workingItem is not { } waitingItem || listingCandidate is null)
@@ -2291,6 +2305,16 @@ internal sealed class PricingController : IDisposable
             if (!ReadRequest(current, now, out var snapshot, out var requestError))
             {
                 Status = $"Waiting for the {(workSource == PriceSource.Local ? "live marketboard" : "Universalis")} price for {current.Name}{(current.IsHq ? " (HQ)" : " (NQ)")}...";
+                return;
+            }
+            if (snapshot is null && workSource == PriceSource.Local &&
+                localRetry.TrySchedule(bridge.LastLocalRequestError, now))
+            {
+                if (bridge.IsComparisonVisible && !bridge.TryCloseCompare(current, out var rejectedError))
+                { Cancel($"Automatic listing stopped while closing the rejected comparison for {current.Name}: {rejectedError}"); return; }
+                Status = $"{current.Name}: market request rejected; retry {localRetry.Attempts}/{MarketComparisonRetry.MaxAttempts} after {localRetry.DelayMilliseconds} ms.";
+                deadline = now.AddSeconds(10);
+                step = Step.ListingRetryClosingCompare;
                 return;
             }
             if (snapshot is null)

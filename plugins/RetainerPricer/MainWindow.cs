@@ -218,7 +218,8 @@ internal sealed class MainWindow : Window
                 ImGui.TextUnformatted(cheap.IsExisting
                     ? $"Current: {cheap.CurrentPrice:N0} | Proposed: {controller.BelowVendorTarget:N0} | NPC: {controller.BelowVendorValue:N0} gil each"
                     : $"Proposed: {controller.BelowVendorTarget:N0} | NPC: {controller.BelowVendorValue:N0} gil each");
-                if (ImGui.Button("Approve this price")) { controller.ResolveBelowVendor(true); ImGui.CloseCurrentPopup(); }
+                ImGui.TextUnformatted($"The market sale nets about {BelowVendorPolicy.NetAfterTax(controller.BelowVendorTarget):N0} gil each after tax.");
+                if (ImGui.Button("Approve this price")) { controller.ResolveBelowVendor(true);ImGui.CloseCurrentPopup(); }
                 ImGui.SameLine();
                 if (ImGui.Button("Skip")) { controller.ResolveBelowVendor(false); ImGui.CloseCurrentPopup(); }
                 if (ImGui.Button("Vendor item instead")) { controller.VendorReviewedListing(); if (controller.BelowVendorItem is null) ImGui.CloseCurrentPopup(); }

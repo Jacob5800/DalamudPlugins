@@ -3,7 +3,7 @@ namespace RetainerPricer;
 // Retry only the observed transient market rejection, before any price is submitted.
 internal sealed class MarketComparisonRetry
 {
-    public const int MaxAttempts = 2;
+    public const int MaxAttempts = 3;
 
     private DateTimeOffset retryAt;
     public int Attempts { get; private set; }
@@ -13,7 +13,7 @@ internal sealed class MarketComparisonRetry
     {
         if (error != 0x70000003 || Attempts >= MaxAttempts) return false;
         Attempts++;
-        DelayMilliseconds = Attempts == 1 ? 500 : 1_000;
+        DelayMilliseconds = 500 << (Attempts - 1);
         retryAt = now.AddMilliseconds(DelayMilliseconds);
         return true;
     }
