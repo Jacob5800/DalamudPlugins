@@ -1183,10 +1183,14 @@ internal sealed class MainWindow : Window
     private void DrawSubmarines()
     {
         if (Submarines is not { } submarines) return;
-        ImGui.TextWrapped("Stand next to the voyage control panel in your free company workshop. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
+        ImGui.TextWrapped("Away from the voyage control panel, Lifestream takes you to your free company workshop and vnavmesh walks to the panel. Each submersible whose voyage is complete has its report collected and is redeployed on the same route; an idle one is redeployed from its previous voyage log. Finished reports are finalized first. Parts at 0% are repaired with the magitek repair materials you carry; if you are short for a submersible, you are asked to skip it or continue anyway. Nothing is bought or re-routed, and too few ceruleum tanks or any unexpected window stops the run. Shift or Stop ends it.");
         var blocked = submarines.AutoRetainerLoaded;
         ImGui.TextColored(blocked ? new Vector4(1, .3f, .3f, 1) : new Vector4(.3f, .85f, .4f, 1),
             blocked ? "AutoRetainer is enabled - disable it to redeploy submarines" : "AutoRetainer - not enabled");
+        var lifestream = LifestreamLoaded?.Invoke() == true;
+        ImGui.TextColored(lifestream ? new Vector4(.3f, .85f, .4f, 1) : new Vector4(1, .3f, .3f, 1),
+            lifestream ? "Lifestream - enabled (for travel)" : "Lifestream - missing or disabled (needed for travel)");
+        DrawNavigationRequirement();
         var states = submarines.Read();
         if (states.Count == 0) ImGui.TextWrapped("Submersible data appears while you are in the workshop; open the panel once if the list stays empty.");
         foreach (var sub in states)

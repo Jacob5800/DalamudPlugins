@@ -1,6 +1,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Memory;
+using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
@@ -24,10 +25,10 @@ internal sealed record SubmarineState(int Index, string Name, DateTimeOffset? Re
 /// </summary>
 internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data, IObjectTable objects,
     ITargetManager targets, ICondition condition, NativeMarketBridge bridge, Func<bool> otherBusy,
-    Func<bool> autoRetainerLoaded)
+    Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi)
 {
     private const uint PanelNameRow = 2005274, ManagementTalkRow = 721343;
-    private enum Stage { Idle, OpenPanel, ChooseSubmarines, PickVessel, Finalize, AfterFinalize, VesselMenu, Repair, Report, Confirm, Verify, Leave }
+    private enum Stage { Idle, Travel, OpenPanel, ChooseSubmarines, PickVessel, Finalize, AfterFinalize, VesselMenu, Repair, Report, Confirm, Verify, Leave }
 
     private Stage stage;
     private DateTimeOffset next, deadline;
@@ -37,6 +38,9 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     private int redeployed, finalized;
     private int repairSlot = -1, repairTries;
     private bool unrepairedApproved;
+    private DateTimeOffset travelDeadline;
+    private DateTimeOffset? workshopRequestedAt;
+    private bool walking;
 
     /// <summary>Set while the player decides about a submersible there are not enough repair materials for.</summary>
     public string? MaterialsQuestion { get; private set; }
@@ -89,19 +93,34 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         // AutoRetainer drives the same panel on its own; two plugins answering the same windows is unsafe.
         if (AutoRetainerLoaded) { Status = "Disable AutoRetainer before redeploying submarines; it controls the same voyage control panel."; return; }
         if (otherBusy()) { Status = "Wait for other Retainer Pricer operations to finish."; return; }
-        var housing = HousingManager.Instance();
-        if (housing == null || housing->WorkshopTerritory == null)
-        { Status = "Go into your free company workshop first, next to the voyage control panel."; return; }
+        if (bridge.IsClientStateUnavailable) { Status = "Log in first."; return; }
+        var atPanel = PanelInReach();
+        if (!atPanel)
+        {
+            // Getting there needs both: Lifestream enters the workshop, vnavmesh walks to the panel.
+            try
+            {
+                _ = pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc();
+                _ = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc();
+            }
+            catch { Status = "Enable Lifestream and vnavmesh to travel to the workshop, or stand next to the voyage control panel."; return; }
+        }
         handled.Clear();
         problems.Clear();
         vessel = null;
         redeployed = finalized = 0;
-        Move(Stage.OpenPanel, DateTimeOffset.UtcNow, "Opening the voyage control panel...");
+        var now = DateTimeOffset.UtcNow;
+        workshopRequestedAt = null;
+        walking = false;
+        travelDeadline = now.AddMinutes(5);
+        if (atPanel) Move(Stage.OpenPanel, now, "Opening the voyage control panel...");
+        else Move(Stage.Travel, now, "Going to your free company workshop...");
     }
 
     public void Stop(string reason = "Submarine redeploy stopped.")
     {
         if (!IsRunning) return;
+        EndTravel();
         stage = Stage.Idle;
         MaterialsQuestion = null;
         Status = $"{reason} {redeployed} redeployed.";
@@ -120,7 +139,7 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         { Stop("Submarine redeploy stopped: character unavailable."); return; }
         if (now > deadline) { Stop($"Submarine redeploy stopped: the game did not respond while '{Status}'. Check the open window."); return; }
         if (AutoRetainerLoaded) { Stop("Submarine redeploy stopped: AutoRetainer was enabled."); return; }
-        try { Tick(now); }
+        try { if (!SkipCutscene(now)) Tick(now); }
         catch (Exception ex) { Stop("Submarine redeploy stopped: " + ex.Message); }
     }
 
@@ -128,6 +147,10 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     {
         switch (stage)
         {
+            case Stage.Travel:
+                Travel(now);
+                break;
+
             case Stage.OpenPanel:
                 if (MenuContains(ManagementText())) { Move(Stage.ChooseSubmarines, now, "Choosing submersible management..."); return; }
                 if (condition[ConditionFlag.OccupiedInEvent] || condition[ConditionFlag.OccupiedInQuestEvent]) return;
@@ -343,15 +366,110 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     private string Dialogue(uint row) => data.GetExcelSheet<RawRow>(name: "custom/004/HouFixCompanySubmarine_00447")
         .GetRow(row).ReadStringColumn(1).ExtractText();
 
-    private bool UsePanel()
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr window, uint message, IntPtr key, IntPtr state);
+    private const uint KeyDown = 0x0100, KeyUp = 0x0101;
+    private const int EscapeKey = 0x1B;
+
+    // Deploying plays a departure scene. Escape opens the game's skip prompt, whose first entry is "yes".
+    // Only ever acts while the game reports a cutscene, so no key reaches ordinary windows.
+    private bool SkipCutscene(DateTimeOffset now)
+    {
+        if (!condition[ConditionFlag.OccupiedInCutSceneEvent] && !condition[ConditionFlag.WatchingCutscene] &&
+            !condition[ConditionFlag.WatchingCutscene78]) return false;
+        deadline = now.AddSeconds(60);
+        var prompt = Addon("SelectString");
+        if (prompt != null && MenuEntries().Count == 2)
+        {
+            Fire(prompt, 0);
+            bridge.LogAutomationDiagnostic("Submarines: skipping the cutscene.");
+        }
+        else
+        {
+            var window = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+            if (window != IntPtr.Zero)
+            {
+                PostMessage(window, KeyDown, EscapeKey, IntPtr.Zero);
+                PostMessage(window, KeyUp, EscapeKey, IntPtr.Zero);
+            }
+        }
+        next = now.AddSeconds(1);
+        return true;
+    }
+
+    private void Travel(DateTimeOffset now)
+    {
+        if (now > travelDeadline) { Stop($"The trip to the workshop took too long while '{Status}'."); return; }
+        // Loading and Lifestream's own steps take as long as they take, within the overall limit.
+        deadline = now.AddSeconds(30);
+        if (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting])
+        {
+            if (!condition[ConditionFlag.Casting]) walking = false;
+            if (workshopRequestedAt is not null) workshopRequestedAt = now;
+            return;
+        }
+        if (objects.LocalPlayer == null) return;
+        if (pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc())
+        {
+            if (workshopRequestedAt is not null) workshopRequestedAt = now;
+            return;
+        }
+        if (PanelInReach())
+        {
+            EndTravel();
+            Move(Stage.OpenPanel, now, "Opening the voyage control panel...");
+            return;
+        }
+        if (NearestPanel() is { } panel)
+        {
+            if (walking || !pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady").InvokeFunc()) return;
+            if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(panel.Position, false))
+            { Stop("No walking path to the voyage control panel was found."); return; }
+            walking = true;
+            Status = "Walking to the voyage control panel...";
+            return;
+        }
+        if (workshopRequestedAt is null)
+        {
+            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("ws");
+            workshopRequestedAt = now;
+            Status = "Asking Lifestream to go to your free company workshop...";
+            bridge.LogAutomationDiagnostic($"Submarines: {Status}");
+        }
+        else if (now - workshopRequestedAt.Value > TimeSpan.FromSeconds(30))
+            Stop("No voyage control panel was found. Check that this character can enter a free company workshop.");
+    }
+
+    private void EndTravel()
+    {
+        try
+        {
+            if (walking) pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction();
+            if (stage == Stage.Travel && workshopRequestedAt is not null && pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc())
+                pi.GetIpcSubscriber<object>("Lifestream.Abort").InvokeAction();
+        }
+        catch (Exception ex) { bridge.LogAutomationDiagnostic($"Submarines: travel could not be stopped: {ex.Message}"); }
+        walking = false;
+        workshopRequestedAt = null;
+    }
+
+    private Dalamud.Game.ClientState.Objects.Types.IGameObject? NearestPanel()
     {
         var local = objects.LocalPlayer;
         var name = data.GetExcelSheet<EObjName>().GetRowOrDefault(PanelNameRow)?.Singular.ToString();
-        if (local == null || string.IsNullOrEmpty(name)) return false;
-        var panel = objects.Where(candidate => candidate.ObjectKind == ObjectKind.EventObj && candidate.IsTargetable &&
+        if (local == null || string.IsNullOrEmpty(name)) return null;
+        return objects.Where(candidate => candidate.ObjectKind == ObjectKind.EventObj && candidate.IsTargetable &&
                 string.Equals(candidate.Name.TextValue, name, StringComparison.OrdinalIgnoreCase))
             .OrderBy(candidate => System.Numerics.Vector3.Distance(local.Position, candidate.Position)).FirstOrDefault();
-        if (panel == null || System.Numerics.Vector3.Distance(local.Position, panel.Position) > 4.6f) return false;
+    }
+
+    private bool PanelInReach() => objects.LocalPlayer is { } local && NearestPanel() is { } panel &&
+        System.Numerics.Vector3.Distance(local.Position, panel.Position) <= 4.6f;
+
+    private bool UsePanel()
+    {
+        var panel = NearestPanel();
+        if (panel == null || !PanelInReach()) return false;
         targets.Target = panel;
         TargetSystem.Instance()->InteractWithObject((NativeObject*)panel.Address);
         return true;

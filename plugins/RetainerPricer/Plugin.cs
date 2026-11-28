@@ -127,7 +127,7 @@ public sealed class Plugin : IDalamudPlugin
         multiCharacters = new MultiCharacterRun(multiCharacterHost);
         automation.Desynthesis = new DesynthesisStep(new DesynthesisHost(desynthesis, multiCharacterHost));
         submarines = new SubmarineController(gameGui, data, objects, targets, condition, bridge, () => controller.Busy || automation.IsRunning ||
-            vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning || multiCharacters.IsRunning, IsAutoRetainerLoaded);
+            vendor.IsRunning || ventures.IsRunning || desynthesis.IsRunning || ttCards.IsRunning || jobPurchase.IsRunning || multiCharacters.IsRunning, IsAutoRetainerLoaded, pluginInterface);
         window = new MainWindow(config, controller, itemChoices, bridge.GetHomeWorld, Save, Dispatch,
             () => bridge.RetainerAvailabilityError, feedback, sniper, vendor,
             shown => serverInfoBarEntry.Shown = shown, ventures, automation, pluginInterface.IsTesting, undercuts,
