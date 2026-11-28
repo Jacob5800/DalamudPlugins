@@ -333,19 +333,23 @@ internal sealed class MainWindow : Window
             ImGui.PopStyleColor(3);
         }
         else if (ImGui.Button("Update existing listings")) dispatch(controller.UpdateExistingListings);
-        ImGui.SameLine();
-        if (controller.IsBatchSellingOnlyRunning)
+        // Hidden with its tab; a run already under way keeps its indicator.
+        if (config.ShowBatchSelling || controller.IsBatchSellingOnlyRunning)
         {
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
-            ImGui.Button("Batch selling only...");
-            ImGui.PopStyleColor(3);
-        }
-        else if (ImGui.Button("Start batch selling only"))
-        {
-            if (config.BatchSaleQuantities.Count == 0) ImGui.OpenPopup(EmptyBatchListPopup);
-            else RequestListingStart(controller.StartBatchSellingOnly);
+            ImGui.SameLine();
+            if (controller.IsBatchSellingOnlyRunning)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.12f, 0.48f, 0.2f, 1));
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.16f, 0.58f, 0.25f, 1));
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.09f, 0.4f, 0.16f, 1));
+                ImGui.Button("Batch selling only...");
+                ImGui.PopStyleColor(3);
+            }
+            else if (ImGui.Button("Start batch selling only"))
+            {
+                if (config.BatchSaleQuantities.Count == 0) ImGui.OpenPopup(EmptyBatchListPopup);
+                else RequestListingStart(controller.StartBatchSellingOnly);
+            }
         }
         ImGui.SameLine();
         ImGui.BeginDisabled(!config.RunVentures);
@@ -375,6 +379,12 @@ internal sealed class MainWindow : Window
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Run retainer NPC sales using your configured threshold, whitelist and item protections. Open Sell items in your inventory first.");
         }
         ImGui.EndDisabled();
+        // Outside the busy block above, so a run in progress can still be stopped from here.
+        if (config.MultiCharacterEnabled && MultiCharacters is { } multi)
+        {
+            ImGui.SameLine();
+            DrawMultiCharacterButton(multi, "##topMultiCharacter");
+        }
         if (desynthesis.IsRunning)
         {
             ImGui.SameLine();
@@ -1152,6 +1162,15 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Changing character, world, or active retainer stops a batch. Each price submission rechecks the exact item window first. Stop prevents further submissions; completed price changes stay applied.");
     }
 
+    private void DrawMultiCharacterButton(MultiCharacterRun run, string id)
+    {
+        ImGui.BeginDisabled(!run.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
+        if (ImGui.Button((run.IsRunning ? "Stop multi char sequence" : "Run multi char sequence") + id))
+            dispatch(() => { if (run.IsRunning) run.Stop(); else run.Start(config.MultiCharacters.ToList(), DateTimeOffset.UtcNow); });
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(run.Status);
+    }
+
     private void DrawMultiCharacters()
     {
         if (MultiCharacters is not { } run) return;
@@ -1186,10 +1205,7 @@ internal sealed class MainWindow : Window
         }
         if (remove is not null) { config.MultiCharacters.Remove(remove); save(); }
         ImGui.EndDisabled();
-        ImGui.BeginDisabled(!run.IsRunning && (UiBusy || ventures.IsRunning || vendor.IsRunning));
-        if (ImGui.Button(run.IsRunning ? "Stop##MultiCharacter" : "Start##MultiCharacter"))
-            dispatch(() => { if (run.IsRunning) run.Stop(); else run.Start(config.MultiCharacters.ToList(), DateTimeOffset.UtcNow); });
-        ImGui.EndDisabled();
+        DrawMultiCharacterButton(run, "##MultiCharacter");
         ImGui.TextWrapped(run.Status);
     }
 
