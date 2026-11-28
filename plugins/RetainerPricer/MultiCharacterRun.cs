@@ -127,7 +127,7 @@ internal sealed class MultiCharacterRun(IMultiCharacterHost host)
                 {
                     host.StopTravel();
                     stage = Stage.Travelling;
-                    deadline = now.AddMinutes(3);
+                    deadline = now.AddMinutes(6); // Room for the fallback destinations.
                     Status = $"Taking {current.Label} to a summoning bell...";
                 }
                 else Skip("no summoning bell within reach");

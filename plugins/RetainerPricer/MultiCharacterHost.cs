@@ -21,6 +21,8 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     private DateTimeOffset? nearbyUntil;
     private bool nearbyGivenUp;
     private DateTimeOffset? homeRequestedAt;
+    private MultiCharacterCity? fallback;
+    private MultiCharacterCity Destination => fallback ?? config.MultiCharacterCity;
     public string TravelStatus { get; private set; } = "";
 
     public ulong ContentId => client.IsLoggedIn ? player.ContentId : 0;
@@ -66,7 +68,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     public bool TravelEnabled => config.MultiCharacterTeleport;
 
     // Main aetheryte zone, bell zone and the aethernet shard (Aetheryte sheet row) nearest that bell; 0 means walk.
-    private (string Name, uint MainZone, uint BellZone, uint Shard) City => config.MultiCharacterCity switch
+    private (string Name, uint MainZone, uint BellZone, uint Shard) City => Destination switch
     {
         MultiCharacterCity.Gridania => ("Gridania", 132, 133, 26),
         MultiCharacterCity.LimsaLominsa => ("Limsa Lominsa", 129, 129, 0),
@@ -111,7 +113,11 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
                 StopWalking();
                 nearbyGivenUp = true;
             }
-            if (config.MultiCharacterCity == MultiCharacterCity.OwnEstate) return TravelHome(now, bell);
+            // A workshop falls back to the private estate, and an estate to Limsa Lominsa.
+            if (Destination == MultiCharacterCity.FreeCompanyWorkshop)
+                return OrFallBack(TravelHome(now, bell, "ws", "your free company workshop"), MultiCharacterCity.OwnEstate);
+            if (Destination == MultiCharacterCity.OwnEstate)
+                return OrFallBack(TravelHome(now, bell, "home", "your estate"), MultiCharacterCity.LimsaLominsa);
             if (client.TerritoryType == city.BellZone && bell != null)
                 return TryUseBell() ? Arrived() : WalkTo(bell.Position);
             // The bell zone can take a moment to load its objects after the aethernet hop.
@@ -140,22 +146,34 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         catch (Dalamud.Plugin.Ipc.Exceptions.IpcNotReadyError) { return "vnavmesh or Lifestream is not installed or enabled"; }
     }
 
-    // Lifestream knows where the player's own house is; the bell is then walked to like any other.
-    private string? TravelHome(DateTimeOffset now, Dalamud.Game.ClientState.Objects.Types.IGameObject? bell)
+    private string? OrFallBack(string? outcome, MultiCharacterCity next)
+    {
+        if (outcome is null or "") return outcome;
+        var name = next == MultiCharacterCity.OwnEstate ? "your private estate" : "Limsa Lominsa";
+        bridge.LogAutomationDiagnostic($"Multi-character travel: {outcome}; trying {name} instead.");
+        StopTravel();
+        fallback = next;
+        Note($"{outcome}; trying {name} instead");
+        return null;
+    }
+
+    // Lifestream knows where the character's own house and workshop are; the bell is then walked to like any other.
+    private string? TravelHome(DateTimeOffset now, Dalamud.Game.ClientState.Objects.Types.IGameObject? bell,
+        string command, string place)
     {
         if (homeRequestedAt is null)
         {
             StopWalking();
-            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("home");
+            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction(command);
             homeRequestedAt = now;
-            Note("asking Lifestream to go to your estate");
+            Note($"asking Lifestream to go to {place}");
             return null;
         }
         var idle = now - homeRequestedAt.Value;
         if (idle < TimeSpan.FromSeconds(5)) return null;
         if (bell != null) return TryUseBell() ? Arrived() : WalkTo(bell.Position);
-        if (idle > TimeSpan.FromSeconds(30)) return "no summoning bell was found at your estate";
-        Note("looking for a summoning bell at your estate");
+        if (idle > TimeSpan.FromSeconds(30)) return $"no summoning bell was found at {place}";
+        Note($"looking for a summoning bell at {place}");
         return null;
     }
 
@@ -211,6 +229,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             try { if (LifestreamBusy) pi.GetIpcSubscriber<object>("Lifestream.Abort").InvokeAction(); }
             catch (Exception ex) { bridge.LogAutomationDiagnostic($"Lifestream could not be stopped: {ex.Message}"); }
         homeRequestedAt = null;
+        fallback = null;
         TravelStatus = "";
         teleport.Reset();
         aethernetRetryAt = default;

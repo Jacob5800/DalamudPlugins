@@ -1186,11 +1186,11 @@ internal sealed class MainWindow : Window
         ImGui.BeginDisabled(run.IsRunning);
         var travel = config.MultiCharacterTeleport;
         if (ImGui.Checkbox("Teleport to a bell when none is in reach", ref travel)) { config.MultiCharacterTeleport = travel; save(); }
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off by default. A bell visible nearby is walked to first. Otherwise it costs the normal teleport fee, needs that city's aetheryte and aethernet unlocked, and uses vnavmesh to walk. Ul'dah and Gridania also use Lifestream for the aethernet hop. My own estate asks Lifestream to go to your personal house.");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Off by default. A bell visible nearby is walked to first. Otherwise it costs the normal teleport fee, needs that city's aetheryte and aethernet unlocked, and uses vnavmesh to walk. Ul'dah and Gridania also use Lifestream for the aethernet hop. My own estate asks Lifestream to go to your personal house, and Free company workshop to your FC workshop; a summoning bell must be reachable there. If the workshop has no reachable bell, your private estate is tried; if that has none, Limsa Lominsa.");
         if (config.MultiCharacterTeleport)
         {
             var city = (int)config.MultiCharacterCity;
-            string[] cities = ["Ul'dah", "Gridania", "Limsa Lominsa", "My own estate"];
+            string[] cities = ["Ul'dah", "Gridania", "Limsa Lominsa", "My own estate", "Free company workshop"];
             ImGui.SetNextItemWidth(180);
             if (ImGui.Combo("Destination##MultiCharacter", ref city, cities, cities.Length)) { config.MultiCharacterCity = (MultiCharacterCity)city; save(); }
             DrawNavigationRequirement();

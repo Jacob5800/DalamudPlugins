@@ -2,7 +2,7 @@
   "Author": "Jacob5800",
   "Name": "Retainer Pricer",
   "InternalName": "RetainerPricer",
-  "AssemblyVersion": "0.5.1.99",
+  "AssemblyVersion": "0.5.1.100",
   "Description": "Price eligible retainer listings with live marketboard or Universalis data and a configurable match or one-gil-undercut rule. Manage retainer ventures using the game's own retainer UI.",
   "RepoUrl": "https://github.com/Jacob5800/DalamudPlugins",
   "ApplicableVersion": "any",
@@ -17,6 +17,6 @@
   "LoadSync": false,
   "CanUnloadAsync": true,
   "Punchline": "Price listings and manage retainer ventures.",
-  "Changelog": "## 0.5.1.99\n\n- The multi-character Start button is now **Run multi char sequence**, and also appears at the top beside Retainer sales while multi-character runs are enabled.\n- **Start batch selling only** at the top is now hidden when Show Batch selling is turned off.",
+  "Changelog": "## 0.5.1.100\n\n- Multi-character travel can now go to your free company workshop.\n- If the workshop has no reachable bell, travel tries your private estate and then Limsa Lominsa; an estate destination falls back to Limsa Lominsa.",
   "IconUrl": "https://raw.githubusercontent.com/Jacob5800/DalamudPlugins/main/plugins/RetainerPricer/images/icon.png"
 }
