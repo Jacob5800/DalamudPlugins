@@ -25,7 +25,7 @@ internal sealed record SubmarineState(int Index, string Name, DateTimeOffset? Re
 /// </summary>
 internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data, IObjectTable objects,
     ITargetManager targets, ICondition condition, NativeMarketBridge bridge, Func<bool> otherBusy,
-    Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi)
+    Func<bool> autoRetainerLoaded, IDalamudPluginInterface pi, WorkshopEntry workshop)
 {
     private const uint PanelNameRow = 2005274, ManagementTalkRow = 721343;
     // A voyage covers up to 5 sectors and each can give two different items, so up to 10 new stacks.
@@ -41,8 +41,6 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
     private int repairSlot = -1, repairTries;
     private bool unrepairedApproved;
     private DateTimeOffset travelDeadline;
-    private DateTimeOffset? workshopRequestedAt;
-    private bool walking;
 
     /// <summary>Set while the player decides about a submersible there are not enough repair materials for.</summary>
     public string? MaterialsQuestion { get; private set; }
@@ -112,8 +110,7 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         vessel = null;
         redeployed = finalized = 0;
         var now = DateTimeOffset.UtcNow;
-        workshopRequestedAt = null;
-        walking = false;
+        workshop.Reset();
         travelDeadline = now.AddMinutes(5);
         if (atPanel) Move(Stage.OpenPanel, now, "Opening the voyage control panel...");
         else Move(Stage.Travel, now, "Going to your free company workshop...");
@@ -141,8 +138,7 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         if (stage == Stage.Travel && (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51]) &&
             !condition[ConditionFlag.LoggingOut] && !condition[ConditionFlag.SystemError])
         {
-            walking = false;
-            if (workshopRequestedAt is not null) workshopRequestedAt = now;
+            workshop.Waiting(now);
             deadline = now.AddSeconds(30);
             if (now > travelDeadline) Stop("The trip to the workshop took too long.");
             return;
@@ -437,16 +433,10 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
         if (now > travelDeadline) { Stop($"The trip to the workshop took too long while '{Status}'."); return; }
         // Loading and Lifestream's own steps take as long as they take, within the overall limit.
         deadline = now.AddSeconds(30);
-        if (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting])
+        if (condition[ConditionFlag.BetweenAreas] || condition[ConditionFlag.BetweenAreas51] || condition[ConditionFlag.Casting] ||
+            pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc())
         {
-            if (!condition[ConditionFlag.Casting]) walking = false;
-            if (workshopRequestedAt is not null) workshopRequestedAt = now;
-            return;
-        }
-        if (objects.LocalPlayer == null) return;
-        if (pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc())
-        {
-            if (workshopRequestedAt is not null) workshopRequestedAt = now;
+            workshop.Waiting(now);
             return;
         }
         if (PanelInReach())
@@ -455,38 +445,15 @@ internal sealed unsafe class SubmarineController(IGameGui gui, IDataManager data
             Move(Stage.OpenPanel, now, "Opening the voyage control panel...");
             return;
         }
-        if (NearestPanel() is { } panel)
-        {
-            if (walking || !pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady").InvokeFunc()) return;
-            if (!pi.GetIpcSubscriber<System.Numerics.Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo").InvokeFunc(panel.Position, false))
-            { Stop("No walking path to the voyage control panel was found."); return; }
-            walking = true;
-            Status = "Walking to the voyage control panel...";
-            return;
-        }
-        if (workshopRequestedAt is null)
-        {
-            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("ws");
-            workshopRequestedAt = now;
-            Status = "Asking Lifestream to go to your free company workshop...";
-            bridge.LogAutomationDiagnostic($"Submarines: {Status}");
-        }
-        else if (now - workshopRequestedAt.Value > TimeSpan.FromSeconds(30))
-            Stop("No voyage control panel was found. Check that this character can enter a free company workshop.");
+        string? failure;
+        // Inside the workshop already: walk to its panel.
+        if (NearestPanel() is { } panel) workshop.WalkTowards(panel, now, "Walking to the voyage control panel...", out failure);
+        else failure = workshop.Step(now);
+        if (failure is not null) { Stop($"Could not get to the voyage control panel: {failure}."); return; }
+        if (workshop.Status.Length > 0) Status = workshop.Status;
     }
 
-    private void EndTravel()
-    {
-        try
-        {
-            if (walking) pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop").InvokeAction();
-            if (stage == Stage.Travel && workshopRequestedAt is not null && pi.GetIpcSubscriber<bool>("Lifestream.IsBusy").InvokeFunc())
-                pi.GetIpcSubscriber<object>("Lifestream.Abort").InvokeAction();
-        }
-        catch (Exception ex) { bridge.LogAutomationDiagnostic($"Submarines: travel could not be stopped: {ex.Message}"); }
-        walking = false;
-        workshopRequestedAt = null;
-    }
+    private void EndTravel() => workshop.Stop();
 
     private Dalamud.Game.ClientState.Objects.Types.IGameObject? NearestPanel()
     {

@@ -12,7 +12,8 @@ namespace RetainerPricer;
 
 internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGameGui gui, IDataManager data,
     IObjectTable objects, ITargetManager targets, IClientState client, IPlayerState player, ICondition condition,
-    PluginConfig config, NativeMarketBridge bridge, AutomationController automation, Func<bool> otherBusy) : IMultiCharacterHost
+    PluginConfig config, NativeMarketBridge bridge, AutomationController automation, Func<bool> otherBusy,
+    WorkshopEntry workshop) : IMultiCharacterHost
 {
     private const uint SummoningBellNameRow = 2000401;
     private readonly TeleportRetry teleport = new();
@@ -83,6 +84,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             if (!condition[ConditionFlag.Casting]) walking = false;
             teleport.Busy(now);
             if (homeRequestedAt is not null) homeRequestedAt = now;
+            workshop.Waiting(now);
             Note(condition[ConditionFlag.Casting] ? "casting" : "changing areas");
             return null;
         }
@@ -91,10 +93,11 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         {
             // Check vnavmesh before spending gil on a teleport it could not follow up.
             var pathRunning = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc();
-            if (pathRunning && !walking) return "another vnavmesh path is running";
+            if (pathRunning && !walking && !workshop.Walking) return "another vnavmesh path is running";
             if (LifestreamBusy)
             {
                 if (homeRequestedAt is not null) homeRequestedAt = now;
+                workshop.Waiting(now);
                 Note("waiting for Lifestream to finish");
                 return null;
             }
@@ -115,7 +118,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             }
             // A workshop falls back to the private estate, and an estate to Limsa Lominsa.
             if (Destination == MultiCharacterCity.FreeCompanyWorkshop)
-                return OrFallBack(TravelHome(now, bell, "ws", "your free company workshop"), MultiCharacterCity.OwnEstate);
+                return OrFallBack(TravelWorkshop(now, bell), MultiCharacterCity.OwnEstate);
             if (Destination == MultiCharacterCity.OwnEstate)
                 return OrFallBack(TravelHome(now, bell, "home", "your estate"), MultiCharacterCity.LimsaLominsa);
             if (client.TerritoryType == city.BellZone && bell != null)
@@ -144,6 +147,15 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             return null;
         }
         catch (Dalamud.Plugin.Ipc.Exceptions.IpcNotReadyError) { return "vnavmesh or Lifestream is not installed or enabled"; }
+    }
+
+    // A bell already in sight is used; otherwise walk in through the house doors.
+    private string? TravelWorkshop(DateTimeOffset now, Dalamud.Game.ClientState.Objects.Types.IGameObject? bell)
+    {
+        if (bell != null) return TryUseBell() ? Arrived() : WalkTo(bell.Position);
+        var failure = workshop.Step(now);
+        if (failure is null && workshop.Status.Length > 0) Note(workshop.Status);
+        return failure;
     }
 
     private string? OrFallBack(string? outcome, MultiCharacterCity next)
@@ -229,6 +241,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             try { if (LifestreamBusy) pi.GetIpcSubscriber<object>("Lifestream.Abort").InvokeAction(); }
             catch (Exception ex) { bridge.LogAutomationDiagnostic($"Lifestream could not be stopped: {ex.Message}"); }
         homeRequestedAt = null;
+        workshop.Stop();
         fallback = null;
         TravelStatus = "";
         teleport.Reset();
