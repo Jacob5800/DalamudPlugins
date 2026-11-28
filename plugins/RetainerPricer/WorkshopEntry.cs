@@ -15,7 +15,7 @@ namespace RetainerPricer;
 
 /// <summary>
 /// Gets the character into its free company workshop: through the estate hall door and the additional chambers door.
-/// Lifestream is only used to teleport to the house, because it walks in only when a house path was registered there.
+/// Lifestream is asked for the workshop; it walks in only when a house path is registered, so the doors are also handled here.
 /// </summary>
 internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObjectTable objects, ITargetManager targets,
     IClientState client, IDalamudPluginInterface pi, NativeMarketBridge bridge)
@@ -93,11 +93,13 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         // Lifestream already landed here: its teleport is not repeated.
         if (!commandSent && !onOwnPlot)
         {
-            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("fc");
+            // With a house path registered in Lifestream it walks in itself; without one it only teleports,
+            // and the doors below take over once it is idle.
+            pi.GetIpcSubscriber<string, object>("Lifestream.ExecuteCommand").InvokeAction("ws");
             commandSent = true;
             next = now.AddSeconds(5);
             progressAt = now;
-            return Note("Asking Lifestream to go to your free company house...");
+            return Note("Asking Lifestream to take you to your free company workshop...");
         }
         return progressAt is { } last && now - last > TimeSpan.FromSeconds(45)
             ? "no way into the workshop was found; check that this character's free company has a house with a workshop"
@@ -112,7 +114,9 @@ internal sealed unsafe class WorkshopEntry(IGameGui gui, IDataManager data, IObj
         // Doors and panels sit just off the walkable mesh, so the path aims at the nearest point on it.
         var destination = Approach(local.Position, target.Position);
         if (destination is null) { failure = "no walkable spot was found near the entrance"; return false; }
-        if (System.Numerics.Vector3.Distance(local.Position, target.Position) <= 3.5f ||
+        // Measured along the ground: doors stand on a step, and Lifestream's paths stop a few yalms short of them.
+        var across = new System.Numerics.Vector2(local.Position.X - target.Position.X, local.Position.Z - target.Position.Z).Length();
+        if (across <= 4.5f && Math.Abs(local.Position.Y - target.Position.Y) <= 3f ||
             System.Numerics.Vector3.Distance(local.Position, destination.Value) <= 1f &&
             System.Numerics.Vector3.Distance(local.Position, target.Position) <= 6f)
         {

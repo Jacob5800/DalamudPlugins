@@ -1,3 +1,3 @@
-## 0.5.3.4
+## 0.5.3.5
 
-- Workshop travel now finds a walkable spot in front of the house entrance, so it walks up to the door instead of failing to find a path.
+- Workshop travel now asks Lifestream for the workshop, so a house path registered in Lifestream is used to walk in; Retainer Pricer then opens the doors, answers the entrance prompt and picks the workshop from where Lifestream stops.
