@@ -2,7 +2,8 @@ using Dalamud.Configuration;
 
 namespace RetainerPricer;
 
-public enum MultiCharacterCity { Uldah, Gridania, LimsaLominsa, OwnEstate, FreeCompanyWorkshop }
+// FreeCompanyWorkshop is shown as Amber's workshop; values stay in this order so saved choices keep their meaning.
+public enum MultiCharacterCity { Uldah, Gridania, LimsaLominsa, OwnEstate, FreeCompanyWorkshop, FreeCompanyEstate }
 
 public sealed class MultiCharacter
 {

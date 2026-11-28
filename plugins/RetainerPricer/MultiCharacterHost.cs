@@ -60,7 +60,8 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     {
         var local = objects.LocalPlayer;
         var bell = NearestBell();
-        if (local == null || bell == null || System.Numerics.Vector3.Distance(local.Position, bell.Position) > 4.6f) return false;
+        // Same reach as the walk uses, measured along the ground, so the walk never stops just outside it.
+        if (local == null || bell == null || !WorkshopEntry.InReach(local, bell)) return false;
         targets.Target = bell;
         TargetSystem.Instance()->InteractWithObject((NativeObject*)bell.Address);
         return true;
@@ -112,17 +113,19 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
             {
                 if (TryUseBell()) return Arrived();
                 nearbyUntil ??= now.AddSeconds(45);
-                if (now < nearbyUntil && WalkTo(bell.Position) is null) return null;
+                if (now < nearbyUntil && WalkToBell(bell, now) is null) return null;
                 StopWalking();
                 nearbyGivenUp = true;
             }
-            // A workshop falls back to the private estate, and an estate to Limsa Lominsa.
+            // Amber's workshop falls back to the free company estate, that to the private estate, and that to Limsa Lominsa.
             if (Destination == MultiCharacterCity.FreeCompanyWorkshop)
-                return OrFallBack(TravelWorkshop(now, bell), MultiCharacterCity.OwnEstate);
+                return OrFallBack(TravelWorkshop(now, bell), MultiCharacterCity.FreeCompanyEstate);
+            if (Destination == MultiCharacterCity.FreeCompanyEstate)
+                return OrFallBack(TravelHome(now, bell, "fc", "your free company estate"), MultiCharacterCity.OwnEstate);
             if (Destination == MultiCharacterCity.OwnEstate)
                 return OrFallBack(TravelHome(now, bell, "home", "your estate"), MultiCharacterCity.LimsaLominsa);
             if (client.TerritoryType == city.BellZone && bell != null)
-                return TryUseBell() ? Arrived() : WalkTo(bell.Position);
+                return TryUseBell() ? Arrived() : WalkToBell(bell, now);
             // The bell zone can take a moment to load its objects after the aethernet hop.
             if (city.Shard != 0 && client.TerritoryType == city.BellZone && now < aethernetRetryAt) return null;
             if (client.TerritoryType != city.MainZone) return Teleport(now, city);
@@ -152,7 +155,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     // A bell already in sight is used; otherwise walk in through the house doors.
     private string? TravelWorkshop(DateTimeOffset now, Dalamud.Game.ClientState.Objects.Types.IGameObject? bell)
     {
-        if (bell != null) return TryUseBell() ? Arrived() : WalkTo(bell.Position);
+        if (bell != null) return TryUseBell() ? Arrived() : WalkToBell(bell, now);
         var failure = workshop.Step(now);
         if (failure is null && workshop.Status.Length > 0) Note(workshop.Status);
         return failure;
@@ -161,7 +164,12 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
     private string? OrFallBack(string? outcome, MultiCharacterCity next)
     {
         if (outcome is null or "") return outcome;
-        var name = next == MultiCharacterCity.OwnEstate ? "your private estate" : "Limsa Lominsa";
+        var name = next switch
+        {
+            MultiCharacterCity.FreeCompanyEstate => "your free company estate",
+            MultiCharacterCity.OwnEstate => "your private estate",
+            _ => "Limsa Lominsa",
+        };
         bridge.LogAutomationDiagnostic($"Multi-character travel: {outcome}; trying {name} instead.");
         StopTravel();
         fallback = next;
@@ -183,7 +191,7 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         }
         var idle = now - homeRequestedAt.Value;
         if (idle < TimeSpan.FromSeconds(5)) return null;
-        if (bell != null) return TryUseBell() ? Arrived() : WalkTo(bell.Position);
+        if (bell != null) return TryUseBell() ? Arrived() : WalkToBell(bell, now);
         if (idle > TimeSpan.FromSeconds(30)) return $"no summoning bell was found at {place}";
         Note($"looking for a summoning bell at {place}");
         return null;
@@ -197,6 +205,15 @@ internal sealed unsafe class MultiCharacterHost(IDalamudPluginInterface pi, IGam
         if (step == TravelStatus) return;
         TravelStatus = step;
         bridge.LogAutomationDiagnostic($"Multi-character travel: {step} (territory {client.TerritoryType})");
+    }
+
+    // Bells, like doors, often stand just off the walkable mesh: walk to a spot in front of one and use it from there.
+    private string? WalkToBell(Dalamud.Game.ClientState.Objects.Types.IGameObject bell, DateTimeOffset now)
+    {
+        if (workshop.WalkTowards(bell, now, "Walking to the summoning bell...", out var failure))
+            return TryUseBell() ? Arrived() : null;
+        if (failure is null && workshop.Status.Length > 0) Note(workshop.Status);
+        return failure is null ? null : $"the summoning bell could not be reached: {failure}";
     }
 
     private string? WalkTo(System.Numerics.Vector3 destination)

@@ -1,3 +1,4 @@
-## 0.5.3.9
+## 0.5.4
 
-- Inside the house, travel now walks the last stretch to the additional chambers door if the Amber path stops short, and uses the voyage control panel from as far away as it walks to it.
+- Multi-character destinations: Free company workshop is now Amber's workshop, and Free company estate is new for a bell outside your free company house. Fallbacks go Amber's workshop, free company estate, own estate, then Limsa Lominsa.
+- Multi-character travel now walks to a bell the same reliable way as to doors, and uses it from a little further away.
